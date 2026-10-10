@@ -76,17 +76,14 @@ jobs:
           ./gradlew :TMessagesProj_AppStandalone:assembleAfatDebug \
             -Pandroid.injected.build.abi=arm64-v8a --stacktrace
 
-      - name: Locate APK
-        id: apk
-        run: |
-          find . -name '*.apk' -not -path './.git/*' | tee apk-list.txt
-          apk=$(grep '^./TMessagesProj_AppStandalone/build/.*/afat/debug/.*\.apk$' apk-list.txt | head -1)
-          if [ -z "$apk" ]; then echo "::error::No afat debug APK found"; exit 1; fi
-          echo "APK path: $apk"
-          echo "path=$apk" >> "$GITHUB_OUTPUT"
+      # Lists every APK so the real output path is visible in the log
+      - name: List APKs
+        run: find . -name '*.apk' -not -path './.git/*'
 
+      # Path confirmed by the find step above (run 38079639630); with
+      # android.injected.build.abi AGP writes the APK to intermediates/, not outputs/
       - uses: actions/upload-artifact@v4
         with:
           name: nexgramm-debug-arm64-v8a
-          path: ${{ steps.apk.outputs.path }}
+          path: TMessagesProj_AppStandalone/build/intermediates/apk/afat/debug/app.apk
           if-no-files-found: error
