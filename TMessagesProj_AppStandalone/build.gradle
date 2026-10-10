@@ -70,7 +70,6 @@ android {
             debuggable true
             jniDebuggable true
             signingConfig signingConfigs.debug
-            applicationIdSuffix ".web"
             minifyEnabled false
             multiDexEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), '../TMessagesProj/proguard-rules.pro'
@@ -81,7 +80,6 @@ android {
             debuggable false
             jniDebuggable false
             signingConfig signingConfigs.release
-            applicationIdSuffix ".web"
             minifyEnabled true
             shrinkResources true
             multiDexEnabled true
@@ -151,11 +149,12 @@ android {
     buildFeatures {
         buildConfig = true
     }
-    namespace 'org.telegram.messenger.web'
+    namespace 'uz.nexgramm.app'
 
     lintOptions {
         checkReleaseBuilds false
     }
 }
 
-apply plugin: 'com.google.gms.google-services'
+// NexGramm: google-services.json is Telegram's and has no client for uz.nexgramm.app; disabled until our own Firebase config is added
+// apply plugin: 'com.google.gms.google-services'

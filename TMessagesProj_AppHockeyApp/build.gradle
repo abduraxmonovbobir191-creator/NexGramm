@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
-    id 'com.google.gms.google-services'
+    // NexGramm: Telegram's google-services.json has no client for uz.nexgramm.app; disabled until our own Firebase config is added
+    // id 'com.google.gms.google-services'
     id 'com.google.firebase.crashlytics'
 }
 apply plugin: 'org.telegram.build-app-plugin'

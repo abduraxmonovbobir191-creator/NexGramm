@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NexGramm temporary launcher icon for API 21-25 (no adaptive icons there) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#D7C4FA"
+        android:pathData="M54,4 A50,50 0 1,1 54,104 A50,50 0 1,1 54,4 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,24 Q61,47 84,54 Q61,61 54,84 Q47,61 24,54 Q47,47 54,24 Z" />
+</vector>

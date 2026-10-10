@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NexGramm temporary launcher icon: black four-pointed star, inside the 66dp safe zone -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,28 Q60,48 80,54 Q60,60 54,80 Q48,60 28,54 Q48,48 54,28 Z" />
+</vector>

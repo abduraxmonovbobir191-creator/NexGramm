@@ -205,4 +205,5 @@ android {
     }
 }
 
-apply plugin: 'com.google.gms.google-services'
+// NexGramm: google-services.json is Telegram's and has no client for uz.nexgramm.app; disabled until our own Firebase config is added
+// apply plugin: 'com.google.gms.google-services'
