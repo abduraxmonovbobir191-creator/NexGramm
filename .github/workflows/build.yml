@@ -48,12 +48,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
+      # The runner image already ships the Android SDK; use its sdkmanager directly
       - name: Install Android SDK packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-${COMPILE_SDK}" "build-tools;${BUILD_TOOLS}" \
+          sdkmanager=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          echo "Using $sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "platforms;android-${COMPILE_SDK}" "build-tools;${BUILD_TOOLS}" \
             "ndk;${NDK_VERSION}" "cmake;${CMAKE_VERSION}" "platform-tools"
 
       - uses: gradle/actions/setup-gradle@v4
