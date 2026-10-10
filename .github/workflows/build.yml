@@ -2,6 +2,10 @@ name: Build debug APK
 
 on:
   workflow_dispatch:
+  # workflow_dispatch only works once this file is on the default branch;
+  # until then, pushes to this branch run the build.
+  push:
+    branches: [ccr-cab5a8d2-wqcw9a]
 
 jobs:
   build:
