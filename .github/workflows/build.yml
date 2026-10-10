@@ -87,3 +87,37 @@ jobs:
           name: nexgramm-debug-arm64-v8a
           path: TMessagesProj_AppStandalone/build/intermediates/apk/afat/debug/app.apk
           if-no-files-found: error
+
+      # Diagnostics only: each check's output (and exit code) goes to the log and
+      # report.txt; a failing check does not fail the job
+      - name: Inspect APK (badging, signature, 16 KB alignment)
+        run: |
+          set +e
+          apk=TMessagesProj_AppStandalone/build/intermediates/apk/afat/debug/app.apk
+          bt="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+          {
+            echo "APK: $apk ($(stat -c %s "$apk") bytes)"
+            echo "build-tools: $bt"
+            echo
+            echo "===== aapt2 dump badging ====="
+            "$bt/aapt2" dump badging "$apk" | grep -E "^(package|sdkVersion|minSdkVersion|targetSdkVersion|native-code|alt-native-code|application-label|application-debuggable|testOnly)"
+            echo "exit=${PIPESTATUS[0]}"
+            echo
+            echo "===== apksigner verify -v --print-certs ====="
+            "$bt/apksigner" verify -v --print-certs "$apk" 2>&1
+            echo "exit=$?"
+            echo
+            echo "===== zipalign -c -P 16 -v 4 (lib/ entries, non-OK lines, summary) ====="
+            "$bt/zipalign" -c -P 16 -v 4 "$apk" > zipalign.log 2>&1
+            za=$?
+            grep -E " lib/|^Verif" zipalign.log; grep -v "(OK" zipalign.log | grep -vE " lib/|^Verif"
+            echo "lib/ entries: $(grep -c ' lib/' zipalign.log), BAD: $(grep -c 'BAD' zipalign.log)"
+            echo "exit=$za"
+          } 2>&1 | tee report.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apk-inspection-report
+          path: report.txt
+          if-no-files-found: warn
