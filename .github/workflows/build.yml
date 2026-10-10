@@ -2,10 +2,6 @@ name: Build debug APK
 
 on:
   workflow_dispatch:
-  # workflow_dispatch only works once this file is on the default branch;
-  # until then, pushes to this branch run the build.
-  push:
-    branches: [ccr-cab5a8d2-wqcw9a]
 
 jobs:
   build:
@@ -80,9 +76,17 @@ jobs:
           ./gradlew :TMessagesProj_AppStandalone:assembleAfatDebug \
             -Pandroid.injected.build.abi=arm64-v8a --stacktrace
 
+      - name: Locate APK
+        id: apk
+        run: |
+          find . -name '*.apk' -not -path './.git/*' | tee apk-list.txt
+          apk=$(grep '^./TMessagesProj_AppStandalone/build/.*/afat/debug/.*\.apk$' apk-list.txt | head -1)
+          if [ -z "$apk" ]; then echo "::error::No afat debug APK found"; exit 1; fi
+          echo "APK path: $apk"
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: nexgramm-debug-arm64-v8a
-          # with android.injected.build.abi AGP writes the APK to intermediates/ instead of outputs/
-          path: TMessagesProj_AppStandalone/build/*/apk/afat/debug/*.apk
+          path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
