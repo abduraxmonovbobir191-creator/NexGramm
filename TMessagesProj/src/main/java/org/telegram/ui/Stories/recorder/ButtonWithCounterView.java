@@ -41,7 +41,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
 
     private Theme.ResourcesProvider resourcesProvider;
 
-    private int radiusDp = 8;
+    private int radiusDp = 24; // NexGramm: pill buttons (radius clamps to half the height)
 
     private final Paint paint;
     public final AnimatedTextView.AnimatedTextDrawable text;
@@ -112,7 +112,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable {
         addView(rippleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         if (filled) {
-            setBackground(Theme.createRoundRectDrawable(dp(8), backgroundColor = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
+            setBackground(Theme.createRoundRectDrawable(dp(radiusDp), backgroundColor = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
         }
 
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
