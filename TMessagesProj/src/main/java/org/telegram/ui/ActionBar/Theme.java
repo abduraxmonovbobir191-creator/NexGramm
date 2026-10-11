@@ -3496,6 +3496,10 @@ public class Theme {
     private static HashSet<Integer> themeAccentExclusionKeys = new HashSet<>();
     private static SparseIntArray currentColorsNoAccent;
     private static SparseIntArray currentColors;
+    // NexGramm: one palette shared by all built-in light themes, applied after accent recoloring
+    private static final String NEXGRAMM_LIGHT_ASSET = "nexgramm_light.attheme";
+    private static SparseIntArray nexgrammLightColors;
+    private static ThemeInfo nexgrammLightTheme; // the light theme the palette was applied to
     private static SparseIntArray animatingColors;
     public static boolean shouldDrawGradientIcons;
 
@@ -6075,6 +6079,7 @@ public class Theme {
         }
         applyCalculatedTableColors(currentColorsNoAccent, currentColors, currentTheme.isDark());
         applyCalculatedArticleCodeColors(currentColorsNoAccent, currentColors, currentTheme.isDark());
+        applyNexgrammLightColors();
         if (!messages) {
             boolean async = !(LaunchActivity.getLastFragment() instanceof ChatActivity);
             reloadWallpaper(async);
@@ -6085,6 +6090,29 @@ public class Theme {
         applyChatTheme(false, bg);
         boolean checkNavigationBarColor = !hasPreviousTheme;
         AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.didSetNewTheme, false, checkNavigationBarColor));
+    }
+
+    private static boolean isNexgrammLightTheme(ThemeInfo themeInfo) {
+        if (themeInfo == null || themeInfo.isDark()) {
+            return false;
+        }
+        return "Blue".equals(themeInfo.name) || "Arctic Blue".equals(themeInfo.name) || "Day".equals(themeInfo.name);
+    }
+
+    private static void applyNexgrammLightColors() {
+        if (!isNexgrammLightTheme(currentTheme)) {
+            nexgrammLightTheme = null;
+            return;
+        }
+        nexgrammLightTheme = currentTheme;
+        if (nexgrammLightColors == null) {
+            SparseIntArray colors = getThemeFileValues(null, NEXGRAMM_LIGHT_ASSET, null);
+            colors.delete(key_wallpaperFileOffset);
+            nexgrammLightColors = colors;
+        }
+        for (int i = 0, N = nexgrammLightColors.size(); i < N; i++) {
+            currentColors.put(nexgrammLightColors.keyAt(i), nexgrammLightColors.valueAt(i));
+        }
     }
 
     public static boolean hasHue(int color) {
@@ -8994,6 +9022,14 @@ public class Theme {
         if (serviceBitmapShader != null && (key_chat_serviceText == key || key_chat_serviceLink == key || key_chat_serviceIcon == key
                 || key_chat_stickerReplyLine == key || key_chat_stickerReplyNameText == key || key_chat_stickerReplyMessageText == key)) {
             return 0xffffffff;
+        }
+        // NexGramm: the light palette wins over the default-theme shortcut below, which would
+        // otherwise return the raw ThemeColors defaults (Telegram blue) for Blue + default accent
+        if (nexgrammLightTheme != null && nexgrammLightTheme == currentTheme && nexgrammLightColors != null) {
+            int index = nexgrammLightColors.indexOfKey(key);
+            if (index >= 0) {
+                return nexgrammLightColors.valueAt(index);
+            }
         }
         if (currentTheme == defaultTheme) {
             boolean useDefault;
