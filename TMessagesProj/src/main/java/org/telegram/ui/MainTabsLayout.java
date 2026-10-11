@@ -285,8 +285,38 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     private boolean drawCustomSelector;
     private boolean solidSelector;
 
+    // NexGramm: one solid pill that slides between tabs, position is a fractional tab index
+    private float solidSelectorPosition;
+    private final Paint solidSelectorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     public void setSolidSelector(boolean solidSelector) {
         this.solidSelector = solidSelector;
+    }
+
+    public void setSolidSelectorPosition(float position) {
+        if (solidSelectorPosition != position) {
+            solidSelectorPosition = position;
+            invalidate();
+        }
+    }
+
+    private void drawSolidSelector(Canvas canvas) {
+        final int count = getChildCount();
+        if (count == 0) {
+            return;
+        }
+        final float position = Math.max(0, Math.min(solidSelectorPosition, count - 1));
+        final int from = (int) Math.floor(position);
+        final int to = Math.min(from + 1, count - 1);
+        final float t = position - from;
+        final View a = getChildAt(from);
+        final View b = getChildAt(to);
+        final float left = lerp(a.getX(), b.getX(), t);
+        final float right = lerp(a.getX() + a.getWidth(), b.getX() + b.getWidth(), t);
+        final float sHeight = getHeight() - getPaddingTop() - getPaddingBottom();
+        final float top = (getHeight() - sHeight) / 2f;
+        solidSelectorPaint.setColor(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider));
+        canvas.drawRoundRect(left, top, right, top + sHeight, sHeight / 2f, sHeight / 2f, solidSelectorPaint);
     }
 
     private void setSkipDrawSelector(boolean skipDrawSelector) {
@@ -324,6 +354,8 @@ public class MainTabsLayout extends AnimatedLinearLayout {
                     x - sWidth / 2f, (getHeight() - sHeight) / 2f,
                     x + sWidth / 2f, (getHeight() + sHeight) / 2f,
                     sHeight / 2f, sHeight / 2f, selectorPaint);
+        } else if (solidSelector) {
+            drawSolidSelector(canvas);
         }
 
         super.dispatchDraw(canvas);

@@ -71,7 +71,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     private int colorSelectedText;
     private int colorDefault;
     private boolean usePremiumCounter;
-    // NexGramm: solid pill with white icon/text when selected, icon only when not
+    // NexGramm: white icon/text over the solid pill (drawn by MainTabsLayout), icon only when not selected
     private boolean solidSelector;
 
     private TabAnimation tabAnimation;
@@ -139,6 +139,9 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     public void setGestureSelectedOverride(float gestureSelectedOverride, boolean allow) {
         this.gestureSelectedOverride = gestureSelectedOverride;
         this.hasGestureSelectedOverride = allow;
+        if (solidSelector) {
+            updateColors();
+        }
         invalidate();
     }
 
@@ -153,10 +156,10 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     protected void dispatchDraw(@NonNull Canvas canvas) {
         final float viewWidth = hasVisualWidth ? visualWidth : getWidth();
         final float selectedFactor = hasGestureSelectedOverride ? gestureSelectedOverride : isSelectedAnimator.getFloatValue();
-        if (selectedFactor > 0 && !skipDrawSelector) {
+        if (selectedFactor > 0 && !skipDrawSelector && !solidSelector) {
             final float alpha = AnimatorUtils.DECELERATE_INTERPOLATOR.getInterpolation(selectedFactor);
 
-            paintCounterBackground.setColor(Theme.multAlpha(colorSelected, (solidSelector ? 1f : 0.09f) * alpha));
+            paintCounterBackground.setColor(Theme.multAlpha(colorSelected, 0.09f * alpha));
             tmpRectF.set(0, 0, viewWidth, getHeight());
             final float r = Math.min(tmpRectF.width(), tmpRectF.height()) / 2f;
             final float s = lerp(0.6f, 1, selectedFactor) * MathUtils.clamp(attachScale, 0, 1);
@@ -260,7 +263,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     private boolean needUpdateBackupViewColor;
 
     private void updateColors() {
-        final float selected = isSelectedAnimator.getFloatValue();
+        final float selected = solidSelector && hasGestureSelectedOverride ? gestureSelectedOverride : isSelectedAnimator.getFloatValue();
         final int color = ColorUtils.blendARGB(colorDefault, solidSelector ? Color.WHITE : colorSelected, selected);
         final int colorText = ColorUtils.blendARGB(colorDefault, solidSelector ? Color.WHITE : colorSelectedText, selected);
         if (solidSelector) {

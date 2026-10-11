@@ -6,6 +6,7 @@ import static org.telegram.messenger.Utilities.swapItems;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
+import android.animation.TimeInterpolator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -283,13 +284,17 @@ public class ViewPagerFixed extends FrameLayout {
             }
         });
         manualScrolling.setDuration(getManualScrollDuration());
-        manualScrolling.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        manualScrolling.setInterpolator(getManualScrollInterpolator());
         manualScrolling.start();
         return true;
     }
 
     protected long getManualScrollDuration() {
         return 540;
+    }
+
+    protected TimeInterpolator getManualScrollInterpolator() {
+        return CubicBezierInterpolator.EASE_OUT_QUINT;
     }
 
     public static final int SELECTOR_TYPE_BUBBLE_STYLE = -2;

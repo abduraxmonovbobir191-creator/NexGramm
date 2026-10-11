@@ -3512,7 +3512,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
                 statusDrawable.center = true;
                 // NexGramm: plain "NexGramm" title instead of the Telegram logo
-                actionBar.setTitle(getString(R.string.AppName), statusDrawable);
+                actionBar.setTitle(getString(R.string.NexAppTitle), statusDrawable);
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
@@ -13614,7 +13614,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final boolean isLastTab = filterTabsView == null || filterTabsView.getTabsCount() < 2 || filterTabsView.getCurrentTabId() == filterTabsView.getLastTabId();
         final int chatSwipeAction = SharedConfig.getChatSwipeAction(currentAccount);
         if (forward) {
-            return isLastTab && !isFirstTab;
+            // NexGramm: allow swiping to the next main tab also when there are no folders
+            return isLastTab;
         } else {
             return isFirstTab;
         }

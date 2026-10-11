@@ -11235,6 +11235,8 @@
     <string name="RoundVideoComposition">Composition</string>
     <string name="RoundVideoCompositionEnabled">Round video styling</string>
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
+    <!-- NexGramm chat list title; not in the cloud language packs, unlike AppName -->
+    <string name="NexAppTitle">NexGramm</string>
     <!-- NexGramm main tabs -->
     <string name="NexTabChats">Chats</string>
     <string name="NexTabAi">NEX AI</string>

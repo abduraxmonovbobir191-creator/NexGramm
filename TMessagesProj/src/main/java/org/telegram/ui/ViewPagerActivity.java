@@ -2,6 +2,7 @@ package org.telegram.ui;
 
 import static org.telegram.messenger.AndroidUtilities.dpf2;
 
+import android.animation.TimeInterpolator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Path;
@@ -20,6 +21,7 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
+import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.ViewPagerFixed;
 
@@ -481,9 +483,15 @@ public abstract class ViewPagerActivity extends BaseFragment {
             return ViewPagerActivity.this.canScrollForward(e);
         }
 
+        // NexGramm: smooth iOS-like page slide when a bottom tab is tapped
         @Override
         protected long getManualScrollDuration() {
-            return 320L;
+            return 280L;
+        }
+
+        @Override
+        protected TimeInterpolator getManualScrollInterpolator() {
+            return CubicBezierInterpolator.DEFAULT;
         }
 
         @Override

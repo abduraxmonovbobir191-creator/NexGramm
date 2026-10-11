@@ -332,6 +332,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
 
         selectTab(viewPager.getCurrentPosition(), false);
+        tabsView.setSolidSelectorPosition(viewPager.getCurrentPosition());
 
         iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
@@ -680,6 +681,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (tabsView != null) {
             selectTab(viewPager.getCurrentPosition(), true);
             setGestureSelectedOverride(0, false);
+            tabsView.setSolidSelectorPosition(viewPager.getCurrentPosition());
         }
         blur3_invalidateBlur();
 
@@ -702,7 +704,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         if (tabsView != null) {
             final float position = viewPager.getPositionAnimated();
-            setGestureSelectedOverride(position, isDragByGesture);
+            // NexGramm: pill and icon colors follow the page position on tap too, not only on swipe
+            setGestureSelectedOverride(position, true);
+            tabsView.setSolidSelectorPosition(position);
             if (isDragByGesture) {
                 selectTab(Math.round(position), true);
             }
