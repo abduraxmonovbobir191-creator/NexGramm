@@ -71,6 +71,8 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     private int colorSelectedText;
     private int colorDefault;
     private boolean usePremiumCounter;
+    // NexGramm: solid pill with white icon/text when selected, icon only when not
+    private boolean solidSelector;
 
     private TabAnimation tabAnimation;
     private TLRPC.TL_attachMenuBot tabAnimationBot;
@@ -154,7 +156,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         if (selectedFactor > 0 && !skipDrawSelector) {
             final float alpha = AnimatorUtils.DECELERATE_INTERPOLATOR.getInterpolation(selectedFactor);
 
-            paintCounterBackground.setColor(Theme.multAlpha(colorSelected, 0.09f * alpha));
+            paintCounterBackground.setColor(Theme.multAlpha(colorSelected, (solidSelector ? 1f : 0.09f) * alpha));
             tmpRectF.set(0, 0, viewWidth, getHeight());
             final float r = Math.min(tmpRectF.width(), tmpRectF.height()) / 2f;
             final float s = lerp(0.6f, 1, selectedFactor) * MathUtils.clamp(attachScale, 0, 1);
@@ -226,6 +228,12 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         isHasCounterErrorAnimator.setValue(isError, animated);
     }
 
+    public void setSolidSelector(boolean solidSelector) {
+        this.solidSelector = solidSelector;
+        updateColors();
+        invalidate();
+    }
+
     public void setPremiumBadge(boolean usePremiumBadge) {
         usePremiumCounter = usePremiumBadge;
     }
@@ -252,8 +260,17 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     private boolean needUpdateBackupViewColor;
 
     private void updateColors() {
-        final int color = ColorUtils.blendARGB(colorDefault, colorSelected, isSelectedAnimator.getFloatValue());
-        final int colorText = ColorUtils.blendARGB(colorDefault, colorSelectedText, isSelectedAnimator.getFloatValue());
+        final float selected = isSelectedAnimator.getFloatValue();
+        final int color = ColorUtils.blendARGB(colorDefault, solidSelector ? Color.WHITE : colorSelected, selected);
+        final int colorText = ColorUtils.blendARGB(colorDefault, solidSelector ? Color.WHITE : colorSelectedText, selected);
+        if (solidSelector) {
+            final float iconOffset = dp(8) * (1f - selected);
+            textView.setAlpha(selected);
+            imageView.setTranslationY(iconOffset);
+            if (backupImageView != null) {
+                backupImageView.setTranslationY(iconOffset);
+            }
+        }
 
         final PorterDuffColorFilter filter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);
         if (backupImageView != null && needUpdateBackupViewColor) {
@@ -563,6 +580,8 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         REPLIES(R.raw.tab_reply, R.raw.tab_reply_reverse),
         WALLET(R.raw.tab_wallet, R.raw.tab_wallet_reverse),
         LINK(TabAnimationType.STATIC, R.drawable.tabs_link_24),
+        NEX_AI(TabAnimationType.STATIC, R.drawable.nex_tab_ai),
+        FEED(TabAnimationType.STATIC, R.drawable.nex_tab_feed),
         ARTICLE(R.raw.tab_article, R.raw.tab_article_reverse),
 
         BOOSTS(R.raw.boosts, 25, 49),

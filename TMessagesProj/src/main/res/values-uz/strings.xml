@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NexGramm main tabs -->
+    <string name="NexTabChats">Chatlar</string>
+    <string name="NexTabAi">NEX AI</string>
+    <string name="NexTabFeed">Lenta</string>
+    <string name="NexTabProfile">Profil</string>
+    <string name="NexAiSoon">NEX AI — tez orada</string>
+    <string name="NexFeedSoon">Lenta — tez orada</string>
+</resources>

@@ -263,4 +263,11 @@
     <string name="RemindTodayAt">\'Отправить сегодня в\' HH:mm</string>
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
+    <!-- NexGramm main tabs -->
+    <string name="NexTabChats">Чаты</string>
+    <string name="NexTabAi">NEX AI</string>
+    <string name="NexTabFeed">Лента</string>
+    <string name="NexTabProfile">Профиль</string>
+    <string name="NexAiSoon">NEX AI — скоро</string>
+    <string name="NexFeedSoon">Лента — скоро</string>
 </resources>

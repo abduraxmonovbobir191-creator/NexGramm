@@ -283,10 +283,16 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     private final Runnable restoreDrawSelector = () -> setSkipDrawSelector(false);
 
     private boolean drawCustomSelector;
+    private boolean solidSelector;
+
+    public void setSolidSelector(boolean solidSelector) {
+        this.solidSelector = solidSelector;
+    }
+
     private void setSkipDrawSelector(boolean skipDrawSelector) {
         drawCustomSelector = skipDrawSelector;
         if (drawCustomSelector) {
-            selectorPaint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider), 0.09f));
+            selectorPaint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider), solidSelector ? 1f : 0.09f));
         }
         for (int a = 0, N = getChildCount(); a < N; a++) {
             final View child = getChildAt(a);

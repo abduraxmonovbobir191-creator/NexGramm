@@ -3973,6 +3973,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     case ProfileActionsView.KEY_SETTINGS:
                         presentFragment(new SettingsActivity());
                         break;
+                    case ProfileActionsView.KEY_CONTACTS: {
+                        Bundle args = new Bundle();
+                        args.putBoolean("needPhonebook", true);
+                        presentFragment(new ContactsActivity(args));
+                        break;
+                    }
                 }
             });
         }
@@ -5717,6 +5723,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     actionsView.addCameraAction();
                     actionsView.addEditInfo();
                     actionsView.addSettings();
+                    if (hasMainTabs) {
+                        actionsView.addContacts();
+                    }
                     actionsView.commitActions();
                 } else {
                     writeButton.setAnimation(cameraDrawable);

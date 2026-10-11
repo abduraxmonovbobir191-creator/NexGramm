@@ -11235,4 +11235,11 @@
     <string name="RoundVideoComposition">Composition</string>
     <string name="RoundVideoCompositionEnabled">Round video styling</string>
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
+    <!-- NexGramm main tabs -->
+    <string name="NexTabChats">Chats</string>
+    <string name="NexTabAi">NEX AI</string>
+    <string name="NexTabFeed">Feed</string>
+    <string name="NexTabProfile">Profile</string>
+    <string name="NexAiSoon">NEX AI — coming soon</string>
+    <string name="NexFeedSoon">Feed — coming soon</string>
 </resources>
