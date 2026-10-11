@@ -762,7 +762,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (position == POSITION_NEX_AI) {
             return NexPlaceholderActivity.create(NexPlaceholderActivity.TYPE_NEX_AI);
         } else if (position == POSITION_FEED) {
-            return NexPlaceholderActivity.create(NexPlaceholderActivity.TYPE_FEED);
+            return NexFeedActivity.create();
         } else if (position == POSITION_CHATS) {
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);

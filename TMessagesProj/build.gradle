@@ -147,6 +147,18 @@ android {
 
         multiDexEnabled true
 
+        // NexGramm core (not secrets): -PCORE_API_URL=... / -PNEXGRAMM_BOT_USERNAME=... or the same env vars
+        def coreApiUrl = (project.findProperty('CORE_API_URL') ?: System.getenv('CORE_API_URL') ?: 'https://ng.nexecos.com').toString().trim()
+        if (!(coreApiUrl ==~ /https:\/\/[A-Za-z0-9.\-]+(:[0-9]+)?/)) {
+            throw new GradleException("CORE_API_URL must be https://host[:port] without a path, got: " + coreApiUrl)
+        }
+        def botUsername = (project.findProperty('NEXGRAMM_BOT_USERNAME') ?: System.getenv('NEXGRAMM_BOT_USERNAME') ?: '').toString().trim().replaceFirst('^@', '')
+        if (!(botUsername ==~ /([A-Za-z][A-Za-z0-9_]{3,31})?/)) {
+            throw new GradleException("NEXGRAMM_BOT_USERNAME is not a valid Telegram username: " + botUsername)
+        }
+        buildConfigField "String", "CORE_API_URL", "\"" + coreApiUrl + "\""
+        buildConfigField "String", "NEXGRAMM_BOT_USERNAME", "\"" + botUsername + "\""
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'

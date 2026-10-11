@@ -11244,4 +11244,22 @@
     <string name="NexTabProfile">Profile</string>
     <string name="NexAiSoon">NEX AI — coming soon</string>
     <string name="NexFeedSoon">Feed — coming soon</string>
+    <!-- NexGramm: Lenta login to the core (Uzbek) -->
+    <string name="NexFeedLoginTitle">Lenta uchun kirish</string>
+    <string name="NexFeedLoginText">Lenta NexGramm hisobingiz bilan ishlaydi. «Davom etish» bosilsa, ilova shu Telegram akkauntidan @%1$s botiga «/start» xabarini yuboradi va botni ochadi. Botda «✅ Ha, kirish» tugmasini bosing.</string>
+    <string name="NexFeedLoginContinue">Davom etish</string>
+    <string name="NexFeedLoginRetry">Qayta urinish</string>
+    <string name="NexFeedLoginOpenBot">Botni ochish</string>
+    <string name="NexFeedLoginStarting">Ulanmoqda…</string>
+    <string name="NexFeedLoginWaiting">Botda «✅ Ha, kirish» tugmasini bosing. Tasdiq kutilmoqda…</string>
+    <string name="NexFeedLoginSlow">So\'rovlar juda ko\'p, sekinroq tekshirilmoqda…</string>
+    <string name="NexFeedLoginDenied">Kirish rad etildi.</string>
+    <string name="NexFeedLoginExpired">So\'rov muddati o\'tdi. Qayta urinib ko\'ring.</string>
+    <string name="NexFeedLoginError">Ulanib bo\'lmadi. Internetni tekshirib, qayta urinib ko\'ring.</string>
+    <string name="NexFeedLoginRateLimited">Juda ko\'p urinish. Birozdan keyin qayta urining.</string>
+    <string name="NexFeedLoginNoBot">Bot sozlanmagan: ilova NEXGRAMM_BOT_USERNAME bilan qayta yig\'ilishi kerak.</string>
+    <string name="NexFeedConnected">Ulandi</string>
+    <string name="NexFeedConnectedText">Lenta tez orada shu yerda ochiladi.</string>
+    <string name="NexFeedTokenExpires">Access token muddati: %1$s</string>
+    <string name="NexFeedLogout">Chiqish</string>
 </resources>

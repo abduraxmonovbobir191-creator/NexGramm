@@ -2,6 +2,11 @@ name: Build debug APK
 
 on:
   workflow_dispatch:
+    inputs:
+      bot_username:
+        description: "NexGramm bot username, @ siz (bo'sh bo'lsa: vars.NEXGRAMM_BOT_USERNAME)"
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -72,10 +77,16 @@ jobs:
       # android.injected.build.abi limits the native (CMake) build to one ABI without editing Gradle files.
       # AGP treats any injected build-target property as an IDE deploy and adds
       # android:testOnly="true" (INSTALL_FAILED_TEST_ONLY); android.injected.testOnly=false overrides that.
+      # Core settings are not secrets: CORE_API_URL (default https://ng.nexecos.com) and the bot username
       - name: Build debug APK (arm64-v8a)
+        env:
+          CORE_API_URL: ${{ vars.CORE_API_URL }}
+          NEXGRAMM_BOT_USERNAME: ${{ inputs.bot_username || vars.NEXGRAMM_BOT_USERNAME }}
         run: |
           chmod +x gradlew
+          echo "CORE_API_URL=${CORE_API_URL:-https://ng.nexecos.com (default)} NEXGRAMM_BOT_USERNAME=${NEXGRAMM_BOT_USERNAME:-<empty>}"
           ./gradlew :TMessagesProj_AppStandalone:assembleAfatDebug \
+            -PCORE_API_URL="$CORE_API_URL" -PNEXGRAMM_BOT_USERNAME="$NEXGRAMM_BOT_USERNAME" \
             -Pandroid.injected.build.abi=arm64-v8a -Pandroid.injected.testOnly=false --stacktrace
 
       # Lists every APK so the real output path is visible in the log
