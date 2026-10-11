@@ -3576,7 +3576,8 @@ public class ChatActivity extends BaseFragment implements
 
                 final boolean isThemeLight = themeDelegate != null && !themeDelegate.isDark();
                 if (isThemeLight) {
-                    return ColorUtils.setAlphaComponent(super.getBackgroundColor(), 216);
+                    // NexGramm: solid white input pill in light themes
+                    return ColorUtils.setAlphaComponent(super.getBackgroundColor(), 255);
                 }
                 return super.getBackgroundColor();
             }

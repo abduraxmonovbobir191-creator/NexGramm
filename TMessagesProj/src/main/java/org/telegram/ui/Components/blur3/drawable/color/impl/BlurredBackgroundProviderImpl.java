@@ -169,7 +169,8 @@ public class BlurredBackgroundProviderImpl {
     public static BlurredBackgroundProvider topPanelChatActivity(Theme.ResourcesProvider resourcesProvider) {
         return new BlurredBackgroundProviderBuilder(resourcesProvider)
                 .setBackgroundColor((r, isDark) -> {
-                    if (!checkBlurEnabled(resourcesProvider)) {
+                    // NexGramm: solid white pills in light themes
+                    if (!isDark || !checkBlurEnabled(resourcesProvider)) {
                         return ColorUtils.setAlphaComponent(Theme.getColor(isDark ?
                             Theme.key_actionBarDefault : Theme.key_chat_topPanelBackground, r), 255);
                     }
@@ -181,7 +182,7 @@ public class BlurredBackgroundProviderImpl {
                 .setStrokeColorTop(0xFFFFFFFF, 0x20FFFFFF)
                 .setStrokeColorBottom(0xFFFFFFFF, 0x14FFFFFF)
                 .setShadowColor(0x20000000, 0)
-                //.setShadowLayer(dpf2(10 / 3f), 0, dpf2(2 / 3f))
+                .setShadowLayer(dpf2(2.667f), 0, dpf2(0.85f))
                 .setStrokeWidth(dpf2(0.55f), dpf2(0.55f))
                 .build();
     }

@@ -9426,7 +9426,13 @@ public class Theme {
             settings.isWallpaperMotion = currentTheme.isMotion;
             settings.isPatternWallpaper = currentTheme.patternBgColor != 0;
         }
-        if (!overrideTheme) {
+        if (isNexgrammLightTheme(currentTheme) && (overrideWallpaper == null || overrideWallpaper.isDefault())) {
+            // NexGramm: soft light background with a faint purple-gray gradient instead of the pattern wallpaper
+            settings.wallpaper = new MotionBackgroundDrawable(0xFFF4F4F7, 0xFFEFEDF7, 0xFFF4F4F7, 0xFFF1F0F6, false);
+            settings.isWallpaperMotion = false;
+            settings.isPatternWallpaper = false;
+            settings.isCustomTheme = false;
+        } else if (!overrideTheme) {
             int backgroundColor = defaultTheme ? 0 : currentColors.get(key_chat_wallpaper);
             int gradientToColor3 = currentColors.get(key_chat_wallpaper_gradient_to3);
             int gradientToColor2 = currentColors.get(key_chat_wallpaper_gradient_to2);
