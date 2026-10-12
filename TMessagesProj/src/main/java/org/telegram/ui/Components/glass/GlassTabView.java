@@ -264,8 +264,10 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
 
     private void updateColors() {
         final float selected = solidSelector && hasGestureSelectedOverride ? gestureSelectedOverride : isSelectedAnimator.getFloatValue();
-        final int color = ColorUtils.blendARGB(colorDefault, solidSelector ? Color.WHITE : colorSelected, selected);
-        final int colorText = ColorUtils.blendARGB(colorDefault, solidSelector ? Color.WHITE : colorSelectedText, selected);
+        // NexGramm: icon/text on the solid pill use the on-accent color (dark on a light accent)
+        final int onPill = solidSelector ? Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider) : 0;
+        final int color = ColorUtils.blendARGB(colorDefault, solidSelector ? onPill : colorSelected, selected);
+        final int colorText = ColorUtils.blendARGB(colorDefault, solidSelector ? onPill : colorSelectedText, selected);
         if (solidSelector) {
             final float iconOffset = dp(8) * (1f - selected);
             textView.setAlpha(selected);

@@ -685,6 +685,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
+        // NexGramm: light / dark mode and the app accent color
+        items.add(SettingCell.Factory.of(30, 0xFFB48CF5, 0xFF7C3AED, R.drawable.msg_palette, getString(R.string.NexAppearanceSettingsRow), null,
+            NexAppearanceActivity.modeName(NexAppearanceActivity.currentMode()) + " · " + NexAppearanceActivity.accentName(Theme.getNexgrammAccent())));
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
         items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
@@ -817,6 +820,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
             case 2:
                 presentSettingFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_BASIC));
+                break;
+            case 30:
+                presentSettingFragment(new NexAppearanceActivity());
                 break;
             case 3:
                 presentSettingFragment(new PrivacySettingsActivity());
