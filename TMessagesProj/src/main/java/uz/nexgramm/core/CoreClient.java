@@ -80,7 +80,7 @@ public final class CoreClient {
         }
     }
 
-    private static String read(InputStream in) throws IOException {
+    static String read(InputStream in) throws IOException {
         if (in == null) {
             return "";
         }
@@ -187,9 +187,25 @@ public final class CoreClient {
         }
     }
 
-    // POST /v1/lenta/session (core_api/routers/lenta.py) → {url, expires_in}. The url carries a one-time
-    // ticket (60 s): open it at once, never store or log it.
-    public static String lentaSessionUrlBlocking(long tgUserId) throws IOException, NotLoggedInException {
+    // POST /v1/lenta/session (core_api/routers/lenta.py) → {url, expires_in, username?}. The url carries a
+    // one-time ticket (60 s): open it at once, never store or log it. username (CONTRACT v1.4) is the
+    // user's Pixelfed username; null when an older core does not send it (the check is then skipped).
+    public static final class LentaSession {
+        public final String url;
+        public final String username;
+
+        LentaSession(String url, String username) {
+            this.url = url;
+            this.username = username;
+        }
+
+        @Override
+        public String toString() {
+            return "LentaSession{hidden}";
+        }
+    }
+
+    public static LentaSession lentaSessionBlocking(long tgUserId) throws IOException, NotLoggedInException {
         final Response response = authedBlocking(tgUserId, "POST", "/v1/lenta/session", new JSONObject());
         if (response.code != 200) {
             String message = null;
@@ -200,14 +216,20 @@ public final class CoreClient {
             throw new ApiException(response.code, message);
         }
         try {
-            final String url = new JSONObject(response.body).getString("url");
+            final JSONObject json = new JSONObject(response.body);
+            final String url = json.getString("url");
             if (url.isEmpty()) {
                 throw new IOException("bad lenta response");
             }
-            return url;
+            final String username = json.optString("username", "");
+            return new LentaSession(url, username.isEmpty() ? null : username);
         } catch (JSONException e) {
             throw new IOException("bad lenta response");
         }
+    }
+
+    public static String lentaSessionUrlBlocking(long tgUserId) throws IOException, NotLoggedInException {
+        return lentaSessionBlocking(tgUserId).url;
     }
 
     // Deletes local tokens at once; the core is told in the background (logout is idempotent, 204)
@@ -217,6 +239,7 @@ public final class CoreClient {
             tokens = CoreTokenStore.load(tgUserId);
             CoreTokenStore.clear(tgUserId);
         }
+        PixelfedClient.clearTokens(tgUserId);
         if (tokens == null) {
             return;
         }

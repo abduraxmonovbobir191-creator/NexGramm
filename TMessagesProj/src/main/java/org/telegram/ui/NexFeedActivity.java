@@ -27,10 +27,13 @@ import org.telegram.ui.Components.RadialProgressView;
 import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.CoreLogin;
 import uz.nexgramm.core.CoreTokens;
+import uz.nexgramm.core.PixelfedClient;
 
 // NexGramm: Lenta tab. Not logged in to the core -> silent initData login with a short loading view;
 // only on error a card with "Qayta urinish" and the fallback "Bot orqali kirish" (nonce + bot flow).
-// Logged in -> the Lenta (Pixelfed) WebView in NexLentaView, opened with a one-time URL from POST /v1/lenta/session.
+// Logged in -> the native Lenta (NexNativeFeedView) with the app's own Pixelfed token. No token yet -> Pixelfed
+// OAuth inside NexLentaView (CONTRACT v1.4; the "Authorize" page is shown once), then the native feed. If the
+// OAuth fails, the Lenta (Pixelfed) WebView stays as the fallback, opened with a one-time URL from POST /v1/lenta/session.
 public class NexFeedActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate, CoreLogin.Listener {
 
     private TextView titleView;
@@ -42,6 +45,10 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     private LinearLayout card;
     private LinearLayout loadingView;
     private NexLentaView lentaView;
+    private NexNativeFeedView nativeView;
+    // OAuth failed in this screen: the WebView feed is used until the screen is created again
+    private boolean oauthFailed;
+    private int notConnectedCount;
     private boolean openBotWhenSent;
     // true once a Lenta session was requested for the current login; false again to request a new one
     private boolean lentaRequested;
@@ -139,13 +146,16 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         // Full screen under the status bar and above the floating bottom tabs (and the navigation bar)
         lentaView = new NexLentaView(context, getResourceProvider(), this::openLenta);
         lentaView.setVisibility(View.GONE);
-        setLentaInsets(AndroidUtilities.statusBarHeight, AndroidUtilities.navigationBarHeight);
         frameLayout.addView(lentaView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        nativeView = new NexNativeFeedView(context, tgUserId(), getResourceProvider(), this::onFeedNotConnected);
+        nativeView.setVisibility(View.GONE);
+        frameLayout.addView(nativeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         ViewCompat.setOnApplyWindowInsetsListener(frameLayout, (v, insets) -> {
             final Insets systemInsets = AndroidUtilities.getDefaultWindowInsets(insets, false);
             setLentaInsets(systemInsets.top, systemInsets.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
+        setLentaInsets(AndroidUtilities.statusBarHeight, AndroidUtilities.navigationBarHeight);
         lentaRequested = false;
         fragmentView = frameLayout;
         updateUi();
@@ -153,7 +163,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     }
 
     private void setLentaInsets(int top, int bottom) {
-        lentaView.setPadding(0, top, 0, bottom + AndroidUtilities.dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS));
+        final int tabs = bottom + AndroidUtilities.dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS);
+        lentaView.setPadding(0, top, 0, tabs);
+        nativeView.setInsets(top, tabs);
     }
 
     @Override
@@ -165,6 +177,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         if (lentaView != null) {
             lentaView.onResume();
         }
+        if (nativeView != null) {
+            nativeView.onResume();
+        }
     }
 
     @Override
@@ -172,6 +187,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         super.onPause();
         if (lentaView != null) {
             lentaView.onPause();
+        }
+        if (nativeView != null) {
+            nativeView.onPause();
         }
     }
 
@@ -191,6 +209,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         if (lentaView != null) {
             lentaView.destroy();
         }
+        if (nativeView != null) {
+            nativeView.clear();
+        }
     }
 
     @Override
@@ -205,12 +226,152 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         updateUi();
     }
 
+    // Native feed when this account has a Pixelfed token; otherwise connect (OAuth); WebView after a failed OAuth
+    private void openLenta() {
+        lentaRequested = true;
+        if (PixelfedClient.getTokens(tgUserId()) != null) {
+            showNativeFeed();
+        } else if (!oauthFailed) {
+            startOAuth();
+        } else {
+            openWebLenta();
+        }
+    }
+
+    private void showNativeFeed() {
+        ++lentaGeneration;
+        lentaView.clear();
+        lentaView.setVisibility(View.GONE);
+        nativeView.setVisibility(View.VISIBLE);
+        if (!nativeView.isLoaded()) {
+            nativeView.reload();
+        }
+    }
+
+    private void showLentaWebView() {
+        nativeView.clear();
+        nativeView.setVisibility(View.GONE);
+        lentaView.setVisibility(View.VISIBLE);
+    }
+
+    // The Pixelfed token is gone or rejected: connect again once, then fall back to the WebView feed
+    private void onFeedNotConnected() {
+        PixelfedClient.clearTokens(tgUserId());
+        if (++notConnectedCount > 1) {
+            oauthFailed = true;
+        }
+        openLenta();
+    }
+
+    // Pixelfed OAuth (CONTRACT v1.4): one-time session URL + username from the core, then the WebView logs in
+    // (cookies cleared first) and opens /oauth/authorize; the code is exchanged here and the account checked.
+    private void startOAuth() {
+        final long userId = tgUserId();
+        final int gen = ++lentaGeneration;
+        showLentaWebView();
+        lentaView.showLoading();
+        CoreClient.EXECUTOR.execute(() -> {
+            CoreClient.LentaSession session = null;
+            PixelfedClient.Authorization auth = null;
+            boolean loggedOut = false;
+            try {
+                session = CoreClient.lentaSessionBlocking(userId);
+                auth = PixelfedClient.newAuthorizationBlocking(session.username);
+            } catch (CoreClient.NotLoggedInException e) {
+                loggedOut = true;
+            } catch (Exception ignore) {
+                // falls back to the WebView feed (it shows the core's error itself)
+            }
+            final CoreClient.LentaSession finalSession = session;
+            final PixelfedClient.Authorization finalAuth = auth;
+            final boolean finalLoggedOut = loggedOut;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen != lentaGeneration || lentaView == null) {
+                    return;
+                }
+                if (finalLoggedOut) {
+                    onCoreLoggedOut();
+                } else if (finalSession == null || finalAuth == null) {
+                    oauthFailedFallback();
+                } else {
+                    lentaView.startOAuth(finalSession.url, finalAuth.authorizeUrl, new NexLentaView.OAuthListener() {
+                        @Override
+                        public void onOAuthCode(String code, String state) {
+                            if (gen != lentaGeneration) {
+                                return;
+                            }
+                            if (!finalAuth.isState(state)) {
+                                oauthFailedFallback();
+                                return;
+                            }
+                            exchangeCode(gen, userId, finalAuth, code);
+                        }
+
+                        @Override
+                        public void onOAuthFailed(String reason) {
+                            if (gen == lentaGeneration) {
+                                oauthFailedFallback();
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    private void exchangeCode(int gen, long userId, PixelfedClient.Authorization auth, String code) {
+        lentaView.showLoading();
+        CoreClient.EXECUTOR.execute(() -> {
+            boolean ok = false;
+            boolean wrongAccount = false;
+            try {
+                PixelfedClient.exchangeCodeBlocking(userId, auth, code);
+                ok = true;
+            } catch (PixelfedClient.WrongAccountException e) {
+                wrongAccount = true;
+            } catch (Exception ignore) {
+            }
+            final boolean success = ok;
+            final boolean finalWrongAccount = wrongAccount;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen != lentaGeneration || lentaView == null) {
+                    return;
+                }
+                if (success) {
+                    notConnectedCount = 0;
+                    showNativeFeed();
+                } else if (finalWrongAccount) {
+                    // token already thrown away; the Pixelfed session in the WebView is not this user's either
+                    NexLentaView.clearFeedCookies();
+                    lentaView.showError(LocaleController.getString(R.string.NexFeedWrongAccount));
+                } else {
+                    oauthFailedFallback();
+                }
+            });
+        });
+    }
+
+    private void oauthFailedFallback() {
+        oauthFailed = true;
+        openWebLenta();
+    }
+
+    private void onCoreLoggedOut() {
+        // refresh token rejected, tokens dropped: back to the silent login
+        lentaRequested = false;
+        if (!isPaused) {
+            maybeAutoLogin();
+        }
+        updateUi();
+    }
+
     // Requests a one-time Lenta URL (the access token is refreshed when needed) and opens it.
     // The URL carries a ticket: it is never stored or logged; each retry asks for a new one.
-    private void openLenta() {
+    private void openWebLenta() {
         final long userId = tgUserId();
         final int gen = ++lentaGeneration;
         lentaRequested = true;
+        showLentaWebView();
         lentaView.showLoading();
         CoreClient.EXECUTOR.execute(() -> {
             String url = null;
@@ -233,12 +394,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                     return;
                 }
                 if (finalLoggedOut) {
-                    // refresh token rejected, tokens dropped: back to the silent login
-                    lentaRequested = false;
-                    if (!isPaused) {
-                        maybeAutoLogin();
-                    }
-                    updateUi();
+                    onCoreLoggedOut();
                 } else if (finalUrl != null) {
                     lentaView.load(finalUrl);
                 } else {
@@ -256,18 +412,19 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         if (tokens != null) {
             card.setVisibility(View.GONE);
             loadingView.setVisibility(View.GONE);
-            lentaView.setVisibility(View.VISIBLE);
             if (!lentaRequested) {
                 openLenta();
             }
             return;
         }
-        if (lentaRequested || lentaView.getVisibility() == View.VISIBLE) {
+        if (lentaRequested || lentaView.getVisibility() == View.VISIBLE || nativeView.getVisibility() == View.VISIBLE) {
             // logged out: the feed must not stay on screen
             lentaGeneration++;
             lentaRequested = false;
             lentaView.clear();
             lentaView.setVisibility(View.GONE);
+            nativeView.clear();
+            nativeView.setVisibility(View.GONE);
         }
 
         final CoreLogin login = login();
@@ -372,6 +529,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     @Override
     public boolean canParentTabsSlide(MotionEvent ev, boolean forward) {
         // The open feed keeps horizontal swipes (photo carousels); tabs switch by tapping
+        if (nativeView != null && nativeView.getVisibility() == View.VISIBLE) {
+            return false;
+        }
         return lentaView == null || !lentaView.isPageShown();
     }
 }
