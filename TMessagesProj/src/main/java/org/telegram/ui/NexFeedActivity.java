@@ -241,6 +241,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     private void showNativeFeed() {
         ++lentaGeneration;
         lentaView.clear();
+        lentaView.setDebugReason(null);
         lentaView.setVisibility(View.GONE);
         nativeView.setVisibility(View.VISIBLE);
         if (!nativeView.isLoaded()) {
@@ -259,6 +260,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         PixelfedClient.clearTokens(tgUserId());
         if (++notConnectedCount > 1) {
             oauthFailed = true;
+            lentaView.setDebugReason("api_rejected");
         }
         openLenta();
     }
@@ -274,17 +276,29 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
             CoreClient.LentaSession session = null;
             PixelfedClient.Authorization auth = null;
             boolean loggedOut = false;
+            String reason = null;
             try {
                 session = CoreClient.lentaSessionBlocking(userId);
-                auth = PixelfedClient.newAuthorizationBlocking(session.username);
             } catch (CoreClient.NotLoggedInException e) {
                 loggedOut = true;
-            } catch (Exception ignore) {
-                // falls back to the WebView feed (it shows the core's error itself)
+            } catch (CoreClient.ApiException e) {
+                reason = "session_http_" + e.code;
+            } catch (Exception e) {
+                reason = "session_error";
+            }
+            if (session != null) {
+                try {
+                    auth = PixelfedClient.newAuthorizationBlocking(session.username);
+                } catch (PixelfedClient.HttpException e) {
+                    reason = e.stage + "_http_" + e.code;
+                } catch (Exception e) {
+                    reason = "apps_error";
+                }
             }
             final CoreClient.LentaSession finalSession = session;
             final PixelfedClient.Authorization finalAuth = auth;
             final boolean finalLoggedOut = loggedOut;
+            final String finalReason = reason;
             AndroidUtilities.runOnUIThread(() -> {
                 if (gen != lentaGeneration || lentaView == null) {
                     return;
@@ -292,7 +306,8 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                 if (finalLoggedOut) {
                     onCoreLoggedOut();
                 } else if (finalSession == null || finalAuth == null) {
-                    oauthFailedFallback();
+                    // the WebView feed shows the core's error itself
+                    oauthFailedFallback(finalReason);
                 } else {
                     lentaView.startOAuth(finalSession.url, finalAuth.authorizeUrl, new NexLentaView.OAuthListener() {
                         @Override
@@ -301,7 +316,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                                 return;
                             }
                             if (!finalAuth.isState(state)) {
-                                oauthFailedFallback();
+                                oauthFailedFallback("state_mismatch");
                                 return;
                             }
                             exchangeCode(gen, userId, finalAuth, code);
@@ -310,7 +325,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                         @Override
                         public void onOAuthFailed(String reason) {
                             if (gen == lentaGeneration) {
-                                oauthFailedFallback();
+                                oauthFailedFallback(reason);
                             }
                         }
                     });
@@ -324,15 +339,20 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         CoreClient.EXECUTOR.execute(() -> {
             boolean ok = false;
             boolean wrongAccount = false;
+            String reason = null;
             try {
                 PixelfedClient.exchangeCodeBlocking(userId, auth, code);
                 ok = true;
             } catch (PixelfedClient.WrongAccountException e) {
                 wrongAccount = true;
-            } catch (Exception ignore) {
+            } catch (PixelfedClient.HttpException e) {
+                reason = e.stage + "_http_" + e.code;
+            } catch (Exception e) {
+                reason = "token_error";
             }
             final boolean success = ok;
             final boolean finalWrongAccount = wrongAccount;
+            final String finalReason = reason;
             AndroidUtilities.runOnUIThread(() -> {
                 if (gen != lentaGeneration || lentaView == null) {
                     return;
@@ -343,16 +363,18 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                 } else if (finalWrongAccount) {
                     // token already thrown away; the Pixelfed session in the WebView is not this user's either
                     NexLentaView.clearFeedCookies();
+                    lentaView.setDebugReason("username_mismatch");
                     lentaView.showError(LocaleController.getString(R.string.NexFeedWrongAccount));
                 } else {
-                    oauthFailedFallback();
+                    oauthFailedFallback(finalReason);
                 }
             });
         });
     }
 
-    private void oauthFailedFallback() {
+    private void oauthFailedFallback(String reason) {
         oauthFailed = true;
+        lentaView.setDebugReason(reason == null ? "unknown" : reason); // DEBUG(oauth-reason)
         openWebLenta();
     }
 
