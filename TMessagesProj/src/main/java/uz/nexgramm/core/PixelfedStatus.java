@@ -33,16 +33,23 @@ public final class PixelfedStatus {
     public final String authorUsername;
     public final String avatarUrl;
     public final String contentHtml;
+    public final long createdAt; // ms since epoch, 0 = unknown
+    public final String url;     // public link of the post (https), null when absent
+    public final String placeName; // Pixelfed "place" (city), null when none
     public final ArrayList<Media> media;
     // Changed by the comments screen (UI thread only)
     public int repliesCount;
     // Changed by the like button (UI thread only)
     public int favouritesCount;
     public boolean favourited;
+    public boolean bookmarked;
+    public boolean bookmarkPending;
+    public boolean captionExpanded;
     public boolean likePending;
 
     private PixelfedStatus(String id, String statusId, String authorId, String authorName, String authorUsername, String avatarUrl,
-                           String contentHtml, ArrayList<Media> media, int favouritesCount, int repliesCount, boolean favourited) {
+                           String contentHtml, long createdAt, String url, String placeName, ArrayList<Media> media, int favouritesCount, int repliesCount,
+                           boolean favourited, boolean bookmarked) {
         this.id = id;
         this.statusId = statusId;
         this.authorId = authorId;
@@ -50,10 +57,14 @@ public final class PixelfedStatus {
         this.authorUsername = authorUsername;
         this.avatarUrl = avatarUrl;
         this.contentHtml = contentHtml;
+        this.createdAt = createdAt;
+        this.url = url;
+        this.placeName = placeName;
         this.media = media;
         this.favouritesCount = favouritesCount;
         this.repliesCount = repliesCount;
         this.favourited = favourited;
+        this.bookmarked = bookmarked;
     }
 
     static ArrayList<PixelfedStatus> listFromJson(String body) throws JSONException {
@@ -143,8 +154,59 @@ public final class PixelfedStatus {
         }
         final String statusId = json.optString("id", id);
         return new PixelfedStatus(id, statusId.isEmpty() ? id : statusId, authorId, name, username, avatar,
-            json.optString("content", ""), media,
-            json.optInt("favourites_count", 0), json.optInt("replies_count", 0), json.optBoolean("favourited", false));
+            json.optString("content", ""), parseTime(json.optString("created_at", "")), httpsOrNull(json.optString("url", "")), placeName(json), media,
+            json.optInt("favourites_count", 0), json.optInt("replies_count", 0),
+            json.optBoolean("favourited", false), json.optBoolean("bookmarked", false));
+    }
+
+    private static String placeName(JSONObject json) {
+        final JSONObject place = json.optJSONObject("place");
+        final String name = place == null ? "" : place.optString("name", "").trim();
+        return name.isEmpty() ? null : name;
+    }
+
+    // Link to share: the post's url, else Pixelfed's /p/<username>/<id>
+    public String shareUrl() {
+        return url != null ? url : PixelfedClient.BASE + "/p/" + authorUsername + "/" + statusId;
+    }
+
+    public boolean hasVideo() {
+        for (Media m : media) {
+            if (m.video) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ISO 8601 as Pixelfed sends it ("2026-10-12T10:00:00.000000Z", also with an offset); 0 when unreadable.
+    // Hand-written: java.time needs API 26, the app supports 21.
+    static long parseTime(String value) {
+        if (value == null) {
+            return 0;
+        }
+        final java.util.regex.Matcher m = java.util.regex.Pattern
+            .compile("^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d+))?(Z|[+-]\\d{2}:?\\d{2})?$")
+            .matcher(value.trim());
+        if (!m.matches()) {
+            return 0;
+        }
+        final java.util.Calendar c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"), java.util.Locale.ROOT);
+        c.clear();
+        c.set(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)) - 1, Integer.parseInt(m.group(3)),
+            Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)));
+        long ms = c.getTimeInMillis();
+        final String fraction = m.group(7);
+        if (fraction != null) {
+            ms += Integer.parseInt((fraction + "00").substring(0, 3));
+        }
+        final String zone = m.group(8);
+        if (zone != null && !"Z".equals(zone)) {
+            final String digits = zone.replace(":", "");
+            final int minutes = Integer.parseInt(digits.substring(1, 3)) * 60 + Integer.parseInt(digits.substring(3, 5));
+            ms -= (zone.charAt(0) == '-' ? -1 : 1) * minutes * 60_000L;
+        }
+        return ms;
     }
 
     // Only https media is loaded

@@ -68,7 +68,7 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
 
     @Override
     public boolean isLightStatusBar() {
-        return true;
+        return !NexLentaColors.dark;
     }
 
     @Override
@@ -198,6 +198,43 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
     public void onMediaPageChanged(NexPostCell cell) {
     }
 
+    private final NexPostActions.Listener postListener = new NexPostActions.Listener() {
+        @Override
+        public void onDeleted(PixelfedStatus status) {
+            if (status == post) {
+                finishFragment();
+            } else {
+                comments.remove(status);
+                adapter.notifyDataSetChanged();
+            }
+        }
+
+        @Override
+        public void onChanged(PixelfedStatus status) {
+            adapter.notifyItemChanged(0);
+        }
+    };
+
+    @Override
+    public void onShareClick(PixelfedStatus status) {
+        NexPostActions.share(this, status);
+    }
+
+    @Override
+    public void onBookmarkClick(NexPostCell cell, PixelfedStatus status) {
+        NexPostActions.toggleBookmark(getParentActivity(), tgUserId(), status, postListener);
+    }
+
+    @Override
+    public void onMenuClick(NexPostCell cell, PixelfedStatus status) {
+        NexPostActions.showMenu(this, tgUserId(), status, postListener);
+    }
+
+    @Override
+    public void onAiClick(PixelfedStatus status) {
+        NexPostActions.aiSoon(getParentActivity());
+    }
+
     @Override
     public void onAuthorClick(PixelfedStatus status) {
         openProfile(status.authorId);
@@ -319,7 +356,7 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
 
         void set(PixelfedStatus comment) {
             this.comment = comment;
-            avatarView.setImage(comment.avatarUrl, "32_32", Theme.createCircleDrawable(AndroidUtilities.dp(32), NexLentaColors.PLACEHOLDER));
+            NexPostCell.setAvatar(avatarView, comment.avatarUrl, comment.authorName, "32_32");
             nameView.setText(comment.authorName);
             textView.setText(htmlToText(comment.contentHtml));
         }
