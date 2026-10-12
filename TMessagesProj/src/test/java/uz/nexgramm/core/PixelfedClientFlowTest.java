@@ -212,4 +212,19 @@ public class PixelfedClientFlowTest {
         assertEquals("DELETE", calls.get(3).method);
         assertEquals("/api/v1/statuses/9", calls.get(3).path);
     }
+
+    @Test
+    public void profileUpdateAndFavourites() throws Exception {
+        giveTokens("acc1", "ref1", System.currentTimeMillis());
+        script.add(response(200, "{\"id\":\"5\",\"username\":\"bob\",\"display_name\":\"Bob\",\"note\":\"hi\",\"website\":\"https://bob.uz\"}"));
+        final PixelfedAccount updated = PixelfedClient.updateProfileBlocking(USER, " Bob ", "hi", "bob.uz");
+        assertEquals("Bob", updated.displayName);
+        assertEquals("POST", calls.get(0).method);
+        assertEquals("/api/v1/accounts/update_credentials", calls.get(0).path);
+        assertEquals("display_name=Bob&note=hi&website=https%3A%2F%2Fbob.uz", calls.get(0).body);
+
+        script.add(response(200, "[]"));
+        assertTrue(PixelfedClient.favouritesBlocking(USER).isEmpty());
+        assertEquals("/api/v1/favourites?limit=40", calls.get(1).path);
+    }
 }
