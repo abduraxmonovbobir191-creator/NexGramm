@@ -17,6 +17,7 @@ import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RadialProgressView;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -26,8 +27,9 @@ import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.CoreLogin;
 import uz.nexgramm.core.CoreTokens;
 
-// NexGramm: Lenta tab. Not logged in to the core -> "Lenta uchun kirish" card (consent + login state);
-// logged in -> "Ulandi" with the access token expiry (time only, never the token) and a logout button.
+// NexGramm: Lenta tab. Not logged in to the core -> silent initData login with a short loading view;
+// only on error a card with "Qayta urinish" and the fallback "Bot orqali kirish" (nonce + bot flow).
+// Logged in -> "Ulandi" with the access token expiry (time only, never the token) and a logout button.
 public class NexFeedActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate, CoreLogin.Listener {
 
     private TextView titleView;
@@ -35,6 +37,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     private TextView statusView;
     private TextView buttonView;
     private Runnable buttonAction;
+    private TextView linkView;
+    private LinearLayout card;
+    private LinearLayout loadingView;
     private boolean openBotWhenSent;
     private int refreshGeneration;
 
@@ -63,7 +68,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         final FrameLayout frameLayout = new FrameLayout(context);
         frameLayout.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
 
-        final LinearLayout card = new LinearLayout(context);
+        card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(AndroidUtilities.dp(24), AndroidUtilities.dp(24), AndroidUtilities.dp(24), AndroidUtilities.dp(20));
         card.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(24), getThemedColor(Theme.key_windowBackgroundWhite)));
@@ -101,7 +106,31 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         });
         card.addView(buttonView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 20, 0, 0));
 
+        // Fallback login, shown only after the silent login failed
+        linkView = new TextView(context);
+        linkView.setGravity(Gravity.CENTER);
+        linkView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        linkView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+        linkView.setText(LocaleController.getString(R.string.NexFeedLoginViaBot));
+        linkView.setPadding(0, AndroidUtilities.dp(12), 0, AndroidUtilities.dp(4));
+        linkView.setOnClickListener(v -> startBotLogin());
+        card.addView(linkView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
+
         frameLayout.addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 20, 0, 20, 0));
+
+        loadingView = new LinearLayout(context);
+        loadingView.setOrientation(LinearLayout.VERTICAL);
+        loadingView.setGravity(Gravity.CENTER_HORIZONTAL);
+        final RadialProgressView progressView = new RadialProgressView(context);
+        progressView.setSize(AndroidUtilities.dp(32));
+        progressView.setProgressColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+        loadingView.addView(progressView, LayoutHelper.createLinear(40, 40, Gravity.CENTER_HORIZONTAL));
+        final TextView loadingText = new TextView(context);
+        loadingText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        loadingText.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+        loadingText.setText(LocaleController.getString(R.string.NexFeedLoginStarting));
+        loadingView.addView(loadingText, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
+        frameLayout.addView(loadingView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
         fragmentView = frameLayout;
         updateUi();
         return fragmentView;
@@ -111,8 +140,17 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     public void onResume() {
         super.onResume();
         login().setListener(this);
+        maybeAutoLogin();
         updateUi();
         refreshExpiry();
+    }
+
+    // Silent login when there are no tokens: on the first open of the tab, or when the tokens were
+    // dropped after a successful login (refresh token rejected)
+    private void maybeAutoLogin() {
+        if (CoreClient.getTokens(tgUserId()) == null && login().shouldAutoStart()) {
+            login().startInitData();
+        }
     }
 
     @Override
@@ -148,6 +186,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
             }
             AndroidUtilities.runOnUIThread(() -> {
                 if (gen == refreshGeneration) {
+                    if (!isPaused) {
+                        maybeAutoLogin();
+                    }
                     updateUi();
                 }
             });
@@ -160,62 +201,98 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         }
         final CoreTokens tokens = CoreClient.getTokens(tgUserId());
         if (tokens != null) {
-            titleView.setText(LocaleController.getString(R.string.NexFeedConnected));
-            textView.setText(LocaleController.getString(R.string.NexFeedConnectedText));
+            showCard(LocaleController.getString(R.string.NexFeedConnected), LocaleController.getString(R.string.NexFeedConnectedText));
             final String expiry = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US).format(new Date(tokens.accessExpiresAt));
             statusView.setText(LocaleController.formatString(R.string.NexFeedTokenExpires, expiry));
-            setButton(LocaleController.getString(R.string.NexFeedLogout), this::logout);
+            setButton(LocaleController.getString(R.string.NexFeedLogout), this::logout, false);
             return;
         }
 
         final CoreLogin login = login();
-        titleView.setText(LocaleController.getString(R.string.NexFeedLoginTitle));
-        textView.setText(LocaleController.formatString(R.string.NexFeedLoginText, BuildConfig.NEXGRAMM_BOT_USERNAME));
+        if (!CoreLogin.hasBotUsername() || login.getState() == CoreLogin.STATE_NO_BOT) {
+            showCard(null, null);
+            statusView.setText(LocaleController.getString(R.string.NexFeedLoginNoBot));
+            setButton(null, null, false);
+            return;
+        }
+        if (login.isViaBot()) {
+            updateBotLoginUi(login);
+            return;
+        }
+        switch (login.getState()) {
+            case CoreLogin.STATE_ERROR: {
+                showCard(null, LocaleController.getString(login.isSlowedDown() ? R.string.NexFeedLoginRateLimited : R.string.NexFeedSilentLoginError));
+                statusView.setText(login.getErrorDetail());
+                setButton(LocaleController.getString(R.string.NexFeedLoginRetry), this::startSilentLogin, true);
+                break;
+            }
+            case CoreLogin.STATE_IDLE:
+                if (!login.shouldAutoStart()) {
+                    // After logout: log in again only on request
+                    showCard(null, LocaleController.getString(R.string.NexFeedLoggedOut));
+                    statusView.setText(null);
+                    setButton(LocaleController.getString(R.string.NexFeedLogin), this::startSilentLogin, false);
+                    break;
+                }
+                // fall through: the silent login starts on resume
+            default:
+                card.setVisibility(View.GONE);
+                loadingView.setVisibility(View.VISIBLE);
+                break;
+        }
+    }
+
+    // Fallback bot (nonce) flow, unchanged apart from the entry point
+    private void updateBotLoginUi(CoreLogin login) {
+        showCard(LocaleController.getString(R.string.NexFeedLoginTitle), LocaleController.formatString(R.string.NexFeedLoginText, BuildConfig.NEXGRAMM_BOT_USERNAME));
         final String retry = LocaleController.getString(R.string.NexFeedLoginRetry);
         switch (login.getState()) {
             case CoreLogin.STATE_STARTING:
                 statusView.setText(LocaleController.getString(R.string.NexFeedLoginStarting));
-                setButton(null, null);
+                setButton(null, null, false);
                 break;
             case CoreLogin.STATE_WAITING:
                 statusView.setText(LocaleController.getString(login.isSlowedDown() ? R.string.NexFeedLoginSlow : R.string.NexFeedLoginWaiting));
-                setButton(LocaleController.getString(R.string.NexFeedLoginOpenBot), this::openBot);
+                setButton(LocaleController.getString(R.string.NexFeedLoginOpenBot), this::openBot, false);
                 break;
             case CoreLogin.STATE_DENIED:
                 statusView.setText(LocaleController.getString(R.string.NexFeedLoginDenied));
-                setButton(retry, this::startLogin);
+                setButton(retry, this::startBotLogin, false);
                 break;
             case CoreLogin.STATE_EXPIRED:
                 statusView.setText(LocaleController.getString(R.string.NexFeedLoginExpired));
-                setButton(retry, this::startLogin);
+                setButton(retry, this::startBotLogin, false);
                 break;
             case CoreLogin.STATE_ERROR:
-                statusView.setText(LocaleController.getString(login.isSlowedDown() ? R.string.NexFeedLoginRateLimited : R.string.NexFeedLoginError));
-                setButton(retry, this::startLogin);
-                break;
-            case CoreLogin.STATE_NO_BOT:
-                statusView.setText(LocaleController.getString(R.string.NexFeedLoginNoBot));
-                setButton(null, null);
-                break;
             default:
-                statusView.setText(null);
-                setButton(LocaleController.getString(R.string.NexFeedLoginContinue), this::startLogin);
+                statusView.setText(LocaleController.getString(login.isSlowedDown() ? R.string.NexFeedLoginRateLimited : R.string.NexFeedLoginError));
+                setButton(retry, this::startBotLogin, false);
                 break;
-        }
-        if (!CoreLogin.hasBotUsername()) {
-            statusView.setText(LocaleController.getString(R.string.NexFeedLoginNoBot));
-            setButton(null, null);
         }
     }
 
-    private void setButton(String text, Runnable action) {
+    private void showCard(String title, String text) {
+        loadingView.setVisibility(View.GONE);
+        card.setVisibility(View.VISIBLE);
+        titleView.setText(title);
+        titleView.setVisibility(title == null ? View.GONE : View.VISIBLE);
+        textView.setText(text);
+        textView.setVisibility(text == null ? View.GONE : View.VISIBLE);
+    }
+
+    private void setButton(String text, Runnable action, boolean showBotLink) {
         buttonView.setText(text);
         buttonAction = action;
         buttonView.setVisibility(text == null ? View.GONE : View.VISIBLE);
         statusView.setVisibility(statusView.length() == 0 ? View.GONE : View.VISIBLE);
+        linkView.setVisibility(showBotLink ? View.VISIBLE : View.GONE);
     }
 
-    private void startLogin() {
+    private void startSilentLogin() {
+        login().startInitData();
+    }
+
+    private void startBotLogin() {
         openBotWhenSent = true;
         login().start();
     }

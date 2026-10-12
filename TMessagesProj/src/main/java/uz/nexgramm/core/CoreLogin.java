@@ -16,9 +16,12 @@ import org.telegram.tgnet.TLRPC;
 
 import java.net.URLEncoder;
 
-// NexGramm: app login (CONTRACT v1.2 "Login flows -> App") for one Telegram account.
-// start -> nonce; this account visibly sends "/start app_<nonce>" to the bot; the user presses
-// [Ha, kirish] in the bot; poll every 2.5 s until 200/403/410 or expires_in runs out.
+// NexGramm: core login for one Telegram account.
+// Main path, startInitData: silent, no UI. messages.requestSimpleWebView for the bot gives a signed
+// Mini App URL; its tgWebAppData (initData) is exchanged at POST /v1/auth/app/initdata for tokens.
+// Fallback, start (CONTRACT v1.2 "Login flows -> App"): start -> nonce; this account visibly sends
+// "/start app_<nonce>" to the bot; the user presses [Ha, kirish] in the bot; poll every 2.5 s until
+// 200/403/410 or expires_in runs out.
 // State lives here, not in the screen, so polling goes on while the bot chat is open.
 public final class CoreLogin {
 
@@ -57,6 +60,9 @@ public final class CoreLogin {
     private long deadline;
     private long botUserId;
     private Listener listener;
+    private boolean viaBot;
+    private boolean autoTried;
+    private String errorDetail;
 
     private CoreLogin(int account) {
         this.account = account;
@@ -74,6 +80,109 @@ public final class CoreLogin {
         return botUserId;
     }
 
+    // True while the state belongs to the bot (nonce) flow, false for the silent initData flow
+    public boolean isViaBot() {
+        return viaBot;
+    }
+
+    // Short error reason for the screen: a Telegram error ("400 BOT_INVALID") or "core HTTP 404"
+    public String getErrorDetail() {
+        return errorDetail;
+    }
+
+    // The silent login runs by itself only once per app run; after that only from a button
+    public boolean shouldAutoStart() {
+        return (!autoTried && state == STATE_IDLE) || state == STATE_DONE;
+    }
+
+    // UI thread. Silent login with the Telegram session: no bot chat, no message, no WebView.
+    public void startInitData() {
+        if (state == STATE_STARTING || state == STATE_WAITING) {
+            return;
+        }
+        autoTried = true;
+        viaBot = false;
+        errorDetail = null;
+        if (!hasBotUsername()) {
+            setState(STATE_NO_BOT);
+            return;
+        }
+        final int gen = ++generation;
+        tgUserId = UserConfig.getInstance(account).getClientUserId();
+        nonce = null;
+        slowedDown = false;
+        setState(STATE_STARTING);
+
+        MessagesController.getInstance(account).getUserNameResolver().resolve(BuildConfig.NEXGRAMM_BOT_USERNAME, peerId -> {
+            if (gen != generation) {
+                return;
+            }
+            final TLRPC.User bot = peerId != null && peerId > 0 ? MessagesController.getInstance(account).getUser(peerId) : null;
+            if (bot == null || !bot.bot) {
+                failInitData("BOT_NOT_FOUND");
+                return;
+            }
+            botUserId = bot.id;
+            final TLRPC.TL_messages_requestSimpleWebView req = new TLRPC.TL_messages_requestSimpleWebView();
+            req.bot = MessagesController.getInstance(account).getInputUser(bot);
+            req.url = BuildConfig.CORE_API_URL + CoreInitData.APP_AUTH_PATH;
+            req.flags |= 8;
+            req.platform = "android";
+            ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> {
+                final String initData = response instanceof TLRPC.TL_webViewResultUrl ? CoreInitData.extract(((TLRPC.TL_webViewResultUrl) response).url) : null;
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (gen != generation) {
+                        return;
+                    }
+                    if (error != null) {
+                        failInitData(error.code + " " + error.text);
+                    } else if (initData == null) {
+                        failInitData("NO_INIT_DATA");
+                    } else {
+                        exchangeInitData(gen, initData);
+                    }
+                });
+            });
+        });
+    }
+
+    private void exchangeInitData(int gen, String initData) {
+        final long userId = tgUserId;
+        CoreClient.EXECUTOR.execute(() -> {
+            String detail = null;
+            int code = 0;
+            try {
+                if (!CoreClient.saveTokens(userId, CoreInitData.exchangeBlocking(CoreInitData.HTTPS, initData, System.currentTimeMillis()))) {
+                    detail = "TOKEN_SAVE_FAILED";
+                }
+            } catch (CoreInitData.HttpException e) {
+                code = e.code;
+                detail = "core HTTP " + e.code;
+            } catch (Exception e) {
+                detail = "core: " + e.getClass().getSimpleName();
+            }
+            final String finalDetail = detail;
+            final int finalCode = code;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen != generation) {
+                    return;
+                }
+                if (finalDetail == null) {
+                    finish(STATE_DONE);
+                } else {
+                    slowedDown = finalCode == 429;
+                    failInitData(finalDetail);
+                }
+            });
+        });
+    }
+
+    private void failInitData(String detail) {
+        generation++;
+        errorDetail = detail;
+        setState(STATE_ERROR);
+    }
+
     public void setListener(Listener listener) {
         this.listener = listener;
     }
@@ -82,11 +191,13 @@ public final class CoreLogin {
         return !TextUtils.isEmpty(BuildConfig.NEXGRAMM_BOT_USERNAME);
     }
 
-    // UI thread. Runs after the consent screen ("Davom etish") was pressed.
+    // UI thread. Fallback bot login, runs after "Bot orqali kirish" was pressed.
     public void start() {
         if (state == STATE_STARTING || state == STATE_WAITING) {
             return;
         }
+        viaBot = true;
+        errorDetail = null;
         if (!hasBotUsername()) {
             setState(STATE_NO_BOT);
             return;
@@ -231,9 +342,12 @@ public final class CoreLogin {
         setState(newState);
     }
 
-    // Stops a running login (e.g. after logout) and forgets the last result
+    // Stops a running login (after logout) and forgets the last result; no silent login by itself after this
     public void reset() {
         generation++;
+        autoTried = true;
+        viaBot = false;
+        errorDetail = null;
         nonce = null;
         slowedDown = false;
         setState(STATE_IDLE);

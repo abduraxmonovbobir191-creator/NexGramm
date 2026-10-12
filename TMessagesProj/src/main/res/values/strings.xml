@@ -11246,8 +11246,11 @@
     <string name="NexFeedSoon">Feed — coming soon</string>
     <!-- NexGramm: Lenta login to the core (Uzbek) -->
     <string name="NexFeedLoginTitle">Lenta uchun kirish</string>
-    <string name="NexFeedLoginText">Lenta NexGramm hisobingiz bilan ishlaydi. «Davom etish» bosilsa, ilova shu Telegram akkauntidan @%1$s botiga «/start» xabarini yuboradi va botni ochadi. Botda «✅ Ha, kirish» tugmasini bosing.</string>
-    <string name="NexFeedLoginContinue">Davom etish</string>
+    <string name="NexFeedLoginText">Lenta NexGramm hisobingiz bilan ishlaydi. Ilova shu Telegram akkauntidan @%1$s botiga «/start» xabarini yuboradi va botni ochadi. Botda «✅ Ha, kirish» tugmasini bosing.</string>
+    <string name="NexFeedLoginViaBot">Bot orqali kirish</string>
+    <string name="NexFeedLogin">Kirish</string>
+    <string name="NexFeedSilentLoginError">Lentaga ulanib bo\'lmadi.</string>
+    <string name="NexFeedLoggedOut">Lentadan chiqdingiz.</string>
     <string name="NexFeedLoginRetry">Qayta urinish</string>
     <string name="NexFeedLoginOpenBot">Botni ochish</string>
     <string name="NexFeedLoginStarting">Ulanmoqda…</string>
