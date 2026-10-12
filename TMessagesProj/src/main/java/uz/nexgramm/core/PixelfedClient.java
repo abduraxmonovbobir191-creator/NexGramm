@@ -618,6 +618,42 @@ public final class PixelfedClient {
         }
     }
 
+    // GET /api/v1/favourites → the posts the user liked, newest like first (one page of 40)
+    public static ArrayList<PixelfedStatus> favouritesBlocking(long tgUserId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1/favourites?limit=40", null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedStatus.listFromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad timeline");
+        }
+    }
+
+    // POST /api/v1/accounts/update_credentials (form): name ≤ 30, bio ≤ 200, website ≤ 120 (http/https only;
+    // empty clears it). Pixelfed v0.14.4 limits; returns the updated account
+    public static PixelfedAccount updateProfileBlocking(long tgUserId, String displayName, String note, String website) throws IOException, NotConnectedException {
+        final String site = website == null ? "" : website.trim();
+        final String body = form(
+            "display_name", cut(displayName == null ? "" : displayName.trim(), 30),
+            "note", cut(note == null ? "" : note.trim(), 200),
+            "website", site.isEmpty() || site.startsWith("http://") || site.startsWith("https://") ? cut(site, 120) : cut("https://" + site, 120));
+        final Response response = apiBlocking(tgUserId, "POST", "/api/v1/accounts/update_credentials", body);
+        if (response.code != 200) {
+            throw new HttpException("profile", response);
+        }
+        try {
+            return PixelfedAccount.fromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad account");
+        }
+    }
+
+    private static String cut(String value, int max) {
+        return value.length() > max ? value.substring(0, max) : value;
+    }
+
     // POST /api/v1/statuses/:id/bookmark or /unbookmark
     public static void setBookmarkBlocking(long tgUserId, String statusId, boolean bookmark) throws IOException, NotConnectedException {
         final Response response = apiBlocking(tgUserId, "POST",
