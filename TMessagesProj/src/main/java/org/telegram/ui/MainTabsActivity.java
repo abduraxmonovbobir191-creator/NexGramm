@@ -760,7 +760,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     @Override
     protected BaseFragment createBaseFragmentAt(int position) {
         if (position == POSITION_NEX_AI) {
-            return NexPlaceholderActivity.create(NexPlaceholderActivity.TYPE_NEX_AI);
+            return NexAiActivity.create();
         } else if (position == POSITION_FEED) {
             return NexFeedActivity.create();
         } else if (position == POSITION_CHATS) {

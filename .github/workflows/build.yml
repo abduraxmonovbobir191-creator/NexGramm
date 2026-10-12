@@ -7,6 +7,10 @@ on:
         description: "NexGramm bot username, @ siz (bo'sh bo'lsa: vars.NEXGRAMM_BOT_USERNAME)"
         required: false
         default: ''
+      nex_api_url:
+        description: "NEX AI backend https URL (bo'sh bo'lsa: vars.NEX_API_URL)"
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -82,11 +86,12 @@ jobs:
         env:
           CORE_API_URL: ${{ vars.CORE_API_URL }}
           NEXGRAMM_BOT_USERNAME: ${{ inputs.bot_username || vars.NEXGRAMM_BOT_USERNAME }}
+          NEX_API_URL: ${{ inputs.nex_api_url || vars.NEX_API_URL }}
         run: |
           chmod +x gradlew
-          echo "CORE_API_URL=${CORE_API_URL:-https://ng.nexecos.com (default)} NEXGRAMM_BOT_USERNAME=${NEXGRAMM_BOT_USERNAME:-<empty>}"
+          echo "CORE_API_URL=${CORE_API_URL:-https://ng.nexecos.com (default)} NEXGRAMM_BOT_USERNAME=${NEXGRAMM_BOT_USERNAME:-<empty>} NEX_API_URL=${NEX_API_URL:-<empty>}"
           ./gradlew :TMessagesProj_AppStandalone:assembleAfatDebug \
-            -PCORE_API_URL="$CORE_API_URL" -PNEXGRAMM_BOT_USERNAME="$NEXGRAMM_BOT_USERNAME" \
+            -PCORE_API_URL="$CORE_API_URL" -PNEXGRAMM_BOT_USERNAME="$NEXGRAMM_BOT_USERNAME" -PNEX_API_URL="$NEX_API_URL" \
             -Pandroid.injected.build.abi=arm64-v8a -Pandroid.injected.testOnly=false --stacktrace
 
       # Lists every APK so the real output path is visible in the log
