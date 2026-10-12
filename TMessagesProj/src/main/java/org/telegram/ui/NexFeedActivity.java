@@ -48,6 +48,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     private NexNativeFeedView nativeView;
     // OAuth failed in this screen: the WebView feed is used until the screen is created again
     private boolean oauthFailed;
+    private boolean retriedWithNewClient;
     private int notConnectedCount;
     private boolean openBotWhenSent;
     // true once a Lenta session was requested for the current login; false again to request a new one
@@ -290,7 +291,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                 try {
                     auth = PixelfedClient.newAuthorizationBlocking(session.username);
                 } catch (PixelfedClient.HttpException e) {
-                    reason = e.stage + "_http_" + e.code;
+                    reason = e.reason();
                 } catch (Exception e) {
                     reason = "apps_error";
                 }
@@ -339,6 +340,7 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         CoreClient.EXECUTOR.execute(() -> {
             boolean ok = false;
             boolean wrongAccount = false;
+            boolean verify401 = false;
             String reason = null;
             try {
                 PixelfedClient.exchangeCodeBlocking(userId, auth, code);
@@ -346,10 +348,14 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
             } catch (PixelfedClient.WrongAccountException e) {
                 wrongAccount = true;
             } catch (PixelfedClient.HttpException e) {
-                reason = e.stage + "_http_" + e.code;
+                reason = e.reason();
+                verify401 = "verify".equals(e.stage) && e.code == 401;
+            } catch (PixelfedClient.StepException e) {
+                reason = e.getMessage();
             } catch (Exception e) {
                 reason = "token_error";
             }
+            final boolean retryWithNewClient = verify401;
             final boolean success = ok;
             final boolean finalWrongAccount = wrongAccount;
             final String finalReason = reason;
@@ -365,6 +371,12 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                     NexLentaView.clearFeedCookies();
                     lentaView.setDebugReason("username_mismatch");
                     lentaView.showError(LocaleController.getString(R.string.NexFeedWrongAccount));
+                } else if (retryWithNewClient && !retriedWithNewClient) {
+                    // The client was dropped (its id may equal the user's id, see PixelfedClient): once more with a
+                    // new client; Pixelfed asks "Authorize" again for it
+                    retriedWithNewClient = true;
+                    lentaView.setDebugReason(finalReason + " → retry"); // DEBUG(oauth-reason)
+                    startOAuth();
                 } else {
                     oauthFailedFallback(finalReason);
                 }

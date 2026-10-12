@@ -67,6 +67,7 @@ public class NexLentaView extends FrameLayout {
     // true from load() until the first page finished without a main-frame error
     private boolean pageLoading;
     private boolean pageShown;
+    private boolean feedHomeForced;
     private int oauthPhase = OAUTH_NONE;
     private String oauthAuthorizeUrl;
     private OAuthListener oauthListener;
@@ -191,6 +192,13 @@ public class NexLentaView extends FrameLayout {
                 }
                 // Some WebView versions also report the hops of the OIDC chain: wait for a Pixelfed page
                 if (pageLoading && isFeedPage(Uri.parse(url))) {
+                    if (!feedHomeForced && !isFeedStart(Uri.parse(url))) {
+                        // the chain may end on any Pixelfed page (an older session's last page): start at the feed
+                        feedHomeForced = true;
+                        view.loadUrl("https://" + FEED_HOST + "/");
+                        return;
+                    }
+                    view.clearHistory();
                     pageLoading = false;
                     pageShown = true;
                     loadingView.setVisibility(View.GONE);
@@ -268,6 +276,12 @@ public class NexLentaView extends FrameLayout {
     private static boolean isFeedPage(Uri uri) {
         final String path = uri.getPath();
         return FEED_HOST.equalsIgnoreCase(uri.getHost()) && (path == null || !path.startsWith("/auth/oidc/"));
+    }
+
+    // The feed itself: "/" or Pixelfed's web app under /i/web
+    private static boolean isFeedStart(Uri uri) {
+        final String path = uri.getPath();
+        return path == null || path.isEmpty() || "/".equals(path) || path.startsWith("/i/web");
     }
 
     private static boolean isOAuthRedirect(Uri uri) {
@@ -563,6 +577,7 @@ public class NexLentaView extends FrameLayout {
         resetOAuth();
         showLoading();
         pageLoading = true;
+        feedHomeForced = false;
         webView.loadUrl(url);
     }
 
