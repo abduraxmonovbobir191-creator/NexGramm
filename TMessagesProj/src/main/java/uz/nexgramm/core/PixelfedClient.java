@@ -54,21 +54,67 @@ public final class PixelfedClient {
     public static final class HttpException extends IOException {
         public final String stage; // apps, token, verify, refresh, api
         public final int code;
+        // DEBUG(oauth-reason): short error name from WWW-Authenticate / the JSON body, never a value or URL
+        public final String detail;
 
         HttpException(String stage, int code) {
+            this(stage, code, null);
+        }
+
+        HttpException(String stage, Response response) {
+            this(stage, response.code, errorDetail(response));
+        }
+
+        private HttpException(String stage, int code, String detail) {
             super("pixelfed " + stage + " http " + code);
             this.stage = stage;
             this.code = code;
+            this.detail = detail;
         }
+
+        public String reason() {
+            return stage + "_http_" + code + (detail == null ? "" : ":" + detail);
+        }
+    }
+
+    // error="..." of WWW-Authenticate, else "error" / "message" of the JSON body; [a-z0-9_.-] only, ≤ 40 chars
+    static String errorDetail(Response response) {
+        String detail = null;
+        if (response.wwwAuthenticate != null) {
+            final java.util.regex.Matcher m = java.util.regex.Pattern.compile("error=\"([^\"]*)\"").matcher(response.wwwAuthenticate);
+            if (m.find()) {
+                detail = m.group(1);
+            }
+        }
+        if (detail == null || detail.isEmpty()) {
+            try {
+                final JSONObject json = new JSONObject(response.body);
+                detail = json.optString("error", "");
+                if (detail.isEmpty()) {
+                    detail = json.optString("message", "");
+                }
+            } catch (JSONException ignore) {
+            }
+        }
+        if (detail == null) {
+            return null;
+        }
+        detail = detail.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_.-]+", "_").replaceAll("^_+|_+$", "");
+        if (detail.length() > 40) {
+            detail = detail.substring(0, 40);
+        }
+        return detail.isEmpty() ? null : detail;
     }
 
     static final class Response {
         final int code;
         final String body;
+        final String wwwAuthenticate;
 
-        Response(int code, String body) {
+        Response(int code, String body, String wwwAuthenticate) {
             this.code = code;
             this.body = body;
+            this.wwwAuthenticate = wwwAuthenticate;
         }
     }
 
@@ -169,7 +215,7 @@ public final class PixelfedClient {
             final Response response = requestBlocking("POST", "/api/v1/apps",
                 form("client_name", "NexGramm", "redirect_uris", REDIRECT_URI, "scopes", SCOPES), null);
             if (response.code != 200) {
-                throw new HttpException("apps", response.code);
+                throw new HttpException("apps", response);
             }
             try {
                 final JSONObject json = new JSONObject(response.body);
@@ -223,27 +269,74 @@ public final class PixelfedClient {
             forgetClient();
         }
         if (response.code != 200) {
-            throw new HttpException("token", response.code);
+            throw new HttpException("token", response);
         }
         final PixelfedTokens tokens;
         try {
+            final String type = new JSONObject(response.body).optString("token_type", "Bearer").trim();
+            if (!"bearer".equalsIgnoreCase(type)) {
+                throw new StepException("token_type");
+            }
             tokens = PixelfedTokens.fromResponse(response.body, System.currentTimeMillis(), null, "");
         } catch (JSONException e) {
-            throw new IOException("bad token response");
+            throw new StepException("token_json");
         }
-        final String username = verifyUsernameBlocking(tokens.accessToken);
+        if (!isTokenText(tokens.accessToken)) {
+            throw new StepException("token_format");
+        }
+        // Save, read back and compare (equality and length only, nothing is logged), then use the stored copy
+        saveTokens(tgUserId, tokens);
+        final PixelfedTokens stored = getTokens(tgUserId);
+        if (stored == null || !stored.accessToken.equals(tokens.accessToken)) {
+            clearTokens(tgUserId);
+            throw new StepException("store_mismatch_" + tokens.accessToken.length() + "_" + (stored == null ? 0 : stored.accessToken.length()));
+        }
+        final String username;
+        try {
+            username = verifyUsernameBlocking(stored.accessToken);
+        } catch (IOException e) {
+            clearTokens(tgUserId);
+            if (e instanceof HttpException && ((HttpException) e).code == 401) {
+                // Passport treats a token whose user id equals the client id as a client token (no user) when the
+                // client may use client_credentials, and /api/v1/apps clients may. Next attempt: a new client id.
+                forgetClient();
+            }
+            throw e;
+        }
         if (auth.expectedUsername != null && !auth.expectedUsername.equalsIgnoreCase(username)) {
+            clearTokens(tgUserId);
             throw new WrongAccountException();
         }
-        final PixelfedTokens result = tokens.withUsername(username);
+        final PixelfedTokens result = stored.withUsername(username);
         saveTokens(tgUserId, result);
         return result;
+    }
+
+    // A failed step of the token exchange; message = short code for the screen (no values)
+    public static final class StepException extends IOException {
+        StepException(String code) {
+            super(code);
+        }
+    }
+
+    // Access tokens are JWTs: printable ASCII, no spaces or line breaks
+    private static boolean isTokenText(String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < token.length(); i++) {
+            final char c = token.charAt(i);
+            if (c <= ' ' || c > '~') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String verifyUsernameBlocking(String accessToken) throws IOException {
         final Response response = requestBlocking("GET", "/api/v1/accounts/verify_credentials", null, accessToken);
         if (response.code != 200) {
-            throw new HttpException("verify", response.code);
+            throw new HttpException("verify", response);
         }
         try {
             final String username = new JSONObject(response.body).getString("username");
@@ -303,7 +396,7 @@ public final class PixelfedClient {
                 throw new NotConnectedException();
             }
             if (response.code != 200) {
-                throw new HttpException("refresh", response.code);
+                throw new HttpException("refresh", response);
             }
             try {
                 final PixelfedTokens tokens = PixelfedTokens.fromResponse(response.body, System.currentTimeMillis(), current.refreshToken, current.username);
@@ -356,7 +449,7 @@ public final class PixelfedClient {
         }
         final Response response = apiBlocking(tgUserId, "GET", path, null);
         if (response.code != 200) {
-            throw new HttpException("api", response.code);
+            throw new HttpException("api", response);
         }
         try {
             return PixelfedStatus.listFromJson(response.body);
@@ -370,7 +463,7 @@ public final class PixelfedClient {
         final Response response = apiBlocking(tgUserId, "POST",
             "/api/v1/statuses/" + encode(statusId) + (favourite ? "/favourite" : "/unfavourite"), "");
         if (response.code != 200) {
-            throw new HttpException("api", response.code);
+            throw new HttpException("api", response);
         }
     }
 
@@ -391,7 +484,7 @@ public final class PixelfedClient {
             connection.setRequestMethod(method);
             connection.setRequestProperty("Accept", "application/json");
             if (bearer != null) {
-                connection.setRequestProperty("Authorization", "Bearer " + bearer);
+                connection.setRequestProperty("Authorization", "Bearer " + bearer.trim());
             }
             if (formBody != null) {
                 final byte[] bytes = formBody.getBytes(StandardCharsets.UTF_8);
@@ -404,7 +497,7 @@ public final class PixelfedClient {
             }
             final int code = connection.getResponseCode();
             final InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
-            return new Response(code, CoreClient.read(in));
+            return new Response(code, CoreClient.read(in), connection.getHeaderField("WWW-Authenticate"));
         } finally {
             connection.disconnect();
         }
