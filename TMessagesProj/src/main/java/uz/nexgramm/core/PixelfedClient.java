@@ -52,10 +52,12 @@ public final class PixelfedClient {
     }
 
     public static final class HttpException extends IOException {
+        public final String stage; // apps, token, verify, refresh, api
         public final int code;
 
-        HttpException(int code) {
-            super("pixelfed http " + code);
+        HttpException(String stage, int code) {
+            super("pixelfed " + stage + " http " + code);
+            this.stage = stage;
             this.code = code;
         }
     }
@@ -167,7 +169,7 @@ public final class PixelfedClient {
             final Response response = requestBlocking("POST", "/api/v1/apps",
                 form("client_name", "NexGramm", "redirect_uris", REDIRECT_URI, "scopes", SCOPES), null);
             if (response.code != 200) {
-                throw new HttpException(response.code);
+                throw new HttpException("apps", response.code);
             }
             try {
                 final JSONObject json = new JSONObject(response.body);
@@ -221,7 +223,7 @@ public final class PixelfedClient {
             forgetClient();
         }
         if (response.code != 200) {
-            throw new HttpException(response.code);
+            throw new HttpException("token", response.code);
         }
         final PixelfedTokens tokens;
         try {
@@ -241,7 +243,7 @@ public final class PixelfedClient {
     private static String verifyUsernameBlocking(String accessToken) throws IOException {
         final Response response = requestBlocking("GET", "/api/v1/accounts/verify_credentials", null, accessToken);
         if (response.code != 200) {
-            throw new HttpException(response.code);
+            throw new HttpException("verify", response.code);
         }
         try {
             final String username = new JSONObject(response.body).getString("username");
@@ -301,7 +303,7 @@ public final class PixelfedClient {
                 throw new NotConnectedException();
             }
             if (response.code != 200) {
-                throw new HttpException(response.code);
+                throw new HttpException("refresh", response.code);
             }
             try {
                 final PixelfedTokens tokens = PixelfedTokens.fromResponse(response.body, System.currentTimeMillis(), current.refreshToken, current.username);
@@ -354,7 +356,7 @@ public final class PixelfedClient {
         }
         final Response response = apiBlocking(tgUserId, "GET", path, null);
         if (response.code != 200) {
-            throw new HttpException(response.code);
+            throw new HttpException("api", response.code);
         }
         try {
             return PixelfedStatus.listFromJson(response.body);
@@ -368,7 +370,7 @@ public final class PixelfedClient {
         final Response response = apiBlocking(tgUserId, "POST",
             "/api/v1/statuses/" + encode(statusId) + (favourite ? "/favourite" : "/unfavourite"), "");
         if (response.code != 200) {
-            throw new HttpException(response.code);
+            throw new HttpException("api", response.code);
         }
     }
 
