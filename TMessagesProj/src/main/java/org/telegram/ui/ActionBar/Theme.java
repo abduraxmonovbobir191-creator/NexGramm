@@ -3496,10 +3496,14 @@ public class Theme {
     private static HashSet<Integer> themeAccentExclusionKeys = new HashSet<>();
     private static SparseIntArray currentColorsNoAccent;
     private static SparseIntArray currentColors;
-    // NexGramm: one palette shared by all built-in light themes, applied after accent recoloring
+    // NexGramm: the app palette (NexPalette) for every built-in theme, light and dark, in the accent the
+    // user picked; computed from the light template after accent recoloring
     private static final String NEXGRAMM_LIGHT_ASSET = "nexgramm_light.attheme";
-    private static SparseIntArray nexgrammLightColors;
-    private static ThemeInfo nexgrammLightTheme; // the light theme the palette was applied to
+    public static final String NEXGRAMM_PREFS = "nexgramm_theme";
+    private static SparseIntArray nexgrammTemplate;
+    private static SparseIntArray nexgrammColors;
+    private static ThemeInfo nexgrammTheme; // the theme the palette was computed for
+    private static uz.nexgramm.core.NexPalette nexgrammPalette;
     private static SparseIntArray animatingColors;
     public static boolean shouldDrawGradientIcons;
 
@@ -6079,7 +6083,7 @@ public class Theme {
         }
         applyCalculatedTableColors(currentColorsNoAccent, currentColors, currentTheme.isDark());
         applyCalculatedArticleCodeColors(currentColorsNoAccent, currentColors, currentTheme.isDark());
-        applyNexgrammLightColors();
+        applyNexgrammColors();
         if (!messages) {
             boolean async = !(LaunchActivity.getLastFragment() instanceof ChatActivity);
             reloadWallpaper(async);
@@ -6092,27 +6096,91 @@ public class Theme {
         AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.didSetNewTheme, false, checkNavigationBarColor));
     }
 
-    private static boolean isNexgrammLightTheme(ThemeInfo themeInfo) {
-        if (themeInfo == null || themeInfo.isDark()) {
+    public static boolean isNexgrammTheme(ThemeInfo themeInfo) {
+        if (themeInfo == null) {
             return false;
         }
-        return "Blue".equals(themeInfo.name) || "Arctic Blue".equals(themeInfo.name) || "Day".equals(themeInfo.name);
+        final String name = themeInfo.name;
+        return "Blue".equals(name) || "Arctic Blue".equals(name) || "Day".equals(name) || "Dark Blue".equals(name) || "Night".equals(name);
     }
 
-    private static void applyNexgrammLightColors() {
-        if (!isNexgrammLightTheme(currentTheme)) {
-            nexgrammLightTheme = null;
+    public static String getNexgrammAccent() {
+        return ApplicationLoader.applicationContext.getSharedPreferences(NEXGRAMM_PREFS, Context.MODE_PRIVATE)
+            .getString("accent", uz.nexgramm.core.NexPalette.DEFAULT_ACCENT);
+    }
+
+    public static void setNexgrammAccent(String accentId) {
+        ApplicationLoader.applicationContext.getSharedPreferences(NEXGRAMM_PREFS, Context.MODE_PRIVATE)
+            .edit().putString("accent", accentId).apply();
+    }
+
+    // The palette in use, null for custom / cloud themes
+    public static uz.nexgramm.core.NexPalette getNexgrammPalette() {
+        return nexgrammTheme != null && nexgrammTheme == currentTheme ? nexgrammPalette : null;
+    }
+
+    private static int rawColor(int key) {
+        int index = currentColors.indexOfKey(key);
+        if (index >= 0) {
+            return currentColors.valueAt(index);
+        }
+        int fallbackKey = fallbackKeys.get(key, -1);
+        if (fallbackKey != -1) {
+            index = currentColors.indexOfKey(fallbackKey);
+            if (index >= 0) {
+                return currentColors.valueAt(index);
+            }
+        }
+        return getDefaultColor(key);
+    }
+
+    private static void applyNexgrammColors() {
+        if (!isNexgrammTheme(currentTheme)) {
+            nexgrammTheme = null;
+            nexgrammColors = null;
+            nexgrammPalette = null;
             return;
         }
-        nexgrammLightTheme = currentTheme;
-        if (nexgrammLightColors == null) {
+        if (nexgrammTemplate == null) {
             SparseIntArray colors = getThemeFileValues(null, NEXGRAMM_LIGHT_ASSET, null);
             colors.delete(key_wallpaperFileOffset);
-            nexgrammLightColors = colors;
+            nexgrammTemplate = colors;
         }
-        for (int i = 0, N = nexgrammLightColors.size(); i < N; i++) {
-            currentColors.put(nexgrammLightColors.keyAt(i), nexgrammLightColors.valueAt(i));
+        final uz.nexgramm.core.NexPalette palette = uz.nexgramm.core.NexPalette.of(currentTheme.isDark(), getNexgrammAccent());
+        final SparseIntArray out = new SparseIntArray();
+        // Telegram blue outside the template: blue -> accent, blue greys -> neutral greys
+        for (int key = 0; key < colorsCount; key++) {
+            if (key == key_wallpaperFileOffset || nexgrammTemplate.indexOfKey(key) >= 0) {
+                continue;
+            }
+            final String name = ThemeColors.getStringName(key);
+            if (uz.nexgramm.core.NexPalette.keepsOwnColor(name)) {
+                continue;
+            }
+            final int raw = rawColor(key);
+            final int color = palette.neutralizeBlue(raw);
+            if (color != raw) {
+                out.put(key, color);
+            }
         }
+        for (int i = 0, N = nexgrammTemplate.size(); i < N; i++) {
+            final int key = nexgrammTemplate.keyAt(i);
+            final String name = ThemeColors.getStringName(key);
+            out.put(key, name == null ? nexgrammTemplate.valueAt(i) : palette.mapTemplate(name, nexgrammTemplate.valueAt(i)));
+        }
+        for (String name : uz.nexgramm.core.NexPalette.ON_ACCENT_EXTRA_KEYS) {
+            final int key = ThemeColors.stringKeyToInt(name);
+            if (key >= 0 && key < colorsCount) {
+                out.put(key, palette.onAccent);
+            }
+        }
+        out.put(key_chats_onlineCircle, uz.nexgramm.core.NexPalette.ONLINE);
+        for (int i = 0, N = out.size(); i < N; i++) {
+            currentColors.put(out.keyAt(i), out.valueAt(i));
+        }
+        nexgrammPalette = palette;
+        nexgrammColors = out;
+        nexgrammTheme = currentTheme;
     }
 
     public static boolean hasHue(int color) {
@@ -9023,12 +9091,12 @@ public class Theme {
                 || key_chat_stickerReplyLine == key || key_chat_stickerReplyNameText == key || key_chat_stickerReplyMessageText == key)) {
             return 0xffffffff;
         }
-        // NexGramm: the light palette wins over the default-theme shortcut below, which would
+        // NexGramm: the app palette wins over the default-theme shortcut below, which would
         // otherwise return the raw ThemeColors defaults (Telegram blue) for Blue + default accent
-        if (nexgrammLightTheme != null && nexgrammLightTheme == currentTheme && nexgrammLightColors != null) {
-            int index = nexgrammLightColors.indexOfKey(key);
+        if (nexgrammTheme != null && nexgrammTheme == currentTheme && nexgrammColors != null) {
+            int index = nexgrammColors.indexOfKey(key);
             if (index >= 0) {
-                return nexgrammLightColors.valueAt(index);
+                return nexgrammColors.valueAt(index);
             }
         }
         if (currentTheme == defaultTheme) {
@@ -9426,9 +9494,11 @@ public class Theme {
             settings.isWallpaperMotion = currentTheme.isMotion;
             settings.isPatternWallpaper = currentTheme.patternBgColor != 0;
         }
-        if (isNexgrammLightTheme(currentTheme) && (overrideWallpaper == null || overrideWallpaper.isDefault())) {
-            // NexGramm: soft light background with a faint purple-gray gradient instead of the pattern wallpaper
-            settings.wallpaper = new MotionBackgroundDrawable(0xFFF4F4F7, 0xFFEFEDF7, 0xFFF4F4F7, 0xFFF1F0F6, false);
+        if (isNexgrammTheme(currentTheme) && (overrideWallpaper == null || overrideWallpaper.isDefault())) {
+            // NexGramm: soft background with a faint purple-gray gradient instead of the pattern wallpaper
+            settings.wallpaper = currentTheme.isDark()
+                ? new MotionBackgroundDrawable(0xFF0F0F12, 0xFF141319, 0xFF0F0F12, 0xFF121116, false)
+                : new MotionBackgroundDrawable(0xFFF4F4F7, 0xFFEFEDF7, 0xFFF4F4F7, 0xFFF1F0F6, false);
             settings.isWallpaperMotion = false;
             settings.isPatternWallpaper = false;
             settings.isCustomTheme = false;

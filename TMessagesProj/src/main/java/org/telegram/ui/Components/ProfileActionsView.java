@@ -107,7 +107,6 @@ public class ProfileActionsView extends View {
     public static final int KEY_EDIT_USERNAME = 15;
     public static final int KEY_EDIT_INFO = 16;
     public static final int KEY_SETTINGS = 17;
-    public static final int KEY_CONTACTS = 18;
 
     private boolean isApplying;
     private boolean isNotificationsEnabled;
@@ -644,12 +643,6 @@ public class ProfileActionsView extends View {
     public void addSettings() {
         final Action action = new Action(ActionButton.SETTINGS);
         action.key = KEY_SETTINGS;
-        actions.add(action);
-    }
-
-    public void addContacts() {
-        final Action action = new Action(ActionButton.CONTACTS);
-        action.key = KEY_CONTACTS;
         actions.add(action);
     }
 
@@ -1238,8 +1231,7 @@ public class ProfileActionsView extends View {
         SET_PHOTO(R.string.ProfileActionsEditPhoto2, R.drawable.filled_profile_photo, R.drawable.outline_profile_photo),
         EDIT_USERNAME(R.string.ProfileActionsEditUsername, R.drawable.filled_profile_edit_24, R.drawable.outline_profile_edit_24),
         EDIT_INFO(R.string.ProfileActionsEditInfo, R.drawable.filled_profile_edit_24, R.drawable.outline_profile_edit_24),
-        SETTINGS(R.string.Settings, R.drawable.filled_profile_settings, R.drawable.outline_profile_settings),
-        CONTACTS(R.string.Contacts, R.drawable.filled_profile_member_24, R.drawable.outline_profile_member_24),;
+        SETTINGS(R.string.Settings, R.drawable.filled_profile_settings, R.drawable.outline_profile_settings),;
 
         final @StringRes int title;
         final @DrawableRes int filledIcon;
