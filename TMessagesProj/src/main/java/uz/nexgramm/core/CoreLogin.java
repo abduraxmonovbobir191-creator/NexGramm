@@ -1,5 +1,7 @@
 package uz.nexgramm.core;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.SparseArray;
@@ -7,18 +9,23 @@ import android.util.SparseArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 
 import java.net.URLEncoder;
 
 // NexGramm: core login for one Telegram account.
-// Main path, startInitData: silent, no UI. messages.requestSimpleWebView for the bot gives a signed
-// Mini App URL; its tgWebAppData (initData) is exchanged at POST /v1/auth/app/initdata for tokens.
+// Main path, startInitData: silent, no UI. A Mini App request for the bot gives a signed URL; its
+// tgWebAppData (initData) is exchanged at POST /v1/auth/app/initdata for tokens. Requests are tried in
+// turn (requestSimpleWebView, requestWebView from the bot menu, requestMainWebView), the one that
+// worked last time first. Only codes, hosts and parameter names are logged, never URLs or values.
 // Fallback, start (CONTRACT v1.2 "Login flows -> App"): start -> nonce; this account visibly sends
 // "/start app_<nonce>" to the bot; the user presses [Ha, kirish] in the bot; poll every 2.5 s until
 // 200/403/410 or expires_in runs out.
@@ -63,6 +70,7 @@ public final class CoreLogin {
     private boolean viaBot;
     private boolean autoTried;
     private String errorDetail;
+    private int workingMethod;
 
     private CoreLogin(int account) {
         this.account = account;
@@ -123,25 +131,106 @@ public final class CoreLogin {
                 return;
             }
             botUserId = bot.id;
-            final TLRPC.TL_messages_requestSimpleWebView req = new TLRPC.TL_messages_requestSimpleWebView();
-            req.bot = MessagesController.getInstance(account).getInputUser(bot);
-            req.url = BuildConfig.CORE_API_URL + CoreInitData.APP_AUTH_PATH;
-            req.flags |= 8;
-            req.platform = "android";
-            ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> {
-                final String initData = response instanceof TLRPC.TL_webViewResultUrl ? CoreInitData.extract(((TLRPC.TL_webViewResultUrl) response).url) : null;
-                AndroidUtilities.runOnUIThread(() -> {
-                    if (gen != generation) {
-                        return;
-                    }
-                    if (error != null) {
-                        failInitData(error.code + " " + error.text);
-                    } else if (initData == null) {
-                        failInitData("NO_INIT_DATA");
-                    } else {
-                        exchangeInitData(gen, initData);
-                    }
-                });
+            requestInitData(gen, bot, methodOrder(), 0, new StringBuilder());
+        });
+    }
+
+    private static final String[] METHOD_NAMES = {"requestSimpleWebView", "requestWebView", "requestMainWebView"};
+    private static final String PREF_METHOD = "initdata_method";
+
+    private static SharedPreferences prefs() {
+        return ApplicationLoader.applicationContext.getSharedPreferences("nexgramm_core", Context.MODE_PRIVATE);
+    }
+
+    // Name of the request that gave initData last time, or null
+    public static String getWorkingMethodName() {
+        final int method = prefs().getInt(PREF_METHOD, -1);
+        return method >= 0 && method < METHOD_NAMES.length ? METHOD_NAMES[method] : null;
+    }
+
+    // The request that worked last time first, the others after it in the default order
+    private static int[] methodOrder() {
+        final int preferred = prefs().getInt(PREF_METHOD, 0);
+        final int[] order = new int[METHOD_NAMES.length];
+        int i = 0;
+        order[i++] = preferred >= 0 && preferred < METHOD_NAMES.length ? preferred : 0;
+        for (int m = 0; m < METHOD_NAMES.length; m++) {
+            if (m != order[0]) {
+                order[i++] = m;
+            }
+        }
+        return order;
+    }
+
+    private TLObject createRequest(int method, TLRPC.User bot, String url) {
+        final MessagesController controller = MessagesController.getInstance(account);
+        switch (method) {
+            case 1: {
+                final TLRPC.TL_messages_requestWebView req = new TLRPC.TL_messages_requestWebView();
+                req.peer = controller.getInputPeer(bot.id);
+                req.bot = controller.getInputUser(bot);
+                req.url = url;
+                req.flags |= 2;
+                req.from_bot_menu = true;
+                req.platform = "android";
+                return req;
+            }
+            case 2: {
+                final TLRPC.TL_messages_requestMainWebView req = new TLRPC.TL_messages_requestMainWebView();
+                req.peer = controller.getInputPeer(bot.id);
+                req.bot = controller.getInputUser(bot);
+                req.platform = "android";
+                return req;
+            }
+            default: {
+                final TLRPC.TL_messages_requestSimpleWebView req = new TLRPC.TL_messages_requestSimpleWebView();
+                req.bot = controller.getInputUser(bot);
+                req.url = url;
+                req.flags |= 8;
+                req.platform = "android";
+                return req;
+            }
+        }
+    }
+
+    // Tries order[index]; on a Telegram error or a URL without initData notes why and goes to the next one
+    private void requestInitData(int gen, TLRPC.User bot, int[] order, int index, StringBuilder failures) {
+        if (index >= order.length) {
+            failInitData(failures.toString());
+            return;
+        }
+        final int method = order[index];
+        final String url = BuildConfig.CORE_API_URL + CoreInitData.APP_AUTH_PATH;
+        ConnectionsManager.getInstance(account).sendRequest(createRequest(method, bot, url), (response, error) -> {
+            String initData = null;
+            final String failure;
+            if (error != null) {
+                failure = error.code + " " + error.text;
+            } else if (response instanceof TLRPC.TL_webViewResultUrl) {
+                final String resultUrl = ((TLRPC.TL_webViewResultUrl) response).url;
+                initData = CoreInitData.extract(resultUrl);
+                failure = initData == null ? "NO_INIT_DATA " + CoreInitData.describe(url, resultUrl) : null;
+            } else {
+                failure = "type=" + (response == null ? "null" : response.getClass().getSimpleName());
+            }
+            if (failure != null) {
+                FileLog.d("NexGramm initdata " + METHOD_NAMES[method] + ": " + failure);
+            }
+            final String finalInitData = initData;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen != generation) {
+                    return;
+                }
+                if (finalInitData != null) {
+                    workingMethod = method;
+                    exchangeInitData(gen, finalInitData);
+                    return;
+                }
+                if (failures.length() > 0) {
+                    failures.append('\n');
+                }
+                failures.append(METHOD_NAMES[method]).append(": ").append(failure);
+                requestInitData(gen, bot, order, index + 1, failures);
             });
         });
     }
@@ -168,6 +257,7 @@ public final class CoreLogin {
                     return;
                 }
                 if (finalDetail == null) {
+                    prefs().edit().putInt(PREF_METHOD, workingMethod).apply();
                     finish(STATE_DONE);
                 } else {
                     slowedDown = finalCode == 429;

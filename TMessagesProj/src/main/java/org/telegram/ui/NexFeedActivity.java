@@ -203,7 +203,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         if (tokens != null) {
             showCard(LocaleController.getString(R.string.NexFeedConnected), LocaleController.getString(R.string.NexFeedConnectedText));
             final String expiry = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US).format(new Date(tokens.accessExpiresAt));
-            statusView.setText(LocaleController.formatString(R.string.NexFeedTokenExpires, expiry));
+            final String method = CoreLogin.getWorkingMethodName();
+            final String expiresText = LocaleController.formatString(R.string.NexFeedTokenExpires, expiry);
+            statusView.setText(method == null ? expiresText : expiresText + "\n" + LocaleController.formatString(R.string.NexFeedLoginMethod, method));
             setButton(LocaleController.getString(R.string.NexFeedLogout), this::logout, false);
             return;
         }

@@ -48,10 +48,25 @@ public class CoreInitDataTest {
     }
 
     @Test
+    public void extractsInitDataFromQuery() {
+        assertEquals("a=1&hash=x", CoreInitData.extract("https://h/app-auth?tgWebAppData=a%3D1%26hash%3Dx&tgWebAppVersion=9.0#tgWebAppPlatform=android"));
+    }
+
+    @Test
+    public void describeShowsOnlyKeys() {
+        assertEquals("host=ng.nexecos.com same=yes #[tgWebAppData,tgWebAppVersion,tgWebAppPlatform] ?[]",
+            CoreInitData.describe("https://ng.nexecos.com/app-auth", WEBVIEW_URL));
+        assertEquals("host=h same=no #[tgWebAppVersion,(6 chars)] ?[x]",
+            CoreInitData.describe("https://ng.nexecos.com/app-auth", "https://h/other?x=secret#tgWebAppVersion=9.0&secret"));
+        assertEquals("host=ng.nexecos.com same=prefix #[] ?[]",
+            CoreInitData.describe("https://ng.nexecos.com/app-auth", "https://ng.nexecos.com/app-auth/"));
+        assertEquals("url=null", CoreInitData.describe("https://ng.nexecos.com/app-auth", null));
+    }
+
+    @Test
     public void noInitData() {
         assertNull(CoreInitData.extract(null));
         assertNull(CoreInitData.extract("https://ng.nexecos.com/app-auth"));
-        assertNull(CoreInitData.extract("https://ng.nexecos.com/app-auth?tgWebAppData=a%3D1"));
         assertNull(CoreInitData.extract("https://ng.nexecos.com/app-auth#tgWebAppVersion=9.0"));
         assertNull(CoreInitData.extract("https://ng.nexecos.com/app-auth#tgWebAppData="));
         assertNull(CoreInitData.extract("https://ng.nexecos.com/app-auth#tgWebAppData=%zz"));
