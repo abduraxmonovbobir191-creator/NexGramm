@@ -41,6 +41,8 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
     private static final int COLUMNS = 5;
 
     private LinearLayout content;
+    // the screens below (tabs: profile, Lenta …) keep their colors until rebuilt after a theme switch
+    private boolean rebuildOthers;
 
     @Override
     public boolean onFragmentCreate() {
@@ -58,6 +60,15 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.didSetNewTheme && content != null) {
             build();
+            if (rebuildOthers) {
+                rebuildOthers = false;
+                // after the circular reveal (400 ms)
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (getParentLayout() != null) {
+                        getParentLayout().rebuildAllFragmentViews(false, false);
+                    }
+                }, 500);
+            }
         }
     }
 
@@ -266,6 +277,7 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
         if (mode == MODE_SYSTEM) {
             Theme.selectedAutoNightType = Theme.AUTO_NIGHT_TYPE_SYSTEM;
             Theme.saveAutoNightThemeConfig();
+            rebuildOthers = true;
             Theme.checkAutoNightThemeConditions(true);
             build();
             return;
@@ -297,6 +309,7 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
         from.getLocationInWindow(pos);
         pos[0] += from.getMeasuredWidth() / 2;
         pos[1] += from.getMeasuredHeight() / 2;
+        rebuildOthers = true;
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, theme, nightTheme, pos, -1, reveal, null);
     }
 

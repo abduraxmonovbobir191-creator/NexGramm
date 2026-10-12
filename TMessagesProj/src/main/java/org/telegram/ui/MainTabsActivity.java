@@ -770,12 +770,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
             return dialogsActivity;
         } else if (position == POSITION_PROFILE) {
-            Bundle args = new Bundle();
-            args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
-            args.putBoolean("my_profile", true);
-            // args.putBoolean("expandPhoto", true);
-            args.putBoolean("hasMainTabs", true);
-            return new ProfileActivity(args);
+            // NexGramm: own minimal profile (Telegram identity + Lenta grid + cover); the classic Telegram
+            // profile opens from its avatar and menu
+            return NexProfileActivity.createMainTab();
         }
         return null;
     }
@@ -787,6 +784,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     /* */
 
     public GlassTabView[] tabs;
+
+    // NexGramm: the profile tab sends the user to Lenta to connect it
+    public void openFeedTab() {
+        selectTab(POSITION_FEED, true);
+        viewPager.scrollToPosition(POSITION_FEED);
+    }
 
     public void selectTab(int position, boolean animated) {
         for (int a = 0; a < tabs.length; a++) {
