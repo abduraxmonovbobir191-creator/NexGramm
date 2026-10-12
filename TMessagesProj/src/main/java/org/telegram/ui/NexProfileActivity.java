@@ -1,6 +1,8 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.os.Bundle;
+import android.view.MotionEvent;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
@@ -22,7 +24,12 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserObject;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.INavigationLayout;
+import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
@@ -45,7 +52,7 @@ import uz.nexgramm.core.PixelfedStatus;
 // ("Obuna bo'lish" / "Tahrirlash") and share, icon tabs (posts + videos; own: posts, liked, saved) and an
 // edge-to-edge 3-column grid of 3:4 tiles with like counts. A bar with the username fades in on scroll.
 // accountId null = the user's own profile (GET /api/v1/accounts/verify_credentials).
-public class NexProfileActivity extends BaseFragment {
+public class NexProfileActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate, NotificationCenter.NotificationCenterDelegate {
 
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_TABS = 1;
@@ -94,8 +101,63 @@ public class NexProfileActivity extends BaseFragment {
     private View topBarBackground;
     private TextView topBarTitle;
 
+    // Main "Profil" tab: the Telegram identity (name, photo, @username, bio, phone, birthday) on top of the
+    // user's Lenta grid and cover; QR and settings instead of back
+    private final boolean me;
+    private boolean lentaMissing;
+    private LinearLayout infoCard;
+
     public NexProfileActivity(String accountId) {
         this.accountId = accountId;
+        this.me = false;
+    }
+
+    private NexProfileActivity(Bundle args) {
+        super(args);
+        this.me = true;
+        this.own = true;
+    }
+
+    public static NexProfileActivity createMainTab() {
+        final Bundle args = new Bundle();
+        args.putBoolean("hasMainTabs", true);
+        return new NexProfileActivity(args);
+    }
+
+    @Override
+    public boolean onFragmentCreate() {
+        if (me) {
+            getNotificationCenter().addObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().addObserver(this, NotificationCenter.updateInterfaces);
+            final TLRPC.User user = getUserConfig().getCurrentUser();
+            if (user != null) {
+                getMessagesController().loadFullUser(user, classGuid, true);
+            }
+        }
+        return super.onFragmentCreate();
+    }
+
+    @Override
+    public void didReceivedNotification(int id, int account, Object... args) {
+        if (fragmentView == null || !me) {
+            return;
+        }
+        if (id == NotificationCenter.userInfoDidLoad && args.length > 0 && args[0] instanceof Long
+            && (Long) args[0] == tgUserId() || id == NotificationCenter.updateInterfaces) {
+            bindTelegram();
+        }
+    }
+
+    @Override
+    public boolean canParentTabsSlide(MotionEvent ev, boolean forward) {
+        return me;
+    }
+
+    @Override
+    public void onParentScrollToTop() {
+        if (listView != null) {
+            listView.smoothScrollToPosition(0);
+        }
     }
 
     private long tgUserId() {
@@ -144,6 +206,9 @@ public class NexProfileActivity extends BaseFragment {
         tabsView.setOrientation(LinearLayout.HORIZONTAL);
 
         root.addView(createTopBar(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        if (me) {
+            bindTelegram();
+        }
 
         fragmentView = root;
         loadAccount();
@@ -160,8 +225,16 @@ public class NexProfileActivity extends BaseFragment {
         topBarBackground.setAlpha(0f);
         bar.addView(topBarBackground, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        final ImageView back = NexLentaUi.circleButton(context, R.drawable.ic_ab_back, NexLentaUi.PILL_CARD, true);
-        back.setOnClickListener(v -> finishFragment());
+        final ImageView back = NexLentaUi.circleButton(context, me ? R.drawable.msg_qrcode : R.drawable.ic_ab_back, NexLentaUi.PILL_CARD, true);
+        back.setOnClickListener(v -> {
+            if (me) {
+                final Bundle args = new Bundle();
+                args.putLong("user_id", tgUserId());
+                presentFragment(new QrActivity(args));
+            } else {
+                finishFragment();
+            }
+        });
         bar.addView(back, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 12, 6, 0, 6));
 
         topBarTitle = new TextView(context);
@@ -177,9 +250,17 @@ public class NexProfileActivity extends BaseFragment {
         final ImageView share = NexLentaUi.circleButton(context, R.drawable.msg_send, NexLentaUi.PILL_CARD, true);
         share.setOnClickListener(v -> shareProfile());
         bar.addView(share, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 6, 64, 6));
-        final ImageView more = NexLentaUi.circleButton(context, R.drawable.ic_ab_other, NexLentaUi.PILL_CARD, true);
-        more.setRotation(90);
-        more.setOnClickListener(v -> showMenu());
+        final ImageView more = NexLentaUi.circleButton(context, me ? R.drawable.msg_settings : R.drawable.ic_ab_other, NexLentaUi.PILL_CARD, true);
+        if (!me) {
+            more.setRotation(90);
+        }
+        more.setOnClickListener(v -> {
+            if (me) {
+                presentFragment(new SettingsActivity());
+            } else {
+                showMenu();
+            }
+        });
         bar.addView(more, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 6, 12, 6));
         return bar;
     }
@@ -298,6 +379,19 @@ public class NexProfileActivity extends BaseFragment {
         shareButton.setOnClickListener(v -> shareProfile());
         buttons.addView(shareButton, LayoutHelper.createLinear(46, 46, 10, 0, 0, 0));
         column.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 18, 16, 16));
+        if (me) {
+            // phone, @username, birthday: tap copies
+            infoCard = new LinearLayout(context);
+            infoCard.setOrientation(LinearLayout.VERTICAL);
+            infoCard.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 22));
+            infoCard.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6));
+            column.addView(infoCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 0, 16, 18));
+            mainButton.setVisibility(View.VISIBLE);
+            coverButton.setVisibility(View.VISIBLE);
+            updateMainButton();
+            avatarView.setOnClickListener(v -> openTelegramProfile());
+            bindTelegram();
+        }
         return column;
     }
 
@@ -394,6 +488,13 @@ public class NexProfileActivity extends BaseFragment {
         final int gen = ++generation;
         final long userId = tgUserId();
         final String requestedId = accountId;
+        if (me && PixelfedClient.getTokens(userId) == null) {
+            // Lenta not connected yet: the profile shows the Telegram part and an invitation
+            lentaMissing = true;
+            adapter.notifyDataSetChanged();
+            return;
+        }
+        lentaMissing = false;
         CoreClient.EXECUTOR.execute(() -> {
             PixelfedAccount result = null;
             boolean isFollowing = false;
@@ -414,14 +515,16 @@ public class NexProfileActivity extends BaseFragment {
                     return;
                 }
                 if (finalResult == null) {
-                    nameView.setText(LocaleController.getString(R.string.NexFeedLoadError));
+                    if (!me) {
+                        nameView.setText(LocaleController.getString(R.string.NexFeedLoadError));
+                    }
                     postsFailed = true;
                     adapter.notifyDataSetChanged();
                     return;
                 }
                 account = finalResult;
                 accountId = finalResult.id;
-                own = ownName != null && ownName.equalsIgnoreCase(finalResult.username);
+                own = me || ownName != null && ownName.equalsIgnoreCase(finalResult.username);
                 following = finalFollowing;
                 bindAccount();
                 rebuildTabs();
@@ -432,6 +535,11 @@ public class NexProfileActivity extends BaseFragment {
     }
 
     private void bindAccount() {
+        if (me) {
+            updateCounts();
+            loadCover();
+            return;
+        }
         if (account.avatarUrl == null || account.avatarUrl.contains("/avatars/default")) {
             avatarView.setImageDrawable(NexLentaUi.initialsAvatar(account.displayName, true));
         } else {
@@ -481,6 +589,10 @@ public class NexProfileActivity extends BaseFragment {
 
     private void openCoverEditor() {
         if (account == null) {
+            if (me && lentaMissing) {
+                Toast.makeText(getParentActivity(), LocaleController.getString(R.string.NexMeConnectLenta), Toast.LENGTH_SHORT).show();
+                openFeedTab();
+            }
             return;
         }
         presentFragment(new NexCoverEditActivity(account, NexCover.cached(account.username), cover -> {
@@ -508,6 +620,10 @@ public class NexProfileActivity extends BaseFragment {
     }
 
     private void openEditor() {
+        if (me) {
+            presentFragment(new UserInfoActivity()); // Telegram name, bio, birthday
+            return;
+        }
         if (account == null) {
             return;
         }
@@ -626,10 +742,104 @@ public class NexProfileActivity extends BaseFragment {
     }
 
     private void shareProfile() {
-        if (account == null || getParentActivity() == null) {
+        if (getParentActivity() == null) {
             return;
         }
-        showDialog(ShareAlert.createShareAlert(getParentActivity(), null, account.url, false, account.url, false));
+        String link = account == null ? null : account.url;
+        if (me) {
+            final String username = UserObject.getPublicUsername(getUserConfig().getCurrentUser());
+            if (username != null) {
+                link = "https://t.me/" + username;
+            }
+        }
+        if (link == null) {
+            return;
+        }
+        showDialog(ShareAlert.createShareAlert(getParentActivity(), null, link, false, link, false));
+    }
+
+    // ---- main tab: Telegram identity ----
+
+    private void bindTelegram() {
+        final TLRPC.User user = getUserConfig().getCurrentUser();
+        if (user == null || nameView == null) {
+            return;
+        }
+        final String name = UserObject.getUserName(user);
+        nameView.setText(name);
+        if (topBarTitle != null) {
+            topBarTitle.setText(name);
+        }
+        final String username = UserObject.getPublicUsername(user);
+        usernameView.setText(username != null ? "@" + username : LocaleController.getString(R.string.NexMeNoUsername));
+        final AvatarDrawable avatarDrawable = new AvatarDrawable(user);
+        avatarView.setForUserOrChat(user, avatarDrawable);
+
+        final TLRPC.UserFull full = getMessagesController().getUserFull(user.id);
+        final String about = full != null && full.about != null ? full.about.trim() : "";
+        bioView.setText(about);
+        bioView.setVisibility(about.isEmpty() ? View.GONE : View.VISIBLE);
+        websiteView.setVisibility(View.GONE);
+
+        infoCard.removeAllViews();
+        if (!TextUtils.isEmpty(user.phone)) {
+            addInfoRow(org.telegram.PhoneFormat.PhoneFormat.getInstance().format("+" + user.phone), R.string.NexMePhone);
+        }
+        if (username != null) {
+            addInfoRow("@" + username, R.string.NexMeUsername);
+        }
+        if (full != null && full.birthday != null) {
+            addInfoRow(UserInfoActivity.birthdayString(full.birthday), R.string.NexMeBirthday);
+        }
+        infoCard.setVisibility(infoCard.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+    }
+
+    private void addInfoRow(String value, int labelRes) {
+        final Context context = infoCard.getContext();
+        final LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(AndroidUtilities.dp(18), AndroidUtilities.dp(10), AndroidUtilities.dp(18), AndroidUtilities.dp(10));
+        row.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.06f), Theme.RIPPLE_MASK_ALL));
+        final TextView valueView = new TextView(context);
+        valueView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        valueView.setTextColor(NexLentaColors.TEXT);
+        valueView.setSingleLine(true);
+        valueView.setEllipsize(TextUtils.TruncateAt.END);
+        valueView.setText(value);
+        row.addView(valueView);
+        final TextView labelView = new TextView(context);
+        labelView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        labelView.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        labelView.setText(LocaleController.getString(labelRes));
+        row.addView(labelView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
+        row.setOnClickListener(v -> {
+            AndroidUtilities.addToClipboard(value);
+            if (getParentActivity() != null) {
+                Toast.makeText(getParentActivity(), LocaleController.getString(R.string.NexMeCopied), Toast.LENGTH_SHORT).show();
+            }
+        });
+        infoCard.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+    }
+
+    // The classic Telegram profile: photos, stories, everything Telegram has
+    private void openTelegramProfile() {
+        final Bundle args = new Bundle();
+        args.putLong("user_id", tgUserId());
+        args.putBoolean("my_profile", true);
+        presentFragment(new ProfileActivity(args));
+    }
+
+    private void openFeedTab() {
+        final INavigationLayout layout = getParentLayout();
+        if (layout == null) {
+            return;
+        }
+        for (BaseFragment fragment : layout.getFragmentStack()) {
+            if (fragment instanceof MainTabsActivity) {
+                ((MainTabsActivity) fragment).openFeedTab();
+                return;
+            }
+        }
     }
 
     private void openWebsite() {
@@ -683,12 +893,22 @@ public class NexProfileActivity extends BaseFragment {
         if (coverView != null) {
             coverView.resume();
         }
+        if (me && fragmentView != null) {
+            bindTelegram();
+            if (lentaMissing && PixelfedClient.getTokens(tgUserId()) != null) {
+                loadAccount(); // Lenta was connected meanwhile
+            }
+        }
     }
 
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
         generation++;
+        if (me) {
+            getNotificationCenter().removeObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().removeObserver(this, NotificationCenter.updateInterfaces);
+        }
         if (coverView != null) {
             coverView.release();
         }
@@ -706,7 +926,7 @@ public class NexProfileActivity extends BaseFragment {
         @Override
         public int getItemCount() {
             if (account == null) {
-                return postsFailed ? 2 : 1;
+                return postsFailed || me ? 2 : 1;
             }
             return 2 + visibleTiles().size() + (showState() ? 1 : 0);
         }
@@ -840,6 +1060,10 @@ public class NexProfileActivity extends BaseFragment {
             textView.setTextColor(NexLentaColors.SECONDARY_TEXT);
             textView.setPadding(AndroidUtilities.dp(24), AndroidUtilities.dp(40), AndroidUtilities.dp(24), AndroidUtilities.dp(40));
             textView.setOnClickListener(v -> {
+                if (me && lentaMissing) {
+                    openFeedTab();
+                    return;
+                }
                 if (postsFailed) {
                     postsFailed = false;
                     if (account == null) {
@@ -854,6 +1078,12 @@ public class NexProfileActivity extends BaseFragment {
         }
 
         void update() {
+            if (me && lentaMissing) {
+                progressView.setVisibility(View.GONE);
+                textView.setVisibility(View.VISIBLE);
+                textView.setText(LocaleController.getString(R.string.NexMeLentaMissing));
+                return;
+            }
             final boolean loadingNow = !postsFailed && (account == null
                 || (tab == TAB_SAVED ? saved == null : tab == TAB_LIKED ? liked == null : (postsLoading || hasMore)));
             progressView.setVisibility(loadingNow ? View.VISIBLE : View.GONE);

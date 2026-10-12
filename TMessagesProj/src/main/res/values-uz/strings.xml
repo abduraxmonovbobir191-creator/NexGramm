@@ -155,4 +155,11 @@
     <string name="NexCoverTooLarge">Fayl juda katta. Boshqasini tanlang.</string>
     <string name="NexCoverVideoShort">Video kamida 4 soniya bo\'lsin.</string>
     <string name="NexCoverLogin">Lentani qayta oching (kirish uchun), keyin muqovani o\'zgartiring.</string>
+    <string name="NexMeNoUsername">Username yo\'q</string>
+    <string name="NexMePhone">Telefon</string>
+    <string name="NexMeUsername">Username</string>
+    <string name="NexMeBirthday">Tug\'ilgan kun</string>
+    <string name="NexMeCopied">Nusxalandi</string>
+    <string name="NexMeConnectLenta">Avval Lentaga ulaning</string>
+    <string name="NexMeLentaMissing">Lentadagi postlaringiz shu yerda chiqadi.\nUlanish uchun Lenta tabini oching.</string>
 </resources>

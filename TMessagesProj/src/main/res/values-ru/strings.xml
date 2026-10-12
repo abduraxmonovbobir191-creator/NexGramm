@@ -419,4 +419,11 @@
     <string name="NexCoverTooLarge">Файл слишком большой. Выберите другой.</string>
     <string name="NexCoverVideoShort">Видео должно быть не короче 4 секунд.</string>
     <string name="NexCoverLogin">Откройте Ленту снова, чтобы войти, и измените обложку.</string>
+    <string name="NexMeNoUsername">Нет имени пользователя</string>
+    <string name="NexMePhone">Телефон</string>
+    <string name="NexMeUsername">Имя пользователя</string>
+    <string name="NexMeBirthday">День рождения</string>
+    <string name="NexMeCopied">Скопировано</string>
+    <string name="NexMeConnectLenta">Сначала подключите Ленту</string>
+    <string name="NexMeLentaMissing">Здесь появятся ваши посты в Ленте.\nОткройте вкладку Лента, чтобы подключиться.</string>
 </resources>

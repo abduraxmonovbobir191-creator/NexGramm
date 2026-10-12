@@ -11344,6 +11344,13 @@
     <string name="NexCoverTooLarge">The file is too large. Choose another one.</string>
     <string name="NexCoverVideoShort">The video must be at least 4 seconds long.</string>
     <string name="NexCoverLogin">Open Feed again to sign in, then change the cover.</string>
+    <string name="NexMeNoUsername">No username</string>
+    <string name="NexMePhone">Phone</string>
+    <string name="NexMeUsername">Username</string>
+    <string name="NexMeBirthday">Birthday</string>
+    <string name="NexMeCopied">Copied</string>
+    <string name="NexMeConnectLenta">Connect Feed first</string>
+    <string name="NexMeLentaMissing">Your Feed posts will appear here.\nOpen the Feed tab to connect.</string>
     <string name="NexFeedTitle">Feed</string>
     <string name="NexFeedModeForYou">For you</string>
     <string name="NexFeedModeFollowing">Following</string>
