@@ -14,7 +14,7 @@ public class PixelfedStatusTest {
 
     private static final String TIMELINE = "["
         + "{\"id\":\"30\",\"content\":\"<p>Salom</p>\",\"favourites_count\":3,\"replies_count\":1,\"favourited\":true,"
-        + "\"account\":{\"username\":\"bob\",\"acct\":\"bob\",\"display_name\":\"\",\"avatar\":\"https://feed.test/a.jpg\"},"
+        + "\"account\":{\"id\":\"11\",\"username\":\"bob\",\"acct\":\"bob\",\"display_name\":\"\",\"avatar\":\"https://feed.test/a.jpg\"},"
         + "\"media_attachments\":["
         + "{\"type\":\"image\",\"url\":\"https://cdn.test/1.jpg\",\"preview_url\":\"https://cdn.test/1s.jpg\",\"meta\":{\"original\":{\"width\":1080,\"height\":1350}}},"
         + "{\"type\":\"video\",\"url\":\"https://cdn.test/2.mp4\",\"preview_url\":\"https://cdn.test/2.jpg\",\"meta\":null},"
@@ -33,6 +33,7 @@ public class PixelfedStatusTest {
         assertEquals("30", first.id);
         assertEquals("30", first.statusId);
         assertEquals("bob", first.authorName); // empty display name → username
+        assertEquals("11", first.authorId);
         assertEquals("https://feed.test/a.jpg", first.avatarUrl);
         assertEquals(3, first.favouritesCount);
         assertEquals(1, first.repliesCount);
@@ -70,5 +71,21 @@ public class PixelfedStatusTest {
         final PixelfedTokens refreshed = PixelfedTokens.fromResponse("{\"access_token\":\"acc2\"}", 5L, "ref", "bob");
         assertEquals("ref", refreshed.refreshToken);
         assertEquals(5L + PixelfedClient.MAX_TOKEN_AGE_MS, refreshed.expiresAt);
+    }
+
+    @Test
+    public void parsesAccountAndSingleStatus() throws Exception {
+        final PixelfedAccount account = PixelfedAccount.fromJson("{\"id\":\"5\",\"username\":\"ann\",\"acct\":\"ann\",\"display_name\":\" \","
+            + "\"avatar\":\"http://x/a.png\",\"note\":\"<p>Salom</p>\",\"statuses_count\":3,\"followers_count\":7,\"following_count\":2}");
+        assertEquals("5", account.id);
+        assertEquals("ann", account.displayName);
+        assertNull(account.avatarUrl);
+        assertEquals(3, account.statusesCount);
+        assertEquals(7, account.followersCount);
+        assertEquals(2, account.followingCount);
+
+        final PixelfedStatus status = PixelfedStatus.oneFromJson("{\"id\":\"9\",\"content\":\"ok\",\"account\":{\"id\":\"5\",\"username\":\"ann\"}}");
+        assertEquals("9", status.statusId);
+        assertEquals("5", status.authorId);
     }
 }

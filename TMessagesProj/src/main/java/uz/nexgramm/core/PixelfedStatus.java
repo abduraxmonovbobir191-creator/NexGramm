@@ -28,21 +28,24 @@ public final class PixelfedStatus {
 
     public final String id;
     public final String statusId;
+    public final String authorId;
     public final String authorName;
     public final String authorUsername;
     public final String avatarUrl;
     public final String contentHtml;
     public final ArrayList<Media> media;
-    public final int repliesCount;
+    // Changed by the comments screen (UI thread only)
+    public int repliesCount;
     // Changed by the like button (UI thread only)
     public int favouritesCount;
     public boolean favourited;
     public boolean likePending;
 
-    private PixelfedStatus(String id, String statusId, String authorName, String authorUsername, String avatarUrl,
+    private PixelfedStatus(String id, String statusId, String authorId, String authorName, String authorUsername, String avatarUrl,
                            String contentHtml, ArrayList<Media> media, int favouritesCount, int repliesCount, boolean favourited) {
         this.id = id;
         this.statusId = statusId;
+        this.authorId = authorId;
         this.authorName = authorName;
         this.authorUsername = authorUsername;
         this.avatarUrl = avatarUrl;
@@ -54,7 +57,21 @@ public final class PixelfedStatus {
     }
 
     static ArrayList<PixelfedStatus> listFromJson(String body) throws JSONException {
-        final JSONArray array = new JSONArray(body);
+        return listFromArray(new JSONArray(body));
+    }
+
+    static PixelfedStatus oneFromJson(String body) throws JSONException {
+        final PixelfedStatus status = fromJson(new JSONObject(body));
+        if (status == null) {
+            throw new JSONException("no status id");
+        }
+        return status;
+    }
+
+    static ArrayList<PixelfedStatus> listFromArray(JSONArray array) {
+        if (array == null) {
+            return new ArrayList<>();
+        }
         final ArrayList<PixelfedStatus> result = new ArrayList<>(array.length());
         for (int i = 0; i < array.length(); i++) {
             final JSONObject item = array.optJSONObject(i);
@@ -80,7 +97,9 @@ public final class PixelfedStatus {
         String username = "";
         String name = "";
         String avatar = null;
+        String authorId = "";
         if (account != null) {
+            authorId = account.optString("id", "");
             username = account.optString("acct", account.optString("username", ""));
             name = account.optString("display_name", "");
             avatar = httpsOrNull(account.optString("avatar", ""));
@@ -123,7 +142,7 @@ public final class PixelfedStatus {
             }
         }
         final String statusId = json.optString("id", id);
-        return new PixelfedStatus(id, statusId.isEmpty() ? id : statusId, name, username, avatar,
+        return new PixelfedStatus(id, statusId.isEmpty() ? id : statusId, authorId, name, username, avatar,
             json.optString("content", ""), media,
             json.optInt("favourites_count", 0), json.optInt("replies_count", 0), json.optBoolean("favourited", false));
     }

@@ -3,9 +3,11 @@ package uz.nexgramm.core;
 import android.net.Uri;
 import android.util.Base64;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,6 +36,7 @@ public final class PixelfedClient {
     static final long MAX_TOKEN_AGE_MS = 30L * 24 * 60 * 60 * 1000;
     private static final long REFRESH_EARLY_MS = 24L * 60 * 60 * 1000;
     private static final int TIMEOUT_MS = 20000;
+    private static final int UPLOAD_TIMEOUT_MS = 180000; // the server processes the file before it answers
     private static final int PAGE_SIZE = 20;
     private static final String CLIENT_KEY = "pf_client";
 
@@ -52,7 +55,7 @@ public final class PixelfedClient {
     }
 
     public static final class HttpException extends IOException {
-        public final String stage; // apps, token, verify, refresh, api
+        public final String stage; // apps, token, verify, refresh, api, media, post
         public final int code;
         // DEBUG(oauth-reason): short error name from WWW-Authenticate / the JSON body, never a value or URL
         public final String detail;
@@ -467,6 +470,137 @@ public final class PixelfedClient {
         }
     }
 
+    // POST /api/v1/statuses: a post (mediaIds, caption) or a comment (inReplyToId, text); returns the new status
+    public static PixelfedStatus createStatusBlocking(long tgUserId, String text, ArrayList<String> mediaIds, String inReplyToId) throws IOException, NotConnectedException {
+        final ArrayList<String> pairs = new ArrayList<>();
+        pairs.add("status");
+        pairs.add(text == null ? "" : text);
+        pairs.add("visibility");
+        pairs.add("public");
+        if (mediaIds != null) {
+            for (String id : mediaIds) {
+                pairs.add("media_ids[]");
+                pairs.add(id);
+            }
+        }
+        if (inReplyToId != null) {
+            pairs.add("in_reply_to_id");
+            pairs.add(inReplyToId);
+        }
+        final Response response = apiBlocking(tgUserId, "POST", "/api/v1/statuses", form(pairs.toArray(new String[0])));
+        if (response.code != 200) {
+            throw new HttpException("post", response);
+        }
+        try {
+            return PixelfedStatus.oneFromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad status");
+        }
+    }
+
+    // GET /api/v1/statuses/:id/context → the comments (descendants), oldest first
+    public static ArrayList<PixelfedStatus> commentsBlocking(long tgUserId, String statusId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1/statuses/" + encode(statusId) + "/context", null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedStatus.listFromArray(new JSONObject(response.body).optJSONArray("descendants"));
+        } catch (JSONException e) {
+            throw new IOException("bad context");
+        }
+    }
+
+    // GET /api/v1/accounts/:id
+    public static PixelfedAccount accountBlocking(long tgUserId, String accountId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1/accounts/" + encode(accountId), null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedAccount.fromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad account");
+        }
+    }
+
+    // GET /api/v1/accounts/relationships?id[]=: true when this user follows the account
+    public static boolean isFollowingBlocking(long tgUserId, String accountId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1/accounts/relationships?" + encode("id[]") + "=" + encode(accountId), null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            final JSONArray array = new JSONArray(response.body);
+            final JSONObject relation = array.length() > 0 ? array.optJSONObject(0) : null;
+            return relation != null && (relation.optBoolean("following", false) || relation.optBoolean("requested", false));
+        } catch (JSONException e) {
+            throw new IOException("bad relationship");
+        }
+    }
+
+    // POST /api/v1/accounts/:id/follow or /unfollow
+    public static void setFollowBlocking(long tgUserId, String accountId, boolean follow) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "POST", "/api/v1/accounts/" + encode(accountId) + (follow ? "/follow" : "/unfollow"), "");
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+    }
+
+    // GET /api/v1/accounts/:id/statuses (max_id paging)
+    public static ArrayList<PixelfedStatus> accountStatusesBlocking(long tgUserId, String accountId, String maxId) throws IOException, NotConnectedException {
+        String path = "/api/v1/accounts/" + encode(accountId) + "/statuses?limit=" + PAGE_SIZE;
+        if (maxId != null) {
+            path += "&max_id=" + encode(maxId);
+        }
+        final Response response = apiBlocking(tgUserId, "GET", path, null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedStatus.listFromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad timeline");
+        }
+    }
+
+    // The Pixelfed username this app's token belongs to (null when not connected)
+    public static String ownUsername(long tgUserId) {
+        final PixelfedTokens tokens = getTokens(tgUserId);
+        return tokens == null || tokens.username.isEmpty() ? null : tokens.username;
+    }
+
+    public interface UploadProgress {
+        // called on the upload thread
+        void onProgress(long sent, long total);
+    }
+
+    // POST /api/v1/media (multipart "file") → media id. 401 → refresh once and send again.
+    public static String uploadMediaBlocking(long tgUserId, File file, String mime, UploadProgress progress) throws IOException, NotConnectedException {
+        final PixelfedTokens tokens = freshTokensBlocking(tgUserId);
+        Response response = multipartBlocking("/api/v1/media", file, mime, tokens.accessToken, progress);
+        if (response.code == 401) {
+            final PixelfedTokens refreshed = refreshBlocking(tgUserId, tokens.accessToken);
+            response = multipartBlocking("/api/v1/media", file, mime, refreshed.accessToken, progress);
+            if (response.code == 401) {
+                clearTokens(tgUserId);
+                throw new NotConnectedException();
+            }
+        }
+        if (response.code != 200 && response.code != 202) {
+            throw new HttpException("media", response);
+        }
+        try {
+            final String id = new JSONObject(response.body).getString("id");
+            if (id.isEmpty()) {
+                throw new IOException("bad media");
+            }
+            return id;
+        } catch (JSONException e) {
+            throw new IOException("bad media");
+        }
+    }
+
     // ---- HTTP ----
 
     // HTTPS to HOST only, no redirects, form-encoded body (null = no body)
@@ -494,6 +628,58 @@ public final class PixelfedClient {
                 try (OutputStream out = connection.getOutputStream()) {
                     out.write(bytes);
                 }
+            }
+            final int code = connection.getResponseCode();
+            final InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            return new Response(code, CoreClient.read(in), connection.getHeaderField("WWW-Authenticate"));
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static Response multipartBlocking(String path, File file, String mime, String bearer, UploadProgress progress) throws IOException {
+        final URL url = new URL(BASE + path);
+        if (!"https".equals(url.getProtocol()) || !HOST.equals(url.getHost())) {
+            throw new IOException("bad pixelfed url");
+        }
+        final String boundary = "NexGramm" + randomToken(12).replace('-', 'a').replace('_', 'b');
+        final String fileName = mime.startsWith("video/") ? "video.mp4" : "photo.jpg";
+        final byte[] head = ("--" + boundary + "\r\n"
+            + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
+            + "Content-Type: " + mime + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+        final byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+        final long fileLength = file.length();
+        final long total = head.length + fileLength + tail.length;
+        final HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+        try {
+            connection.setInstanceFollowRedirects(false);
+            connection.setUseCaches(false);
+            connection.setConnectTimeout(TIMEOUT_MS);
+            connection.setReadTimeout(UPLOAD_TIMEOUT_MS);
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + bearer.trim());
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            connection.setDoOutput(true);
+            connection.setFixedLengthStreamingMode(total);
+            long sent = 0;
+            try (OutputStream out = connection.getOutputStream(); InputStream in = new java.io.FileInputStream(file)) {
+                out.write(head);
+                sent += head.length;
+                final byte[] buffer = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, n);
+                    sent += n;
+                    if (progress != null) {
+                        progress.onProgress(sent, total);
+                    }
+                }
+                out.write(tail);
+                sent += tail.length;
+            }
+            if (progress != null) {
+                progress.onProgress(sent, total);
             }
             final int code = connection.getResponseCode();
             final InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();

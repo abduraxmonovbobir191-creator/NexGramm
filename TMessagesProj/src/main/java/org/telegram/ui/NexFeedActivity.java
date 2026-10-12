@@ -28,6 +28,7 @@ import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.CoreLogin;
 import uz.nexgramm.core.CoreTokens;
 import uz.nexgramm.core.PixelfedClient;
+import uz.nexgramm.core.PixelfedStatus;
 
 // NexGramm: Lenta tab. Not logged in to the core -> silent initData login with a short loading view;
 // only on error a card with "Qayta urinish" and the fallback "Bot orqali kirish" (nonce + bot flow).
@@ -148,7 +149,31 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         lentaView = new NexLentaView(context, getResourceProvider(), this::openLenta);
         lentaView.setVisibility(View.GONE);
         frameLayout.addView(lentaView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        nativeView = new NexNativeFeedView(context, tgUserId(), getResourceProvider(), this::onFeedNotConnected);
+        nativeView = new NexNativeFeedView(context, tgUserId(), null, getResourceProvider(), new NexNativeFeedView.Delegate() {
+            @Override
+            public void onFeedNotConnected() {
+                NexFeedActivity.this.onFeedNotConnected();
+            }
+
+            @Override
+            public void onComposeClick() {
+                presentFragment(new NexComposeActivity(status -> {
+                    if (nativeView != null) {
+                        nativeView.addPostOnTop(status);
+                    }
+                }));
+            }
+
+            @Override
+            public void onOpenComments(PixelfedStatus status) {
+                presentFragment(new NexCommentsActivity(status));
+            }
+
+            @Override
+            public void onOpenProfile(String accountId) {
+                presentFragment(new NexProfileActivity(accountId));
+            }
+        });
         nativeView.setVisibility(View.GONE);
         frameLayout.addView(nativeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         ViewCompat.setOnApplyWindowInsetsListener(frameLayout, (v, insets) -> {

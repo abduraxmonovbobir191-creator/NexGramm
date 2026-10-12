@@ -47,10 +47,18 @@ public class NexPostCell extends FrameLayout {
         void onLikeClick(NexPostCell cell, PixelfedStatus status);
 
         void onMediaPageChanged(NexPostCell cell);
+
+        // A tap on the text, a photo or the comment button
+        default void onCommentsClick(NexPostCell cell, PixelfedStatus status) {
+        }
+
+        // A tap on the avatar or the name
+        default void onAuthorClick(PixelfedStatus status) {
+        }
     }
 
-    private static final int LIKED_COLOR = 0xFFFF3B5C;
-    private static final int PLACEHOLDER_COLOR = 0xFFE9E9EE;
+    private static final int LIKED_COLOR = NexLentaColors.LIKED;
+    private static final int PLACEHOLDER_COLOR = NexLentaColors.PLACEHOLDER;
 
     private final Delegate delegate;
     private final int textColor;
@@ -76,13 +84,13 @@ public class NexPostCell extends FrameLayout {
     public NexPostCell(Context context, Theme.ResourcesProvider resourcesProvider, Delegate delegate) {
         super(context);
         this.delegate = delegate;
-        textColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
-        grayColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider);
+        textColor = NexLentaColors.TEXT;
+        grayColor = NexLentaColors.SECONDARY_TEXT;
         final int radius = AndroidUtilities.dp(20);
 
         card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(Theme.createRoundRectDrawable(radius, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)));
+        card.setBackground(Theme.createRoundRectDrawable(radius, NexLentaColors.CARD));
         card.setOutlineProvider(new ViewOutlineProvider() {
             @Override
             public void getOutline(View view, Outline outline) {
@@ -116,6 +124,11 @@ public class NexPostCell extends FrameLayout {
         usernameView.setEllipsize(TextUtils.TruncateAt.END);
         names.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         header.addView(names, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 10, 0, 0, 0));
+        header.setOnClickListener(v -> {
+            if (status != null) {
+                delegate.onAuthorClick(status);
+            }
+        });
         card.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         // Media: height follows the first item's aspect ratio (clamped like Instagram, 1.91:1 … 4:5)
@@ -159,6 +172,7 @@ public class NexPostCell extends FrameLayout {
         textView.setTextColor(textColor);
         textView.setMaxLines(8);
         textView.setEllipsize(TextUtils.TruncateAt.END);
+        textView.setOnClickListener(v -> openComments());
         card.addView(textView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 14, 12, 14, 0));
 
         // Likes and comments
@@ -184,14 +198,35 @@ public class NexPostCell extends FrameLayout {
         });
         footer.addView(likeButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
 
+        final LinearLayout commentButton = new LinearLayout(context);
+        commentButton.setOrientation(LinearLayout.HORIZONTAL);
+        commentButton.setGravity(Gravity.CENTER_VERTICAL);
+        commentButton.setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(8), AndroidUtilities.dp(6));
+        commentButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(textColor, 0.08f), Theme.RIPPLE_MASK_ROUNDRECT_6DP));
         final ImageView commentIcon = new ImageView(context);
         commentIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         commentIcon.setImageResource(R.drawable.msg_msgbubble3);
         commentIcon.setColorFilter(new PorterDuffColorFilter(textColor, PorterDuff.Mode.SRC_IN));
-        footer.addView(commentIcon, LayoutHelper.createLinear(24, 24, 12, 0, 0, 0));
+        commentButton.addView(commentIcon, LayoutHelper.createLinear(24, 24));
         commentCount = createCount(context);
-        footer.addView(commentCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+        commentButton.addView(commentCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+        commentButton.setOnClickListener(v -> openComments());
+        footer.addView(commentButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
         card.addView(footer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private void openComments() {
+        if (status != null) {
+            delegate.onCommentsClick(this, status);
+        }
+    }
+
+    // After a comment was added elsewhere
+    public void updateCounts() {
+        if (status != null) {
+            commentCount.setText(String.valueOf(Math.max(0, status.repliesCount)));
+            updateLike();
+        }
     }
 
     private TextView createCount(Context context) {
@@ -334,7 +369,7 @@ public class NexPostCell extends FrameLayout {
         @NonNull
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            final MediaPageView page = new MediaPageView(parent.getContext());
+            final MediaPageView page = new MediaPageView(parent.getContext(), NexPostCell.this::openComments);
             page.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             return new RecyclerView.ViewHolder(page) {
             };
@@ -362,6 +397,7 @@ public class NexPostCell extends FrameLayout {
 
     // One album page: image, or video preview + player (Telegram's VideoPlayer, ExoPlayer inside)
     private static class MediaPageView extends FrameLayout {
+        private final Runnable onImageClick;
         private final BackupImageView imageView;
         private final TextView muteView;
         private TextureView textureView;
@@ -369,13 +405,21 @@ public class NexPostCell extends FrameLayout {
         private PixelfedStatus.Media media;
         private boolean muted = true;
 
-        MediaPageView(Context context) {
+        MediaPageView(Context context, Runnable onImageClick) {
             super(context);
+            this.onImageClick = onImageClick;
             imageView = new BackupImageView(context);
             addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             muteView = createPill(context);
             addView(muteView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 10, 10));
-            setOnClickListener(v -> toggleMute());
+            // video: sound on/off; photo: the comments
+            setOnClickListener(v -> {
+                if (media != null && media.video) {
+                    toggleMute();
+                } else {
+                    onImageClick.run();
+                }
+            });
         }
 
         void bind(PixelfedStatus.Media media, String filter) {
@@ -385,7 +429,7 @@ public class NexPostCell extends FrameLayout {
             imageView.setImage(image, filter, new ColorDrawable(PLACEHOLDER_COLOR));
             muteView.setVisibility(media.video ? View.VISIBLE : View.GONE);
             muteView.setText("🔇");
-            setClickable(media.video);
+            setClickable(true);
         }
 
         // Muted autoplay, looping; the preview stays until the first frame is drawn
