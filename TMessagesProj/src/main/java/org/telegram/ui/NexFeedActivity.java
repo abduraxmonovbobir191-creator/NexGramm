@@ -2,6 +2,7 @@ package org.telegram.ui;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -9,6 +10,10 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildConfig;
@@ -19,17 +24,13 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RadialProgressView;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
 import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.CoreLogin;
 import uz.nexgramm.core.CoreTokens;
 
 // NexGramm: Lenta tab. Not logged in to the core -> silent initData login with a short loading view;
 // only on error a card with "Qayta urinish" and the fallback "Bot orqali kirish" (nonce + bot flow).
-// Logged in -> "Ulandi" with the access token expiry (time only, never the token) and a logout button.
+// Logged in -> the Lenta (Pixelfed) WebView in NexLentaView, opened with a one-time URL from POST /v1/lenta/session.
 public class NexFeedActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate, CoreLogin.Listener {
 
     private TextView titleView;
@@ -40,8 +41,11 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     private TextView linkView;
     private LinearLayout card;
     private LinearLayout loadingView;
+    private NexLentaView lentaView;
     private boolean openBotWhenSent;
-    private int refreshGeneration;
+    // true once a Lenta session was requested for the current login; false again to request a new one
+    private boolean lentaRequested;
+    private int lentaGeneration;
 
     public static NexFeedActivity create() {
         final Bundle args = new Bundle();
@@ -131,9 +135,25 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         loadingText.setText(LocaleController.getString(R.string.NexFeedLoginStarting));
         loadingView.addView(loadingText, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
         frameLayout.addView(loadingView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
+
+        // Full screen under the status bar and above the floating bottom tabs (and the navigation bar)
+        lentaView = new NexLentaView(context, getResourceProvider(), this::openLenta);
+        lentaView.setVisibility(View.GONE);
+        setLentaInsets(AndroidUtilities.statusBarHeight, AndroidUtilities.navigationBarHeight);
+        frameLayout.addView(lentaView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        ViewCompat.setOnApplyWindowInsetsListener(frameLayout, (v, insets) -> {
+            final Insets systemInsets = AndroidUtilities.getDefaultWindowInsets(insets, false);
+            setLentaInsets(systemInsets.top, systemInsets.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
+        lentaRequested = false;
         fragmentView = frameLayout;
         updateUi();
         return fragmentView;
+    }
+
+    private void setLentaInsets(int top, int bottom) {
+        lentaView.setPadding(0, top, 0, bottom + AndroidUtilities.dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS));
     }
 
     @Override
@@ -142,7 +162,17 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         login().setListener(this);
         maybeAutoLogin();
         updateUi();
-        refreshExpiry();
+        if (lentaView != null) {
+            lentaView.onResume();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (lentaView != null) {
+            lentaView.onPause();
+        }
     }
 
     // Silent login when there are no tokens: on the first open of the tab, or when the tokens were
@@ -157,6 +187,10 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
         login().setListener(null);
+        lentaGeneration++;
+        if (lentaView != null) {
+            lentaView.destroy();
+        }
     }
 
     @Override
@@ -171,25 +205,44 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         updateUi();
     }
 
-    // Refreshes the access token when it is (almost) expired, so the shown expiry is current
-    private void refreshExpiry() {
+    // Requests a one-time Lenta URL (the access token is refreshed when needed) and opens it.
+    // The URL carries a ticket: it is never stored or logged; each retry asks for a new one.
+    private void openLenta() {
         final long userId = tgUserId();
-        if (CoreClient.getTokens(userId) == null) {
-            return;
-        }
-        final int gen = ++refreshGeneration;
+        final int gen = ++lentaGeneration;
+        lentaRequested = true;
+        lentaView.showLoading();
         CoreClient.EXECUTOR.execute(() -> {
+            String url = null;
+            String reason = null;
+            boolean loggedOut = false;
             try {
-                CoreClient.freshTokensBlocking(userId);
-            } catch (Exception ignore) {
-                // not logged in any more (tokens dropped) or offline: the stored state is shown
+                url = CoreClient.lentaSessionUrlBlocking(userId);
+            } catch (CoreClient.NotLoggedInException e) {
+                loggedOut = true;
+            } catch (CoreClient.ApiException e) {
+                reason = TextUtils.isEmpty(e.messageUz) ? "core HTTP " + e.code : e.messageUz;
+            } catch (Exception e) {
+                reason = LocaleController.getString(R.string.NexFeedLoginError) + "\n(" + e.getClass().getSimpleName() + ")";
             }
+            final String finalUrl = url;
+            final String finalReason = reason;
+            final boolean finalLoggedOut = loggedOut;
             AndroidUtilities.runOnUIThread(() -> {
-                if (gen == refreshGeneration) {
+                if (gen != lentaGeneration || lentaView == null) {
+                    return;
+                }
+                if (finalLoggedOut) {
+                    // refresh token rejected, tokens dropped: back to the silent login
+                    lentaRequested = false;
                     if (!isPaused) {
                         maybeAutoLogin();
                     }
                     updateUi();
+                } else if (finalUrl != null) {
+                    lentaView.load(finalUrl);
+                } else {
+                    lentaView.showError(finalReason);
                 }
             });
         });
@@ -201,13 +254,20 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         }
         final CoreTokens tokens = CoreClient.getTokens(tgUserId());
         if (tokens != null) {
-            showCard(LocaleController.getString(R.string.NexFeedConnected), LocaleController.getString(R.string.NexFeedConnectedText));
-            final String expiry = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US).format(new Date(tokens.accessExpiresAt));
-            final String method = CoreLogin.getWorkingMethodName();
-            final String expiresText = LocaleController.formatString(R.string.NexFeedTokenExpires, expiry);
-            statusView.setText(method == null ? expiresText : expiresText + "\n" + LocaleController.formatString(R.string.NexFeedLoginMethod, method));
-            setButton(LocaleController.getString(R.string.NexFeedLogout), this::logout, false);
+            card.setVisibility(View.GONE);
+            loadingView.setVisibility(View.GONE);
+            lentaView.setVisibility(View.VISIBLE);
+            if (!lentaRequested) {
+                openLenta();
+            }
             return;
+        }
+        if (lentaRequested || lentaView.getVisibility() == View.VISIBLE) {
+            // logged out: the feed must not stay on screen
+            lentaGeneration++;
+            lentaRequested = false;
+            lentaView.clear();
+            lentaView.setVisibility(View.GONE);
         }
 
         final CoreLogin login = login();
@@ -309,14 +369,9 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         presentFragment(new ChatActivity(args));
     }
 
-    private void logout() {
-        CoreClient.logout(tgUserId());
-        login().reset();
-        updateUi();
-    }
-
     @Override
     public boolean canParentTabsSlide(MotionEvent ev, boolean forward) {
-        return true;
+        // The open feed keeps horizontal swipes (photo carousels); tabs switch by tapping
+        return lentaView == null || !lentaView.isPageShown();
     }
 }
