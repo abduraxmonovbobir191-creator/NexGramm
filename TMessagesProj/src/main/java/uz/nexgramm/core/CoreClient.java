@@ -175,6 +175,41 @@ public final class CoreClient {
         return retry;
     }
 
+    // Core answered with an error: CONTRACT {"error": {"code", "message_uz"}}; message is null when absent
+    public static final class ApiException extends IOException {
+        public final int code;
+        public final String messageUz;
+
+        ApiException(int code, String messageUz) {
+            super("core http " + code);
+            this.code = code;
+            this.messageUz = messageUz;
+        }
+    }
+
+    // POST /v1/lenta/session (core_api/routers/lenta.py) → {url, expires_in}. The url carries a one-time
+    // ticket (60 s): open it at once, never store or log it.
+    public static String lentaSessionUrlBlocking(long tgUserId) throws IOException, NotLoggedInException {
+        final Response response = authedBlocking(tgUserId, "POST", "/v1/lenta/session", new JSONObject());
+        if (response.code != 200) {
+            String message = null;
+            try {
+                message = new JSONObject(response.body).getJSONObject("error").optString("message_uz", null);
+            } catch (JSONException ignore) {
+            }
+            throw new ApiException(response.code, message);
+        }
+        try {
+            final String url = new JSONObject(response.body).getString("url");
+            if (url.isEmpty()) {
+                throw new IOException("bad lenta response");
+            }
+            return url;
+        } catch (JSONException e) {
+            throw new IOException("bad lenta response");
+        }
+    }
+
     // Deletes local tokens at once; the core is told in the background (logout is idempotent, 204)
     public static void logout(long tgUserId) {
         final CoreTokens tokens;
