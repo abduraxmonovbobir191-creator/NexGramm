@@ -399,4 +399,24 @@
     <string name="NexProfileEditBio">О себе</string>
     <string name="NexProfileEditWebsite">Ссылка</string>
     <string name="NexProfileEditSave">Сохранить</string>
+    <string name="NexCoverTitle">Обложка</string>
+    <string name="NexCoverButton">Обложка</string>
+    <string name="NexCoverChange">Изменить обложку</string>
+    <string name="NexCoverTabPhoto">Фото</string>
+    <string name="NexCoverTabVideo">Видео</string>
+    <string name="NexCoverTabColor">Цвет + эмодзи</string>
+    <string name="NexCoverColor">Цвет</string>
+    <string name="NexCoverPattern">Узор из эмодзи</string>
+    <string name="NexCoverPhotoHint">Фото обрезается по размеру обложки.</string>
+    <string name="NexCoverVideoHint">Первые 6 секунд видео повторяются без звука (видео не короче 4 с).</string>
+    <string name="NexCoverVisible">Обложку видят пользователи NexGramm</string>
+    <string name="NexCoverSave">Сохранить</string>
+    <string name="NexCoverSaved">Обложка сохранена</string>
+    <string name="NexCoverPreparing">Подготовка… %1$d%%</string>
+    <string name="NexCoverUploading">Загрузка…</string>
+    <string name="NexCoverNoMedia">Сначала выберите в галерее.</string>
+    <string name="NexCoverStorageOff">Фото и видео обложки пока недоступны. Выберите цвет.</string>
+    <string name="NexCoverTooLarge">Файл слишком большой. Выберите другой.</string>
+    <string name="NexCoverVideoShort">Видео должно быть не короче 4 секунд.</string>
+    <string name="NexCoverLogin">Откройте Ленту снова, чтобы войти, и измените обложку.</string>
 </resources>

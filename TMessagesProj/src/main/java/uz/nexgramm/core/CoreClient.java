@@ -175,6 +175,65 @@ public final class CoreClient {
         return retry;
     }
 
+    // Authed multipart upload (covers): form fields + one file; 401 → refresh once and send again
+    public static Response authedMultipartBlocking(long tgUserId, String method, String path, String[][] fields, String fileField,
+                                                   java.io.File file, String fileName, String mime) throws IOException, NotLoggedInException {
+        final CoreTokens tokens = freshTokensBlocking(tgUserId);
+        final Response response = multipartBlocking(method, path, fields, fileField, file, fileName, mime, tokens.accessToken);
+        if (response.code != 401) {
+            return response;
+        }
+        final CoreTokens refreshed = refreshBlocking(tgUserId, tokens.refreshToken);
+        final Response retry = multipartBlocking(method, path, fields, fileField, file, fileName, mime, refreshed.accessToken);
+        if (retry.code == 401) {
+            throw new NotLoggedInException();
+        }
+        return retry;
+    }
+
+    static Response multipartBlocking(String method, String path, String[][] fields, String fileField, java.io.File file,
+                                      String fileName, String mime, String bearer) throws IOException {
+        final URL url = new URL(BuildConfig.CORE_API_URL + path);
+        if (!"https".equals(url.getProtocol())) {
+            throw new IOException("core url must be https");
+        }
+        final String boundary = "nexgramm" + Long.toHexString(System.nanoTime()) + Long.toHexString(Double.doubleToLongBits(Math.random()));
+        final ByteArrayOutputStream head = new ByteArrayOutputStream();
+        for (String[] field : fields) {
+            head.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + field[0] + "\"\r\n\r\n" + field[1] + "\r\n").getBytes(StandardCharsets.UTF_8));
+        }
+        head.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + fileField + "\"; filename=\"" + fileName
+            + "\"\r\nContent-Type: " + mime + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        final byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+        final HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+        try {
+            connection.setInstanceFollowRedirects(false);
+            connection.setUseCaches(false);
+            connection.setConnectTimeout(TIMEOUT_MS);
+            connection.setReadTimeout(60_000);
+            connection.setRequestMethod(method);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + bearer);
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            connection.setDoOutput(true);
+            connection.setFixedLengthStreamingMode(head.size() + file.length() + tail.length);
+            try (OutputStream out = connection.getOutputStream(); InputStream in = new java.io.FileInputStream(file)) {
+                head.writeTo(out);
+                final byte[] buffer = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, n);
+                }
+                out.write(tail);
+            }
+            final int code = connection.getResponseCode();
+            final InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            return new Response(code, read(in));
+        } finally {
+            connection.disconnect();
+        }
+    }
+
     // Core answered with an error: CONTRACT {"error": {"code", "message_uz"}}; message is null when absent
     public static final class ApiException extends IOException {
         public final int code;

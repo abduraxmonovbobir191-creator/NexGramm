@@ -34,7 +34,7 @@ import org.telegram.ui.Components.ShareAlert;
 import java.util.ArrayList;
 
 import uz.nexgramm.core.CoreClient;
-import uz.nexgramm.core.NexPalette;
+import uz.nexgramm.core.NexCover;
 import uz.nexgramm.core.PixelfedAccount;
 import uz.nexgramm.core.PixelfedClient;
 import uz.nexgramm.core.PixelfedFormat;
@@ -88,6 +88,8 @@ public class NexProfileActivity extends BaseFragment {
     private TextView bioView;
     private TextView websiteView;
     private TextView mainButton;
+    private TextView coverButton;
+    private NexCoverView coverView;
     private LinearLayout tabsView;
     private View topBarBackground;
     private TextView topBarTitle;
@@ -200,22 +202,13 @@ public class NexProfileActivity extends BaseFragment {
 
     // ---- header ----
 
-    // Soft band in the app colors (no photo: the user's own cover comes with the cover editor)
-    private static GradientDrawable coverBand() {
-        final NexPalette palette = Theme.getNexgrammPalette();
-        final int tint = palette != null && !palette.standard ? palette.accent : 0xFFB48CF5;
-        final int top = NexPalette.blend(NexLentaColors.BACKGROUND, tint, NexLentaColors.dark ? 0.30f : 0.26f);
-        final int middle = NexPalette.blend(NexLentaColors.BACKGROUND, tint, NexLentaColors.dark ? 0.14f : 0.12f);
-        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{top, middle, NexLentaColors.BACKGROUND});
-    }
-
     private View createHeader(Context context) {
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
 
-        final View cover = new View(context);
-        cover.setBackground(coverBand());
-        column.addView(cover, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, COVER_DP));
+        // the user's cover (photo, muted video, color / emoji), else a soft band in the app colors
+        coverView = new NexCoverView(context, true);
+        column.addView(coverView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, COVER_DP));
 
         // name + @username (left), avatar (right) overlapping the band
         final FrameLayout identity = new FrameLayout(context);
@@ -296,6 +289,11 @@ public class NexProfileActivity extends BaseFragment {
             }
         });
         buttons.addView(mainButton, LayoutHelper.createLinear(0, 46, 1f));
+        coverButton = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexCoverButton), NexLentaUi.PILL_CARD);
+        coverButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        coverButton.setVisibility(View.GONE);
+        coverButton.setOnClickListener(v -> openCoverEditor());
+        buttons.addView(coverButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46, 10, 0, 0, 0));
         final ImageView shareButton = NexLentaUi.circleButton(context, R.drawable.msg_share, NexLentaUi.PILL_CARD, false);
         shareButton.setOnClickListener(v -> shareProfile());
         buttons.addView(shareButton, LayoutHelper.createLinear(46, 46, 10, 0, 0, 0));
@@ -453,7 +451,43 @@ public class NexProfileActivity extends BaseFragment {
             websiteView.setVisibility(View.GONE);
         }
         mainButton.setVisibility(View.VISIBLE);
+        coverButton.setVisibility(own ? View.VISIBLE : View.GONE);
         updateMainButton();
+        loadCover();
+    }
+
+    // Cached cover at once, then the fresh one from the core (GET /v1/covers/lenta/{username})
+    private void loadCover() {
+        final String username = account.username;
+        if (NexCover.isCached(username)) {
+            coverView.setCover(NexCover.cached(username));
+        }
+        final int gen = generation;
+        CoreClient.EXECUTOR.execute(() -> {
+            NexCover cover;
+            try {
+                cover = NexCover.loadBlocking(username);
+            } catch (Exception e) {
+                return; // core not reachable: keep what is shown
+            }
+            final NexCover result = cover;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen == generation && fragmentView != null) {
+                    coverView.setCover(result);
+                }
+            });
+        });
+    }
+
+    private void openCoverEditor() {
+        if (account == null) {
+            return;
+        }
+        presentFragment(new NexCoverEditActivity(account, NexCover.cached(account.username), cover -> {
+            if (fragmentView != null) {
+                coverView.setCover(cover);
+            }
+        }));
     }
 
     private void updateCounts() {
@@ -613,15 +647,17 @@ public class NexProfileActivity extends BaseFragment {
         final Context context = getParentActivity();
         final BottomSheet.Builder builder = new BottomSheet.Builder(context);
         final CharSequence[] items = own
-            ? new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexProfileEdit)}
+            ? new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexProfileEdit), LocaleController.getString(R.string.NexCoverChange)}
             : new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostReport)};
-        final int[] icons = own ? new int[]{R.drawable.msg_link, R.drawable.msg_edit} : new int[]{R.drawable.msg_link, R.drawable.msg_report};
+        final int[] icons = own ? new int[]{R.drawable.msg_link, R.drawable.msg_edit, R.drawable.msg_photoeditor} : new int[]{R.drawable.msg_link, R.drawable.msg_report};
         builder.setItems(items, icons, (dialog, which) -> {
             if (which == 0) {
                 AndroidUtilities.addToClipboard(account.url);
                 Toast.makeText(context, LocaleController.getString(R.string.NexPostLinkCopied), Toast.LENGTH_SHORT).show();
-            } else if (own) {
+            } else if (own && which == 1) {
                 openEditor();
+            } else if (own) {
+                openCoverEditor();
             } else {
                 NexPostActions.showReport(this, tgUserId(), "user", account.id);
             }
@@ -634,9 +670,28 @@ public class NexProfileActivity extends BaseFragment {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        if (coverView != null) {
+            coverView.pause();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (coverView != null) {
+            coverView.resume();
+        }
+    }
+
+    @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
         generation++;
+        if (coverView != null) {
+            coverView.release();
+        }
     }
 
     // ---- list ----

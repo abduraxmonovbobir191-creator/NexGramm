@@ -35,6 +35,16 @@ public final class PixelfedMedia {
     private static final long VIDEO_BUDGET_BYTES = 45L * 1024 * 1024; // room for the audio track and the container
     private static final int VIDEO_MAX_BITRATE = 2_500_000;
 
+    // Profile cover (CONTRACT covers)
+    private static final int COVER_IMAGE_SIDE = 1600;
+    public static final long COVER_LONG_MS = 6_000;
+    public static final long COVER_SHORT_MS = 4_000;
+    private static final int COVER_VIDEO_LONG_SIDE = 960;
+    private static final int COVER_VIDEO_SHORT_SIDE = 540;
+    private static final long COVER_VIDEO_MAX_BYTES = 3L * 1024 * 1024;
+    private static final long COVER_VIDEO_BUDGET_BYTES = 2_600_000; // container overhead stays under 3 MB
+    private static final int COVER_VIDEO_MAX_BITRATE = 2_000_000;
+
     public static final String IMAGE_MIME = "image/jpeg";
     public static final String VIDEO_MIME = "video/mp4";
 
@@ -162,15 +172,24 @@ public final class PixelfedMedia {
 
     // Photo → JPEG with the long side ≤ 2048 px, EXIF rotation applied (Telegram's ImageLoader.loadBitmap)
     public static File prepareImage(Uri uri) throws IOException {
+        return prepareImage(uri, MAX_IMAGE_SIDE, 90);
+    }
+
+    // Profile cover photo (CONTRACT covers: ≤ 1600 px, ≤ 2 MB)
+    public static File prepareCoverImage(Uri uri) throws IOException {
+        return prepareImage(uri, COVER_IMAGE_SIDE, 82);
+    }
+
+    private static File prepareImage(Uri uri, int maxSide, int quality) throws IOException {
         final File copy = copyToCache(uri, "img");
         try {
-            final Bitmap bitmap = ImageLoader.loadBitmap(copy.getAbsolutePath(), null, MAX_IMAGE_SIDE, MAX_IMAGE_SIDE, true);
+            final Bitmap bitmap = ImageLoader.loadBitmap(copy.getAbsolutePath(), null, maxSide, maxSide, true);
             if (bitmap == null) {
                 throw new IOException("image_decode");
             }
             final File out = newFile("jpg");
             try (OutputStream os = new FileOutputStream(out)) {
-                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, os)) {
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, os)) {
                     throw new IOException("image_encode");
                 }
             } finally {
@@ -192,105 +211,52 @@ public final class PixelfedMedia {
         }
     }
 
+    private static final class VideoMeta {
+        long durationMs;
+        int width;
+        int height;
+        int rotation;
+        int framerate;
+    }
+
+    private static VideoMeta readMeta(File file) throws VideoException {
+        final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        final VideoMeta meta = new VideoMeta();
+        try {
+            retriever.setDataSource(file.getAbsolutePath());
+            meta.durationMs = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_DURATION, 0);
+            meta.width = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH, 0);
+            meta.height = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT, 0);
+            meta.rotation = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION, 0);
+            meta.framerate = android.os.Build.VERSION.SDK_INT >= 23 ? intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE, 0) : 0;
+        } catch (Exception e) {
+            throw new VideoException("video_read");
+        } finally {
+            try {
+                retriever.release();
+            } catch (Exception ignore) {
+            }
+        }
+        if (meta.durationMs <= 0 || meta.width <= 0 || meta.height <= 0) {
+            throw new VideoException("video_read");
+        }
+        return meta;
+    }
+
     // Video → mp4 within 60 s / 50 MB. Small mp4 files are sent as they are.
     public static File prepareVideo(Uri uri, Progress progress) throws IOException {
         final File copy = copyToCache(uri, "vid");
         boolean keepCopy = false;
         try {
             final String mime = ApplicationLoader.applicationContext.getContentResolver().getType(uri);
-            final MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-            final long durationMs;
-            final int width;
-            final int height;
-            final int rotation;
-            int framerate;
-            try {
-                retriever.setDataSource(copy.getAbsolutePath());
-                durationMs = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_DURATION, 0);
-                width = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH, 0);
-                height = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT, 0);
-                rotation = intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION, 0);
-                framerate = android.os.Build.VERSION.SDK_INT >= 23 ? intMeta(retriever, MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE, 0) : 0;
-            } catch (Exception e) {
-                throw new VideoException("video_read");
-            } finally {
-                try {
-                    retriever.release();
-                } catch (Exception ignore) {
-                }
-            }
-            if (durationMs <= 0 || width <= 0 || height <= 0) {
-                throw new VideoException("video_read");
-            }
+            final VideoMeta meta = readMeta(copy);
             final boolean isMp4 = mime == null || VIDEO_MIME.equals(mime);
-            if (durationMs <= MAX_VIDEO_MS && copy.length() <= MAX_VIDEO_BYTES && isMp4) {
+            if (meta.durationMs <= MAX_VIDEO_MS && copy.length() <= MAX_VIDEO_BYTES && isMp4) {
                 keepCopy = true;
                 return copy;
             }
-
-            // ≤ 720p in the original orientation; MediaController swaps for 90/270° before converting
-            final float scale = Math.min(1f, Math.min(VIDEO_LONG_SIDE / (float) Math.max(width, height), VIDEO_SHORT_SIDE / (float) Math.min(width, height)));
-            int resultWidth = Math.round(width * scale / 2) * 2;
-            int resultHeight = Math.round(height * scale / 2) * 2;
-            final long keptMs = Math.min(durationMs, MAX_VIDEO_MS);
-            final int originalBitrate = MediaController.getVideoBitrate(copy.getAbsolutePath());
-            int bitrate = MediaController.makeVideoBitrate(height, width, originalBitrate > 0 ? originalBitrate : VIDEO_MAX_BITRATE, resultHeight, resultWidth);
-            final int budget = (int) (VIDEO_BUDGET_BYTES * 8 / (keptMs / 1000.0)) - 128_000;
-            bitrate = Math.max(300_000, Math.min(Math.min(bitrate, budget), VIDEO_MAX_BITRATE));
-            if (framerate <= 0) {
-                framerate = 30;
-            } else if (framerate > 59) {
-                framerate = 59;
-            }
-            if (rotation == 90 || rotation == 270) {
-                final int t = resultWidth;
-                resultWidth = resultHeight;
-                resultHeight = t;
-            }
-            if (framerate > 40 && Math.min(resultWidth, resultHeight) <= 480) {
-                framerate = 30;
-            }
-
-            final File out = newFile("mp4");
-            final long endTimeUs = durationMs > MAX_VIDEO_MS ? MAX_VIDEO_MS * 1000 : -1;
-            final MediaController.VideoConvertorListener listener = new MediaController.VideoConvertorListener() {
-                @Override
-                public boolean checkConversionCanceled() {
-                    return false;
-                }
-
-                @Override
-                public void didWriteData(long availableSize, float fraction) {
-                    if (progress != null && fraction >= 0) {
-                        progress.onProgress(Math.min(1f, fraction > 1.5f ? fraction / 1000f : fraction));
-                    }
-                }
-            };
-            final VideoEditedInfo info = new VideoEditedInfo();
-            final MediaCodecVideoConvertor.ConvertVideoParams params = MediaCodecVideoConvertor.ConvertVideoParams.of(
-                copy.getAbsolutePath(), out, 0,
-                rotation, false,
-                width, height,
-                resultWidth, resultHeight,
-                framerate, bitrate, originalBitrate,
-                endTimeUs > 0 ? 0 : -1, endTimeUs, -1,
-                true, keptMs,
-                listener,
-                info
-            );
-            final boolean error;
-            try {
-                error = new MediaCodecVideoConvertor().convertVideo(params);
-            } catch (Throwable e) {
-                //noinspection ResultOfMethodCallIgnored
-                out.delete();
-                throw new VideoException("video_compress");
-            }
-            if (error || !out.exists() || out.length() == 0) {
-                //noinspection ResultOfMethodCallIgnored
-                out.delete();
-                throw new VideoException("video_compress");
-            }
+            final File out = encode(copy, meta, Math.min(meta.durationMs, MAX_VIDEO_MS), VIDEO_LONG_SIDE, VIDEO_SHORT_SIDE,
+                VIDEO_BUDGET_BYTES, VIDEO_MAX_BITRATE, false, progress);
             if (out.length() > MAX_VIDEO_BYTES) {
                 //noinspection ResultOfMethodCallIgnored
                 out.delete();
@@ -303,5 +269,104 @@ public final class PixelfedMedia {
                 copy.delete();
             }
         }
+    }
+
+    // Profile cover video (CONTRACT covers): the first 6 s (4 s when the clip is 4–6 s long), muted,
+    // ≤ 540p, ≤ 3 MB. Returns the file and its length in seconds (4 or 6) via durationOut[0].
+    public static File prepareCoverVideo(Uri uri, int[] durationOut, Progress progress) throws IOException {
+        final File copy = copyToCache(uri, "vid");
+        try {
+            final VideoMeta meta = readMeta(copy);
+            if (meta.durationMs < COVER_SHORT_MS) {
+                throw new VideoException("video_short");
+            }
+            final long keptMs = meta.durationMs >= COVER_LONG_MS ? COVER_LONG_MS : COVER_SHORT_MS;
+            final File out = encode(copy, meta, keptMs, COVER_VIDEO_LONG_SIDE, COVER_VIDEO_SHORT_SIDE,
+                COVER_VIDEO_BUDGET_BYTES, COVER_VIDEO_MAX_BITRATE, true, progress);
+            if (out.length() > COVER_VIDEO_MAX_BYTES) {
+                //noinspection ResultOfMethodCallIgnored
+                out.delete();
+                throw new TooLargeException();
+            }
+            durationOut[0] = (int) (keptMs / 1000);
+            return out;
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            copy.delete();
+        }
+    }
+
+    // Re-encodes the first keptMs of the clip with Telegram's MediaCodecVideoConvertor: size within
+    // longSide x shortSide, bitrate within the byte budget, optionally without sound
+    private static File encode(File copy, VideoMeta meta, long keptMs, int longSide, int shortSide, long budgetBytes,
+                               int maxBitrate, boolean muted, Progress progress) throws IOException {
+        final int width = meta.width;
+        final int height = meta.height;
+        final int rotation = meta.rotation;
+        int framerate = meta.framerate;
+        // in the original orientation; MediaController swaps for 90/270° before converting
+        final float scale = Math.min(1f, Math.min(longSide / (float) Math.max(width, height), shortSide / (float) Math.min(width, height)));
+        int resultWidth = Math.round(width * scale / 2) * 2;
+        int resultHeight = Math.round(height * scale / 2) * 2;
+        final int originalBitrate = MediaController.getVideoBitrate(copy.getAbsolutePath());
+        int bitrate = MediaController.makeVideoBitrate(height, width, originalBitrate > 0 ? originalBitrate : maxBitrate, resultHeight, resultWidth);
+        final int budget = (int) (budgetBytes * 8 / (keptMs / 1000.0)) - (muted ? 0 : 128_000);
+        bitrate = Math.max(300_000, Math.min(Math.min(bitrate, budget), maxBitrate));
+        if (framerate <= 0) {
+            framerate = 30;
+        } else if (framerate > 59) {
+            framerate = 59;
+        }
+        if (rotation == 90 || rotation == 270) {
+            final int t = resultWidth;
+            resultWidth = resultHeight;
+            resultHeight = t;
+        }
+        if (framerate > 40 && Math.min(resultWidth, resultHeight) <= 480) {
+            framerate = 30;
+        }
+
+        final File out = newFile("mp4");
+        final long endTimeUs = meta.durationMs > keptMs ? keptMs * 1000 : -1;
+        final MediaController.VideoConvertorListener listener = new MediaController.VideoConvertorListener() {
+            @Override
+            public boolean checkConversionCanceled() {
+                return false;
+            }
+
+            @Override
+            public void didWriteData(long availableSize, float fraction) {
+                if (progress != null && fraction >= 0) {
+                    progress.onProgress(Math.min(1f, fraction > 1.5f ? fraction / 1000f : fraction));
+                }
+            }
+        };
+        final VideoEditedInfo info = new VideoEditedInfo();
+        info.muted = muted;
+        final MediaCodecVideoConvertor.ConvertVideoParams params = MediaCodecVideoConvertor.ConvertVideoParams.of(
+            copy.getAbsolutePath(), out, 0,
+            rotation, false,
+            width, height,
+            resultWidth, resultHeight,
+            framerate, bitrate, originalBitrate,
+            endTimeUs > 0 ? 0 : -1, endTimeUs, -1,
+            true, keptMs,
+            listener,
+            info
+        );
+        final boolean error;
+        try {
+            error = new MediaCodecVideoConvertor().convertVideo(params);
+        } catch (Throwable e) {
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+            throw new VideoException("video_compress");
+        }
+        if (error || !out.exists() || out.length() == 0) {
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+            throw new VideoException("video_compress");
+        }
+        return out;
     }
 }
