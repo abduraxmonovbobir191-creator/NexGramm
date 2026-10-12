@@ -30,16 +30,31 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RadialProgressView;
 
+import uz.nexgramm.core.PixelfedClient;
+
 // NexGramm: Lenta (Pixelfed) inside the app. The fragment gets a one-time URL from the core
 // (POST /v1/lenta/session) and passes it to load(); the WebView follows the OIDC chain itself
 // (core /v1/lenta/web/start → Pixelfed /auth/oidc/start → core /v1/lenta/oidc/authorize → Pixelfed callback)
 // and keeps the Pixelfed session cookie. Only ALLOWED_HOSTS stay inside, other links open in the
 // external browser. URLs (they carry the ticket) and page console output are never logged.
+// startOAuth() runs the same chain and then Pixelfed /oauth/authorize (CONTRACT v1.4): the "Authorize" page
+// is shown to the user (never pressed by the app); the nexgramm://lenta/oauth redirect is caught here only
+// (there is no intent filter for it) and its code goes to the listener.
 @SuppressLint("ViewConstructor")
 public class NexLentaView extends FrameLayout {
 
     public static final int BACKGROUND = 0xFFF4F4F7;
-    private static final String FEED_HOST = "feed.nexecos.com";
+    private static final String FEED_HOST = PixelfedClient.HOST;
+    private static final int OAUTH_NONE = 0;
+    private static final int OAUTH_LOGIN = 1;     // following the core → Pixelfed OIDC chain
+    private static final int OAUTH_AUTHORIZE = 2; // /oauth/authorize loaded
+
+    public interface OAuthListener {
+        // state is checked by the caller; code and state are never logged
+        void onOAuthCode(String code, String state);
+
+        void onOAuthFailed(String reason);
+    }
     private static final String[] ALLOWED_HOSTS = {FEED_HOST, "ng.nexecos.com"};
 
     private final Runnable onRetry;
@@ -50,6 +65,9 @@ public class NexLentaView extends FrameLayout {
     // true from load() until the first page finished without a main-frame error
     private boolean pageLoading;
     private boolean pageShown;
+    private int oauthPhase = OAUTH_NONE;
+    private String oauthAuthorizeUrl;
+    private OAuthListener oauthListener;
 
     public NexLentaView(Context context, Theme.ResourcesProvider resourcesProvider, Runnable onRetry) {
         super(context);
@@ -148,6 +166,10 @@ public class NexLentaView extends FrameLayout {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                if (oauthPhase != OAUTH_NONE) {
+                    onOAuthPageFinished(view, Uri.parse(url));
+                    return;
+                }
                 // Some WebView versions also report the hops of the OIDC chain: wait for a Pixelfed page
                 if (pageLoading && isFeedPage(Uri.parse(url))) {
                     pageLoading = false;
@@ -160,6 +182,15 @@ public class NexLentaView extends FrameLayout {
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                // Older WebViews may load the nexgramm:// redirect instead of asking shouldOverrideUrlLoading
+                if (isOAuthRedirect(request.getUrl())) {
+                    finishOAuth(request.getUrl());
+                    return;
+                }
+                if (request.isForMainFrame() && oauthPhase != OAUTH_NONE) {
+                    failOAuth(String.valueOf(error.getDescription()));
+                    return;
+                }
                 if (request.isForMainFrame()) {
                     failPage(String.valueOf(error.getDescription()));
                 }
@@ -168,6 +199,10 @@ public class NexLentaView extends FrameLayout {
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
                 // Only while connecting (e.g. an expired ticket); later Pixelfed shows its own pages
+                if (oauthPhase != OAUTH_NONE && request.isForMainFrame()) {
+                    failOAuth("HTTP " + errorResponse.getStatusCode());
+                    return;
+                }
                 if (pageLoading && request.isForMainFrame()) {
                     failPage("HTTP " + errorResponse.getStatusCode());
                 }
@@ -176,6 +211,10 @@ public class NexLentaView extends FrameLayout {
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 handler.cancel();
+                if (oauthPhase != OAUTH_NONE) {
+                    failOAuth("SSL");
+                    return;
+                }
                 if (pageLoading) {
                     failPage("SSL");
                 }
@@ -201,8 +240,30 @@ public class NexLentaView extends FrameLayout {
         return FEED_HOST.equalsIgnoreCase(uri.getHost()) && (path == null || !path.startsWith("/auth/oidc/"));
     }
 
+    private static boolean isOAuthRedirect(Uri uri) {
+        return uri != null && "nexgramm".equals(uri.getScheme()) && "lenta".equals(uri.getHost()) && "/oauth".equals(uri.getPath());
+    }
+
+    // Pixelfed's landing page after the OIDC callback
+    private static boolean isFeedHome(Uri uri) {
+        final String path = uri.getPath();
+        return "https".equals(uri.getScheme()) && FEED_HOST.equalsIgnoreCase(uri.getHost()) && (path == null || path.isEmpty() || "/".equals(path));
+    }
+
     // true = handled outside the WebView
     private boolean handleNavigation(Uri uri) {
+        if (isOAuthRedirect(uri)) {
+            finishOAuth(uri);
+            return true;
+        }
+        if (uri != null && "nexgramm".equals(uri.getScheme())) {
+            return true; // our scheme never leaves the app
+        }
+        if (oauthPhase == OAUTH_LOGIN && isFeedHome(uri)) {
+            // logged in to Pixelfed: skip loading the feed page, go straight to /oauth/authorize
+            post(this::goAuthorize);
+            return true;
+        }
         if (isAllowed(uri)) {
             return false;
         }
@@ -214,6 +275,122 @@ public class NexLentaView extends FrameLayout {
             // nothing can open it
         }
         return true;
+    }
+
+    // Logs into Pixelfed with the one-time session URL, then opens authorizeUrl in the same WebView.
+    // The WebView's Pixelfed cookies are cleared first, so the token can only be for the current user.
+    public void startOAuth(String sessionUrl, String authorizeUrl, OAuthListener listener) {
+        if (webView == null) {
+            listener.onOAuthFailed("WebView");
+            return;
+        }
+        if (!isAllowed(Uri.parse(sessionUrl))) {
+            listener.onOAuthFailed(LocaleController.getString(R.string.NexLentaBadUrl));
+            return;
+        }
+        showLoading();
+        clearFeedCookies();
+        oauthListener = listener;
+        oauthAuthorizeUrl = authorizeUrl;
+        oauthPhase = OAUTH_LOGIN;
+        webView.loadUrl(sessionUrl);
+    }
+
+    private void goAuthorize() {
+        if (oauthPhase != OAUTH_LOGIN || webView == null) {
+            return;
+        }
+        oauthPhase = OAUTH_AUTHORIZE;
+        webView.loadUrl(oauthAuthorizeUrl);
+    }
+
+    private void onOAuthPageFinished(WebView view, Uri uri) {
+        if (isOAuthRedirect(uri)) {
+            finishOAuth(uri);
+            return;
+        }
+        if (oauthPhase == OAUTH_LOGIN) {
+            // WebViews that do not report redirects: the Pixelfed page after the OIDC chain
+            if (isFeedPage(uri)) {
+                goAuthorize();
+            }
+            return;
+        }
+        if (!FEED_HOST.equalsIgnoreCase(uri.getHost())) {
+            return;
+        }
+        final String path = uri.getPath();
+        if (path != null && path.startsWith("/oauth/authorize")) {
+            // Pixelfed's "Authorize" page (first time for this app): the user decides
+            loadingView.setVisibility(View.GONE);
+            errorCard.setVisibility(View.GONE);
+            view.setVisibility(View.VISIBLE);
+            pageShown = true;
+        } else {
+            // e.g. Pixelfed's own login page: the OIDC login did not stick
+            failOAuth("login");
+        }
+    }
+
+    private void finishOAuth(Uri uri) {
+        final OAuthListener listener = oauthListener;
+        if (oauthPhase == OAUTH_NONE || listener == null) {
+            return;
+        }
+        resetOAuth();
+        if (webView != null) {
+            webView.stopLoading();
+        }
+        showLoading();
+        final String code = uri.getQueryParameter("code");
+        if (TextUtils.isEmpty(code)) {
+            final String error = uri.getQueryParameter("error");
+            listener.onOAuthFailed(TextUtils.isEmpty(error) ? "no code" : error);
+        } else {
+            listener.onOAuthCode(code, uri.getQueryParameter("state"));
+        }
+    }
+
+    private void failOAuth(String reason) {
+        final OAuthListener listener = oauthListener;
+        if (oauthPhase == OAUTH_NONE || listener == null) {
+            return;
+        }
+        resetOAuth();
+        if (webView != null) {
+            webView.stopLoading();
+        }
+        showLoading();
+        listener.onOAuthFailed(reason);
+    }
+
+    private void resetOAuth() {
+        oauthPhase = OAUTH_NONE;
+        oauthListener = null;
+        oauthAuthorizeUrl = null;
+    }
+
+    // Expires every cookie of the Pixelfed host (host-only and domain cookies); other sites keep theirs
+    public static void clearFeedCookies() {
+        try {
+            final CookieManager manager = CookieManager.getInstance();
+            final String url = "https://" + FEED_HOST;
+            final String cookies = manager.getCookie(url);
+            if (!TextUtils.isEmpty(cookies)) {
+                for (String part : cookies.split(";")) {
+                    final int eq = part.indexOf('=');
+                    final String name = (eq >= 0 ? part.substring(0, eq) : part).trim();
+                    if (name.isEmpty()) {
+                        continue;
+                    }
+                    manager.setCookie(url, name + "=; Max-Age=0; Path=/; Secure");
+                    manager.setCookie(url, name + "=; Max-Age=0; Path=/; Secure; Domain=" + FEED_HOST);
+                }
+            }
+            manager.flush();
+        } catch (Throwable ignore) {
+            // no WebView: nothing stored either
+        }
     }
 
     private void failPage(String reason) {
@@ -260,6 +437,7 @@ public class NexLentaView extends FrameLayout {
             showError(LocaleController.getString(R.string.NexLentaBadUrl));
             return;
         }
+        resetOAuth();
         showLoading();
         pageLoading = true;
         webView.loadUrl(url);
@@ -271,6 +449,7 @@ public class NexLentaView extends FrameLayout {
 
     // After logout the page must not stay on screen
     public void clear() {
+        resetOAuth();
         if (webView != null) {
             webView.stopLoading();
             webView.loadUrl("about:blank");
@@ -291,6 +470,7 @@ public class NexLentaView extends FrameLayout {
     }
 
     public void destroy() {
+        resetOAuth();
         if (webView != null) {
             webView.stopLoading();
             removeView(webView);

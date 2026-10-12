@@ -1,0 +1,74 @@
+package uz.nexgramm.core;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
+
+import java.util.ArrayList;
+
+// JVM test of the Mastodon timeline parsing used by the native Lenta
+public class PixelfedStatusTest {
+
+    private static final String TIMELINE = "["
+        + "{\"id\":\"30\",\"content\":\"<p>Salom</p>\",\"favourites_count\":3,\"replies_count\":1,\"favourited\":true,"
+        + "\"account\":{\"username\":\"bob\",\"acct\":\"bob\",\"display_name\":\"\",\"avatar\":\"https://feed.test/a.jpg\"},"
+        + "\"media_attachments\":["
+        + "{\"type\":\"image\",\"url\":\"https://cdn.test/1.jpg\",\"preview_url\":\"https://cdn.test/1s.jpg\",\"meta\":{\"original\":{\"width\":1080,\"height\":1350}}},"
+        + "{\"type\":\"video\",\"url\":\"https://cdn.test/2.mp4\",\"preview_url\":\"https://cdn.test/2.jpg\",\"meta\":null},"
+        + "{\"type\":\"audio\",\"url\":\"https://cdn.test/3.mp3\"},"
+        + "{\"type\":\"image\",\"url\":\"http://insecure.test/4.jpg\"}]},"
+        + "{\"id\":\"29\",\"content\":\"\",\"reblog\":{\"id\":\"7\",\"content\":\"<p>Asl</p>\",\"favourites_count\":5,"
+        + "\"account\":{\"username\":\"ann\",\"acct\":\"ann\",\"display_name\":\"Ann\",\"avatar\":\"http://x/a.png\"},\"media_attachments\":[]}},"
+        + "{\"content\":\"no id\"}]";
+
+    @Test
+    public void parsesTimeline() throws Exception {
+        final ArrayList<PixelfedStatus> list = PixelfedStatus.listFromJson(TIMELINE);
+        assertEquals(2, list.size());
+
+        final PixelfedStatus first = list.get(0);
+        assertEquals("30", first.id);
+        assertEquals("30", first.statusId);
+        assertEquals("bob", first.authorName); // empty display name → username
+        assertEquals("https://feed.test/a.jpg", first.avatarUrl);
+        assertEquals(3, first.favouritesCount);
+        assertEquals(1, first.repliesCount);
+        assertTrue(first.favourited);
+        assertEquals(2, first.media.size()); // audio and http media dropped
+        assertFalse(first.media.get(0).video);
+        assertEquals(1080, first.media.get(0).width);
+        assertEquals(1350, first.media.get(0).height);
+        assertTrue(first.media.get(1).video);
+        assertEquals("https://cdn.test/2.mp4", first.media.get(1).url);
+        assertEquals("https://cdn.test/2.jpg", first.media.get(1).previewUrl);
+
+        // A boost shows the original post; paging keeps the timeline id, likes go to the original
+        final PixelfedStatus boost = list.get(1);
+        assertEquals("29", boost.id);
+        assertEquals("7", boost.statusId);
+        assertEquals("Ann", boost.authorName);
+        assertEquals("<p>Asl</p>", boost.contentHtml);
+        assertNull(boost.avatarUrl); // not https
+        assertFalse(boost.favourited);
+    }
+
+    @Test
+    public void tokensRoundTripAndHideValues() throws Exception {
+        final PixelfedTokens tokens = PixelfedTokens.fromResponse(
+            "{\"access_token\":\"acc\",\"refresh_token\":\"ref\",\"expires_in\":2592000}", 1000L, null, "bob");
+        assertEquals(1000L + 2592000L * 1000L, tokens.expiresAt);
+        final PixelfedTokens copy = PixelfedTokens.fromJson(tokens.toJson());
+        assertEquals("acc", copy.accessToken);
+        assertEquals("ref", copy.refreshToken);
+        assertEquals("bob", copy.username);
+        assertEquals("PixelfedTokens{hidden}", copy.toString());
+
+        // No refresh token / expires_in in a refresh response: keep the old one, 30-day expiry
+        final PixelfedTokens refreshed = PixelfedTokens.fromResponse("{\"access_token\":\"acc2\"}", 5L, "ref", "bob");
+        assertEquals("ref", refreshed.refreshToken);
+        assertEquals(5L + PixelfedClient.MAX_TOKEN_AGE_MS, refreshed.expiresAt);
+    }
+}

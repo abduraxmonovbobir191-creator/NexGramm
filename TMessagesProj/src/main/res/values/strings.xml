@@ -11264,4 +11264,8 @@
     <string name="NexFeedLogout">Chiqish</string>
     <string name="NexLentaError">Lentani ochib bo\'lmadi.</string>
     <string name="NexLentaBadUrl">Core noma\'lum manzil qaytardi.</string>
+    <string name="NexFeedLoadError">Lentani yuklab bo\'lmadi.</string>
+    <string name="NexFeedEmptyHome">Hali hech kimni kuzatmayapsiz. Hozircha hammaning yangi postlari:</string>
+    <string name="NexFeedLikeError">Layk saqlanmadi. Qayta urinib ko\'ring.</string>
+    <string name="NexFeedWrongAccount">Lenta boshqa akkauntga ulanib qoldi, ulanish bekor qilindi. Qayta urinib ko\'ring.</string>
 </resources>

@@ -27,6 +27,7 @@ final class CoreTokenStore {
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
 
     private static final java.util.HashMap<Long, CoreTokens> memoryOnly = new java.util.HashMap<>();
+    private static final java.util.HashMap<String, String> memorySecrets = new java.util.HashMap<>();
 
     private CoreTokenStore() {
     }
@@ -43,20 +44,14 @@ final class CoreTokenStore {
         if (Build.VERSION.SDK_INT < 23) {
             return memoryOnly.get(tgUserId);
         }
-        final String stored = prefs().getString(prefKey(tgUserId), null);
-        if (stored == null) {
+        final String json = loadSecret(prefKey(tgUserId));
+        if (json == null) {
             return null;
         }
         try {
-            final int dot = stored.indexOf(':');
-            final byte[] iv = Base64.decode(stored.substring(0, dot), Base64.NO_WRAP);
-            final byte[] data = Base64.decode(stored.substring(dot + 1), Base64.NO_WRAP);
-            final Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
-            return CoreTokens.fromJson(new String(cipher.doFinal(data), StandardCharsets.UTF_8));
+            return CoreTokens.fromJson(json);
         } catch (Exception e) {
-            // Key gone or data damaged: treat as logged out (nothing about the tokens is logged)
-            prefs().edit().remove(prefKey(tgUserId)).commit();
+            clearSecret(prefKey(tgUserId));
             return null;
         }
     }
@@ -67,13 +62,56 @@ final class CoreTokenStore {
             return true;
         }
         try {
-            final Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(Cipher.ENCRYPT_MODE, key());
-            final byte[] data = cipher.doFinal(tokens.toJson().getBytes(StandardCharsets.UTF_8));
-            final String value = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP) + ":" + Base64.encodeToString(data, Base64.NO_WRAP);
-            return prefs().edit().putString(prefKey(tgUserId), value).commit();
+            return saveSecret(prefKey(tgUserId), tokens.toJson());
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    // Any secret string (Pixelfed client and tokens too), AES-GCM with the Keystore key.
+    // Android < 6: memory only. A key that cannot be decrypted is removed (logged out).
+    static synchronized String loadSecret(String name) {
+        if (Build.VERSION.SDK_INT < 23) {
+            return memorySecrets.get(name);
+        }
+        final String stored = prefs().getString(name, null);
+        if (stored == null) {
+            return null;
+        }
+        try {
+            final int dot = stored.indexOf(':');
+            final byte[] iv = Base64.decode(stored.substring(0, dot), Base64.NO_WRAP);
+            final byte[] data = Base64.decode(stored.substring(dot + 1), Base64.NO_WRAP);
+            final Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
+            return new String(cipher.doFinal(data), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            // Key gone or data damaged: treat as absent (nothing about the value is logged)
+            prefs().edit().remove(name).commit();
+            return null;
+        }
+    }
+
+    static synchronized boolean saveSecret(String name, String value) {
+        if (Build.VERSION.SDK_INT < 23) {
+            memorySecrets.put(name, value);
+            return true;
+        }
+        try {
+            final Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.ENCRYPT_MODE, key());
+            final byte[] data = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
+            final String stored = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP) + ":" + Base64.encodeToString(data, Base64.NO_WRAP);
+            return prefs().edit().putString(name, stored).commit();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static synchronized void clearSecret(String name) {
+        memorySecrets.remove(name);
+        if (Build.VERSION.SDK_INT >= 23) {
+            prefs().edit().remove(name).commit();
         }
     }
 
