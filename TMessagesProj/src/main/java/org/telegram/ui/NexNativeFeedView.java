@@ -2,10 +2,9 @@ package org.telegram.ui;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.os.SystemClock;
 import android.util.TypedValue;
@@ -25,29 +24,36 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
+import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RadialProgressView;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 
 import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.PixelfedClient;
 import uz.nexgramm.core.PixelfedStatus;
 
-// NexGramm: native Lenta on the Pixelfed Mastodon API with the app's own token.
-// Home mode: home timeline (max_id paging); empty home → local public timeline under a soft notice;
-// "+" opens the composer. Account mode (profile screen): that account's posts under a header view.
-// Pull down at the top to refresh. Likes are optimistic and roll back on error. One video at a time
-// plays: the most visible one, muted. Always the app's light palette (NexLentaColors).
+// NexGramm: the native Lenta (design screenshot "Lenta"): header with "Siz uchun" / "Kuzatayotganlar"
+// (public local vs home timeline), serif "Lenta", "+" (new post) and ♡; then the posts (NexPostCell),
+// max_id paging, pull to refresh, skeletons, empty / error / offline cards. Likes, saves and follows are
+// optimistic. Video: the most visible post plays (muted), the next one is buffered, the rest hold no player.
 @SuppressLint("ViewConstructor")
 public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delegate {
 
     public interface Delegate {
         // The Pixelfed token is gone or rejected: connect again (OAuth)
         void onFeedNotConnected();
+
+        // for dialogs and new screens
+        BaseFragment getFragment();
 
         default void onComposeClick() {
         }
@@ -60,37 +66,38 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     }
 
     private static final int TYPE_POST = 0;
-    private static final int TYPE_NOTICE = 1;
+    private static final int TYPE_EMPTY = 1;
     private static final int TYPE_SKELETON = 2;
     private static final int TYPE_FOOTER = 3;
     private static final int TYPE_HEADER = 4;
-    private static final int SKELETON_COUNT = 3;
+    private static final int SKELETON_COUNT = 2;
+    private static final String PREFS = "nexgramm_lenta";
 
     private final long tgUserId;
-    private final String accountId; // null = home timeline
     private final Theme.ResourcesProvider resourcesProvider;
     private final Delegate delegate;
     private final RecyclerView listView;
     private final LinearLayoutManager layoutManager;
     private final Adapter adapter = new Adapter();
-    private final LinearLayout errorCard;
-    private final TextView errorReasonView;
     private final FrameLayout refreshIndicator;
-    private final ImageView composeButton;
-    private View headerView;
+    private final View headerView;
+    private final TextView modeView;
 
     private final ArrayList<PixelfedStatus> items = new ArrayList<>();
-    private boolean publicMode;     // home was empty: local public timeline
+    private boolean followingMode; // false = "Siz uchun" (public local), true = "Kuzatayotganlar" (home)
     private boolean firstLoaded;
     private boolean firstFailed;
+    private boolean offline;
+    private String errorReason;
     private boolean loading;
     private boolean hasMore = true;
     private boolean loadMoreFailed;
     private String maxId;
     private int generation;
     private boolean paused = true;
-    // A post just made here: kept on top until the timeline itself returns it
-    private PixelfedStatus pendingTop;
+    private PixelfedStatus pendingTop; // a post just made here, on top until the timeline returns it
+    private final HashMap<String, Boolean> follows = new HashMap<>(); // author id → followed
+    private final HashSet<String> followPending = new HashSet<>();
 
     // pull to refresh
     private final int touchSlop;
@@ -101,19 +108,29 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private boolean refreshing;
     private float pullDistance;
 
-    public NexNativeFeedView(Context context, long tgUserId, String accountId, Theme.ResourcesProvider resourcesProvider, Delegate delegate) {
+    public NexNativeFeedView(Context context, long tgUserId, String unusedAccountId, Theme.ResourcesProvider resourcesProvider, Delegate delegate) {
         super(context);
+        NexLentaColors.apply();
         this.tgUserId = tgUserId;
-        this.accountId = accountId;
         this.resourcesProvider = resourcesProvider;
         this.delegate = delegate;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        followingMode = prefs().getBoolean("feed_following_" + tgUserId, false);
         setBackgroundColor(NexLentaColors.BACKGROUND);
 
         listView = new RecyclerView(context);
-        layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
+        // one extra screen laid out ahead: the next post's photo loads and its video can buffer
+        layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
+            @Override
+            protected void calculateExtraLayoutSpace(@NonNull RecyclerView.State state, @NonNull int[] extraLayoutSpace) {
+                extraLayoutSpace[0] = 0;
+                extraLayoutSpace[1] = AndroidUtilities.displaySize.y;
+            }
+        };
         listView.setLayoutManager(layoutManager);
         listView.setItemAnimator(null);
+        listView.setHasFixedSize(true);
+        listView.setItemViewCacheSize(4);
         listView.setClipToPadding(false);
         listView.setAdapter(adapter);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -125,89 +142,86 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         });
         addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        final int textColor = NexLentaColors.TEXT;
-        errorCard = new LinearLayout(context);
-        errorCard.setOrientation(LinearLayout.VERTICAL);
-        errorCard.setPadding(AndroidUtilities.dp(24), AndroidUtilities.dp(24), AndroidUtilities.dp(24), AndroidUtilities.dp(20));
-        errorCard.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(24), NexLentaColors.CARD));
-        final TextView errorTitle = new TextView(context);
-        errorTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        errorTitle.setTextColor(NexLentaColors.SECONDARY_TEXT);
-        errorTitle.setText(LocaleController.getString(R.string.NexFeedLoadError));
-        errorCard.addView(errorTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        errorReasonView = new TextView(context);
-        errorReasonView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        errorReasonView.setTypeface(AndroidUtilities.bold());
-        errorReasonView.setTextColor(textColor);
-        errorCard.addView(errorReasonView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 14, 0, 0));
-        final TextView retryButton = new TextView(context);
-        retryButton.setGravity(Gravity.CENTER);
-        retryButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
-        retryButton.setTypeface(AndroidUtilities.bold());
-        retryButton.setTextColor(NexLentaColors.CARD);
-        retryButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(24), textColor, Theme.multAlpha(textColor, 0.8f)));
-        retryButton.setText(LocaleController.getString(R.string.NexFeedLoginRetry));
-        retryButton.setOnClickListener(v -> reload());
-        errorCard.addView(retryButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 20, 0, 0));
-        errorCard.setVisibility(View.GONE);
-        addView(errorCard, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 20, 0, 20, 0));
+        // ---- header (scrolls with the posts) ----
+        final FrameLayout header = new FrameLayout(context);
+        final LinearLayout titles = new LinearLayout(context);
+        titles.setOrientation(LinearLayout.VERTICAL);
+        modeView = new TextView(context);
+        modeView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        modeView.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        modeView.setPadding(0, AndroidUtilities.dp(4), AndroidUtilities.dp(12), AndroidUtilities.dp(2));
+        modeView.setOnClickListener(v -> switchMode());
+        titles.addView(modeView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+        final TextView title = NexLentaUi.serifTitle(context, 50);
+        title.setText(LocaleController.getString(R.string.NexFeedTitle));
+        title.setOnClickListener(v -> switchMode());
+        titles.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+        header.addView(titles, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 0));
+        final LinearLayout buttons = new LinearLayout(context);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        final ImageView composeButton = NexLentaUi.circleButton(context, R.drawable.msg_add, NexLentaUi.PILL_PRIMARY, false);
+        composeButton.setContentDescription(LocaleController.getString(R.string.NexComposeTitle));
+        composeButton.setOnClickListener(v -> delegate.onComposeClick());
+        buttons.addView(composeButton, LayoutHelper.createLinear(56, 56));
+        final ImageView heartButton = NexLentaUi.circleButton(context, R.drawable.media_like, NexLentaUi.PILL_CARD, false);
+        heartButton.setContentDescription(LocaleController.getString(R.string.NexFeedNotifications));
+        heartButton.setOnClickListener(v -> NexPostActions.aiSoon(getContext()));
+        buttons.addView(heartButton, LayoutHelper.createLinear(56, 56, 12, 0, 0, 0));
+        header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 10, 0, 0));
+        header.setPadding(AndroidUtilities.dp(22), AndroidUtilities.dp(6), AndroidUtilities.dp(22), AndroidUtilities.dp(18));
+        headerView = header;
+        updateModeText();
 
-        // Pull-to-refresh spinner: a white circle that follows the finger
+        // Pull-to-refresh spinner: a card circle that follows the finger
         refreshIndicator = new FrameLayout(context);
         refreshIndicator.setBackground(Theme.createCircleDrawable(AndroidUtilities.dp(40), NexLentaColors.CARD));
         refreshIndicator.setElevation(AndroidUtilities.dp(3));
         final RadialProgressView refreshProgress = new RadialProgressView(context);
         refreshProgress.setSize(AndroidUtilities.dp(20));
-        refreshProgress.setProgressColor(NexLentaColors.ACCENT);
+        refreshProgress.setProgressColor(NexLentaColors.TEXT);
         refreshIndicator.addView(refreshProgress, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         refreshIndicator.setAlpha(0f);
         refreshIndicator.setVisibility(View.GONE);
         addView(refreshIndicator, LayoutHelper.createFrame(40, 40, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+    }
 
-        // "+" (home only): new post
-        composeButton = new ImageView(context);
-        composeButton.setScaleType(ImageView.ScaleType.CENTER);
-        composeButton.setImageResource(R.drawable.msg_add);
-        composeButton.setColorFilter(new PorterDuffColorFilter(NexLentaColors.CARD, PorterDuff.Mode.SRC_IN));
-        composeButton.setBackground(Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), NexLentaColors.ACCENT, Theme.multAlpha(NexLentaColors.ACCENT, 0.85f)));
-        composeButton.setElevation(AndroidUtilities.dp(4));
-        composeButton.setContentDescription(LocaleController.getString(R.string.NexComposeTitle));
-        composeButton.setOnClickListener(v -> delegate.onComposeClick());
-        composeButton.setVisibility(accountId == null ? View.VISIBLE : View.GONE);
-        addView(composeButton, LayoutHelper.createFrame(56, 56, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 16, 16));
+    private static SharedPreferences prefs() {
+        return ApplicationLoader.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     public void setInsets(int top, int bottom) {
         topInset = top;
-        listView.setPadding(0, top + AndroidUtilities.dp(6), 0, bottom + AndroidUtilities.dp(accountId == null ? 80 : 6));
-        errorCard.setTranslationY((top - bottom) / 2f);
-        composeButton.setTranslationY(-bottom);
+        listView.setPadding(0, top, 0, bottom + AndroidUtilities.dp(12));
         if (!refreshing && !pulling) {
             refreshIndicator.setTranslationY(top - AndroidUtilities.dp(48));
         }
     }
 
-    // Profile header (account mode): shown above the posts
-    public void setHeaderView(View view) {
-        headerView = view;
-        adapter.notifyDataSetChanged();
+    private void updateModeText() {
+        modeView.setText(LocaleController.getString(followingMode ? R.string.NexFeedModeFollowing : R.string.NexFeedModeForYou) + "  ⌄");
+    }
+
+    private void switchMode() {
+        followingMode = !followingMode;
+        prefs().edit().putBoolean("feed_following_" + tgUserId, followingMode).apply();
+        updateModeText();
+        reload();
     }
 
     // First page again from scratch (also the "Qayta urinish" action)
     public void reload() {
         generation++;
+        stopVideos();
         items.clear();
-        publicMode = false;
         firstLoaded = false;
         firstFailed = false;
+        offline = false;
         loading = false;
         hasMore = true;
         loadMoreFailed = false;
         maxId = null;
-        errorCard.setVisibility(View.GONE);
-        listView.setVisibility(View.VISIBLE);
         adapter.notifyDataSetChanged();
-        loadPage(false, false, null);
+        loadPage(false, null);
     }
 
     // First page again while the current posts stay on screen (pull to refresh, after a new post)
@@ -219,7 +233,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         generation++;
         loading = false;
         showRefreshing();
-        loadPage(true, false, null);
+        loadPage(true, null);
     }
 
     // A post made in the composer: on top at once, then the timeline is refreshed
@@ -237,12 +251,13 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         return firstLoaded || loading;
     }
 
-    // Counters may have changed on another screen (comments)
+    // Counters may have changed on another screen (comments, profile)
     public void updateVisibleCounts() {
         for (int i = 0; i < listView.getChildCount(); i++) {
             final View child = listView.getChildAt(i);
             if (child instanceof NexPostCell) {
                 ((NexPostCell) child).updateCounts();
+                ((NexPostCell) child).updateFollow();
             }
         }
     }
@@ -252,88 +267,78 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             return;
         }
         final int last = layoutManager.findLastVisibleItemPosition();
-        if (last >= adapter.getItemCount() - 4) {
-            loadNext();
+        if (last >= adapter.getItemCount() - 3) {
+            loadPage(false, maxId);
         }
     }
 
-    private void loadNext() {
-        if (loading || !hasMore) {
-            return;
-        }
-        loadPage(false, publicMode, maxId);
+    static boolean isOfflineError(Throwable e) {
+        return e instanceof java.net.UnknownHostException || e instanceof java.net.ConnectException
+            || e instanceof java.net.SocketTimeoutException || e instanceof java.net.NoRouteToHostException
+            || e instanceof javax.net.ssl.SSLException && e.getCause() instanceof java.net.SocketException;
     }
 
-    private void loadPage(boolean replace, boolean isPublic, String fromId) {
+    private void loadPage(boolean replace, String fromId) {
         loading = true;
         loadMoreFailed = false;
         final int gen = generation;
+        final boolean isPublic = !followingMode;
         CoreClient.EXECUTOR.execute(() -> {
             ArrayList<PixelfedStatus> page = null;
             String error = null;
             boolean notConnected = false;
+            boolean noNetwork = false;
             try {
-                page = accountId != null
-                    ? PixelfedClient.accountStatusesBlocking(tgUserId, accountId, fromId)
-                    : PixelfedClient.timelineBlocking(tgUserId, isPublic, fromId);
+                page = PixelfedClient.timelineBlocking(tgUserId, isPublic, fromId);
             } catch (PixelfedClient.NotConnectedException e) {
                 notConnected = true;
             } catch (PixelfedClient.HttpException e) {
                 error = "HTTP " + e.code;
+            } catch (IOException e) {
+                noNetwork = isOfflineError(e);
+                error = e.getClass().getSimpleName();
             } catch (Exception e) {
                 error = e.getClass().getSimpleName();
             }
             final ArrayList<PixelfedStatus> result = page;
             final String reason = error;
             final boolean finalNotConnected = notConnected;
-            AndroidUtilities.runOnUIThread(() -> onPageLoaded(gen, replace, isPublic, fromId, result, reason, finalNotConnected));
+            final boolean finalOffline = noNetwork;
+            AndroidUtilities.runOnUIThread(() -> onPageLoaded(gen, replace, fromId, result, reason, finalNotConnected, finalOffline));
         });
     }
 
-    private void onPageLoaded(int gen, boolean replace, boolean isPublic, String fromId, ArrayList<PixelfedStatus> page, String reason, boolean notConnected) {
+    private void onPageLoaded(int gen, boolean replace, String fromId, ArrayList<PixelfedStatus> page, String reason, boolean notConnected, boolean noNetwork) {
         if (gen != generation) {
             return;
         }
         loading = false;
+        hideRefreshing();
         if (notConnected) {
-            hideRefreshing();
             delegate.onFeedNotConnected();
             return;
         }
         if (page == null) {
-            hideRefreshing();
             if (replace) {
-                Toast.makeText(getContext(), LocaleController.getString(R.string.NexFeedLoadError), Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), LocaleController.getString(noNetwork ? R.string.NexFeedOffline : R.string.NexFeedLoadError), Toast.LENGTH_SHORT).show();
             } else if (!firstLoaded) {
                 firstFailed = true;
-                errorReasonView.setText(reason);
-                errorReasonView.setVisibility(reason == null ? View.GONE : View.VISIBLE);
-                errorCard.setVisibility(View.VISIBLE);
-                listView.setVisibility(headerView != null ? View.VISIBLE : View.GONE);
+                offline = noNetwork;
+                errorReason = reason;
             } else {
                 loadMoreFailed = true;
             }
             adapter.notifyDataSetChanged();
             return;
         }
-        if (accountId == null && !isPublic && fromId == null && page.isEmpty()) {
-            // Nobody followed yet: the local public timeline under a soft notice
-            loadPage(replace, true, null);
-            return;
-        }
-        hideRefreshing();
         final boolean wasFirst = !firstLoaded;
         if (replace) {
             items.clear();
             loadMoreFailed = false;
         }
-        if (fromId == null) {
-            publicMode = isPublic;
-        }
         firstLoaded = true;
         firstFailed = false;
-        errorCard.setVisibility(View.GONE);
-        listView.setVisibility(View.VISIBLE);
+        offline = false;
         hasMore = !page.isEmpty();
         if (!page.isEmpty()) {
             maxId = page.get(page.size() - 1).id;
@@ -358,7 +363,37 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         if (wasFirst || replace) {
             listView.scrollToPosition(0);
         }
+        loadRelationships(page);
         listView.post(this::updateActiveVideo);
+    }
+
+    // Which authors this user follows (for the "Obuna" button); one request per page
+    private void loadRelationships(ArrayList<PixelfedStatus> page) {
+        final HashSet<String> ids = new HashSet<>();
+        for (PixelfedStatus s : page) {
+            if (!s.authorId.isEmpty() && !follows.containsKey(s.authorId) && !NexPostActions.isOwn(tgUserId, s)) {
+                ids.add(s.authorId);
+            }
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+        final int gen = generation;
+        CoreClient.EXECUTOR.execute(() -> {
+            HashMap<String, Boolean> result = null;
+            try {
+                result = PixelfedClient.relationshipsBlocking(tgUserId, ids);
+            } catch (Exception ignore) {
+            }
+            final HashMap<String, Boolean> finalResult = result;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (finalResult == null || gen != generation) {
+                    return;
+                }
+                follows.putAll(finalResult);
+                updateVisibleCounts();
+            });
+        });
     }
 
     // ---- pull to refresh ----
@@ -386,7 +421,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        if (!firstLoaded || refreshing || listView.getVisibility() != View.VISIBLE) {
+        if (!firstLoaded || refreshing) {
             return super.onInterceptTouchEvent(ev);
         }
         switch (ev.getActionMasked()) {
@@ -442,6 +477,22 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     // ---- post actions ----
 
+    private final NexPostActions.Listener postListener = new NexPostActions.Listener() {
+        @Override
+        public void onDeleted(PixelfedStatus status) {
+            items.remove(status);
+            if (pendingTop == status) {
+                pendingTop = null;
+            }
+            adapter.notifyDataSetChanged();
+        }
+
+        @Override
+        public void onChanged(PixelfedStatus status) {
+            updateCellsOf(status);
+        }
+    };
+
     @Override
     public void onCommentsClick(NexPostCell cell, PixelfedStatus status) {
         delegate.onOpenComments(status);
@@ -449,14 +500,76 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     @Override
     public void onAuthorClick(PixelfedStatus status) {
-        if (status.authorId != null && !status.authorId.isEmpty() && !status.authorId.equals(accountId)) {
+        if (status.authorId != null && !status.authorId.isEmpty()) {
             delegate.onOpenProfile(status.authorId);
         }
     }
 
     @Override
     public void onLikeClick(NexPostCell cell, PixelfedStatus status) {
-        toggleLike(getContext(), tgUserId, status, () -> updateLikeOf(status), delegate::onFeedNotConnected);
+        toggleLike(getContext(), tgUserId, status, () -> updateCellsOf(status), delegate::onFeedNotConnected);
+    }
+
+    @Override
+    public void onShareClick(PixelfedStatus status) {
+        final BaseFragment fragment = delegate.getFragment();
+        if (fragment != null) {
+            NexPostActions.share(fragment, status);
+        }
+    }
+
+    @Override
+    public void onBookmarkClick(NexPostCell cell, PixelfedStatus status) {
+        NexPostActions.toggleBookmark(getContext(), tgUserId, status, postListener);
+    }
+
+    @Override
+    public void onMenuClick(NexPostCell cell, PixelfedStatus status) {
+        final BaseFragment fragment = delegate.getFragment();
+        if (fragment != null) {
+            NexPostActions.showMenu(fragment, tgUserId, status, postListener);
+        }
+    }
+
+    @Override
+    public void onAiClick(PixelfedStatus status) {
+        NexPostActions.aiSoon(getContext());
+    }
+
+    @Override
+    public Boolean isFollowing(PixelfedStatus status) {
+        if (status.authorId.isEmpty() || NexPostActions.isOwn(tgUserId, status)) {
+            return null;
+        }
+        return follows.get(status.authorId);
+    }
+
+    // "Obuna": optimistic follow, rolled back on error
+    @Override
+    public void onFollowClick(NexPostCell cell, PixelfedStatus status) {
+        final String authorId = status.authorId;
+        if (authorId.isEmpty() || !followPending.add(authorId)) {
+            return;
+        }
+        follows.put(authorId, true);
+        updateVisibleCounts();
+        CoreClient.EXECUTOR.execute(() -> {
+            boolean ok = false;
+            try {
+                PixelfedClient.setFollowBlocking(tgUserId, authorId, true);
+                ok = true;
+            } catch (Exception ignore) {
+            }
+            final boolean success = ok;
+            AndroidUtilities.runOnUIThread(() -> {
+                followPending.remove(authorId);
+                if (!success) {
+                    follows.put(authorId, false);
+                    updateVisibleCounts();
+                    Toast.makeText(getContext(), LocaleController.getString(R.string.NexActionFailed), Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
     }
 
     // Optimistic like: UI at once, rolled back with a toast when the server refuses
@@ -497,11 +610,11 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         });
     }
 
-    private void updateLikeOf(PixelfedStatus status) {
+    private void updateCellsOf(PixelfedStatus status) {
         for (int i = 0; i < listView.getChildCount(); i++) {
             final View child = listView.getChildAt(i);
             if (child instanceof NexPostCell && ((NexPostCell) child).getStatus() == status) {
-                ((NexPostCell) child).updateLike();
+                ((NexPostCell) child).updateCounts();
             }
         }
     }
@@ -513,31 +626,39 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         updateActiveVideo();
     }
 
-    // The video of the most visible post (≥ 60 % of its media on screen) plays; all others stop
+    // The most visible post with a video (≥ 60 % of its media on screen) plays; the next post below with a
+    // video is buffered (paused); every other cell releases its player
     private void updateActiveVideo() {
         NexPostCell best = null;
         float bestFraction = 0.6f;
         if (!paused && getVisibility() == View.VISIBLE) {
             for (int i = 0; i < listView.getChildCount(); i++) {
                 final View child = listView.getChildAt(i);
-                if (!(child instanceof NexPostCell)) {
+                if (!(child instanceof NexPostCell) || !((NexPostCell) child).hasVideoOnCurrentPage()) {
                     continue;
                 }
-                final NexPostCell cell = (NexPostCell) child;
-                if (!cell.hasVideoOnCurrentPage()) {
-                    continue;
-                }
-                final float fraction = cell.getMediaVisibleFraction(listView);
+                final float fraction = ((NexPostCell) child).getMediaVisibleFraction(listView);
                 if (fraction >= bestFraction) {
-                    best = cell;
+                    best = (NexPostCell) child;
                     bestFraction = fraction;
+                }
+            }
+        }
+        NexPostCell next = null;
+        if (!paused && getVisibility() == View.VISIBLE) {
+            final int fromTop = best != null ? best.getTop() : listView.getPaddingTop() - 1;
+            for (int i = 0; i < listView.getChildCount(); i++) {
+                final View child = listView.getChildAt(i);
+                if (child instanceof NexPostCell && child != best && child.getTop() > fromTop && ((NexPostCell) child).hasVideoOnCurrentPage()
+                    && (next == null || child.getTop() < next.getTop())) {
+                    next = (NexPostCell) child;
                 }
             }
         }
         for (int i = 0; i < listView.getChildCount(); i++) {
             final View child = listView.getChildAt(i);
             if (child instanceof NexPostCell) {
-                ((NexPostCell) child).setVideoActive(child == best);
+                ((NexPostCell) child).setVideoState(child == best ? NexPostCell.VIDEO_PLAY : child == next ? NexPostCell.VIDEO_PRELOAD : NexPostCell.VIDEO_OFF);
             }
         }
     }
@@ -580,10 +701,11 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         generation++;
         stopVideos();
         items.clear();
+        follows.clear();
         pendingTop = null;
-        publicMode = false;
         firstLoaded = false;
         firstFailed = false;
+        offline = false;
         loading = false;
         hasMore = true;
         loadMoreFailed = false;
@@ -591,8 +713,6 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         refreshing = false;
         pulling = false;
         refreshIndicator.setVisibility(View.GONE);
-        errorCard.setVisibility(View.GONE);
-        listView.setVisibility(View.VISIBLE);
         adapter.notifyDataSetChanged();
     }
 
@@ -600,42 +720,37 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     private class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-        private int headerCount() {
-            return headerView != null ? 1 : 0;
-        }
-
-        private boolean showNotice() {
-            return firstLoaded && publicMode && accountId == null;
+        private boolean showEmpty() {
+            return firstFailed || (firstLoaded && items.isEmpty());
         }
 
         private boolean showFooter() {
             return firstLoaded && (loadMoreFailed || (hasMore && !items.isEmpty()));
         }
 
-        private int postsStart() {
-            return headerCount() + (showNotice() ? 1 : 0);
-        }
-
         @Override
         public int getItemCount() {
-            if (!firstLoaded) {
-                return headerCount() + (firstFailed ? 0 : SKELETON_COUNT);
+            if (!firstLoaded && !firstFailed) {
+                return 1 + SKELETON_COUNT;
             }
-            return postsStart() + items.size() + (showFooter() ? 1 : 0);
+            if (showEmpty()) {
+                return 2;
+            }
+            return 1 + items.size() + (showFooter() ? 1 : 0);
         }
 
         @Override
         public int getItemViewType(int position) {
-            if (position < headerCount()) {
+            if (position == 0) {
                 return TYPE_HEADER;
             }
-            if (!firstLoaded) {
+            if (!firstLoaded && !firstFailed) {
                 return TYPE_SKELETON;
             }
-            if (showNotice() && position == headerCount()) {
-                return TYPE_NOTICE;
+            if (showEmpty()) {
+                return TYPE_EMPTY;
             }
-            return position - postsStart() < items.size() ? TYPE_POST : TYPE_FOOTER;
+            return position - 1 < items.size() ? TYPE_POST : TYPE_FOOTER;
         }
 
         @NonNull
@@ -645,7 +760,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             final View view;
             switch (viewType) {
                 case TYPE_HEADER:
-                    view = headerView != null ? headerView : new View(context);
+                    view = headerView;
                     if (view.getParent() instanceof ViewGroup) {
                         ((ViewGroup) view.getParent()).removeView(view);
                     }
@@ -653,8 +768,8 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 case TYPE_POST:
                     view = new NexPostCell(context, resourcesProvider, NexNativeFeedView.this);
                     break;
-                case TYPE_NOTICE:
-                    view = createNotice(context);
+                case TYPE_EMPTY:
+                    view = new StateCard(context);
                     break;
                 case TYPE_SKELETON:
                     view = new SkeletonCell(context);
@@ -673,9 +788,11 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             final View view = holder.itemView;
             if (view instanceof NexPostCell) {
-                ((NexPostCell) view).setStatus(items.get(position - postsStart()));
+                ((NexPostCell) view).setStatus(items.get(position - 1));
             } else if (view instanceof FooterCell) {
                 ((FooterCell) view).setFailed(loadMoreFailed);
+            } else if (view instanceof StateCard) {
+                ((StateCard) view).update();
             }
         }
 
@@ -687,27 +804,51 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         }
     }
 
-    // Soft notice in the app's light style (no banner): nobody followed yet
-    private View createNotice(Context context) {
-        final LinearLayout card = new LinearLayout(context);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(AndroidUtilities.dp(18), AndroidUtilities.dp(16), AndroidUtilities.dp(18), AndroidUtilities.dp(16));
-        card.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(20), NexLentaColors.CARD));
-        final TextView title = new TextView(context);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        title.setTypeface(AndroidUtilities.bold());
-        title.setTextColor(NexLentaColors.TEXT);
-        title.setText(LocaleController.getString(R.string.NexFeedEmptyTitle));
-        card.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        final TextView text = new TextView(context);
-        text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        text.setLineSpacing(AndroidUtilities.dp(2), 1f);
-        text.setTextColor(NexLentaColors.SECONDARY_TEXT);
-        text.setText(LocaleController.getString(R.string.NexFeedEmptyHome));
-        card.addView(text, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
-        final FrameLayout frame = new FrameLayout(context);
-        frame.addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 12, 6, 12, 6));
-        return frame;
+    // Empty, error or offline state: a soft card with a title, a line of text and one button
+    private class StateCard extends FrameLayout {
+        private final TextView titleView;
+        private final TextView textView;
+        private final TextView button;
+
+        StateCard(Context context) {
+            super(context);
+            final LinearLayout card = new LinearLayout(context);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(AndroidUtilities.dp(22), AndroidUtilities.dp(22), AndroidUtilities.dp(22), AndroidUtilities.dp(20));
+            card.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 28));
+            titleView = NexLentaUi.serifTitle(context, 28);
+            card.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            textView = new TextView(context);
+            textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            textView.setLineSpacing(AndroidUtilities.dp(2), 1f);
+            textView.setTextColor(NexLentaColors.SECONDARY_TEXT);
+            card.addView(textView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 8, 0, 0));
+            button = NexLentaUi.pillButton(context, "", NexLentaUi.PILL_PRIMARY);
+            card.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50, 0, 18, 0, 0));
+            addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 8, 16, 8));
+        }
+
+        void update() {
+            if (firstFailed) {
+                titleView.setText(LocaleController.getString(offline ? R.string.NexFeedOfflineTitle : R.string.NexFeedLoadError));
+                textView.setText(offline ? LocaleController.getString(R.string.NexFeedOffline) : errorReason);
+                textView.setVisibility(offline || errorReason != null ? View.VISIBLE : View.GONE);
+                button.setText(LocaleController.getString(R.string.NexFeedLoginRetry));
+                button.setOnClickListener(v -> reload());
+            } else if (followingMode) {
+                titleView.setText(LocaleController.getString(R.string.NexFeedEmptyFollowingTitle));
+                textView.setText(LocaleController.getString(R.string.NexFeedEmptyFollowing));
+                textView.setVisibility(View.VISIBLE);
+                button.setText(LocaleController.getString(R.string.NexFeedShowForYou));
+                button.setOnClickListener(v -> switchMode());
+            } else {
+                titleView.setText(LocaleController.getString(R.string.NexFeedEmptyTitle));
+                textView.setText(LocaleController.getString(R.string.NexFeedEmptyForYou));
+                textView.setVisibility(View.VISIBLE);
+                button.setText(LocaleController.getString(R.string.NexComposeTitle));
+                button.setOnClickListener(v -> delegate.onComposeClick());
+            }
+        }
     }
 
     // "Load more" spinner, or "Qayta urinish" after a failed page
@@ -719,7 +860,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             super(context);
             progressView = new RadialProgressView(context);
             progressView.setSize(AndroidUtilities.dp(24));
-            progressView.setProgressColor(NexLentaColors.ACCENT);
+            progressView.setProgressColor(NexLentaColors.TEXT);
             addView(progressView, LayoutHelper.createFrame(32, 32, Gravity.CENTER, 0, 12, 0, 12));
             retryView = new TextView(context);
             retryView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
@@ -731,7 +872,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             retryView.setOnClickListener(v -> {
                 loadMoreFailed = false;
                 adapter.notifyDataSetChanged();
-                loadNext();
+                loadPage(false, maxId);
             });
             addView(retryView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
         }
@@ -742,43 +883,42 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         }
     }
 
-    // Grey placeholder of a post while the first page loads (pulsing)
+    // Placeholder of a post (design shapes) while the first page loads, pulsing
     private static class SkeletonCell extends View {
-        private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint shapePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
 
         SkeletonCell(Context context) {
             super(context);
-            cardPaint.setColor(NexLentaColors.CARD);
         }
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             final int width = MeasureSpec.getSize(widthMeasureSpec);
-            setMeasuredDimension(width, AndroidUtilities.dp(12 + 62 + 40 + 12) + (width - AndroidUtilities.dp(24)));
+            final int mediaWidth = width - AndroidUtilities.dp(32);
+            setMeasuredDimension(width, (int) (mediaWidth * 1.25f) + AndroidUtilities.dp(4 + 14 + 52 + 12 + 40 + 26));
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
             final float phase = (SystemClock.uptimeMillis() % 1200) / 1200f;
             final float alpha = 0.55f + 0.45f * (float) Math.abs(Math.sin(Math.PI * phase));
-            shapePaint.setColor(Theme.multAlpha(0xFFE3E3E8, alpha));
+            shapePaint.setColor(Theme.multAlpha(NexLentaColors.PLACEHOLDER, alpha));
             final float d = AndroidUtilities.density;
-            final float left = 12 * d;
-            final float right = getWidth() - 12 * d;
-            rect.set(left, 6 * d, right, getHeight() - 6 * d);
-            canvas.drawRoundRect(rect, 20 * d, 20 * d, cardPaint);
-            canvas.drawCircle(left + 14 * d + 19 * d, 6 * d + 12 * d + 19 * d, 19 * d, shapePaint);
-            rect.set(left + 62 * d, 6 * d + 18 * d, left + 190 * d, 6 * d + 30 * d);
-            canvas.drawRoundRect(rect, 6 * d, 6 * d, shapePaint);
-            rect.set(left + 62 * d, 6 * d + 38 * d, left + 140 * d, 6 * d + 48 * d);
-            canvas.drawRoundRect(rect, 5 * d, 5 * d, shapePaint);
-            final float mediaTop = 6 * d + 62 * d;
-            rect.set(left, mediaTop, right, mediaTop + (right - left));
-            canvas.drawRect(rect, shapePaint);
-            rect.set(left + 14 * d, rect.bottom + 14 * d, left + 120 * d, rect.bottom + 26 * d);
-            canvas.drawRoundRect(rect, 6 * d, 6 * d, shapePaint);
+            final float left = 16 * d;
+            final float right = getWidth() - 16 * d;
+            final float mediaBottom = 4 * d + (right - left) * 1.25f;
+            rect.set(left, 4 * d, right, mediaBottom);
+            canvas.drawRoundRect(rect, 28 * d, 28 * d, shapePaint);
+            final float rowTop = mediaBottom + 14 * d;
+            rect.set(left, rowTop, left + 100 * d, rowTop + 52 * d);
+            canvas.drawRoundRect(rect, 26 * d, 26 * d, shapePaint);
+            rect.set(left + 110 * d, rowTop, left + 190 * d, rowTop + 52 * d);
+            canvas.drawRoundRect(rect, 26 * d, 26 * d, shapePaint);
+            canvas.drawCircle(right - 26 * d, rowTop + 26 * d, 26 * d, shapePaint);
+            final float textTop = rowTop + 52 * d + 14 * d;
+            rect.set(left, textTop, right - 60 * d, textTop + 14 * d);
+            canvas.drawRoundRect(rect, 7 * d, 7 * d, shapePaint);
             postInvalidateOnAnimation();
         }
     }

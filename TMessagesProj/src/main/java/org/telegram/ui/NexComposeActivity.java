@@ -77,7 +77,7 @@ public class NexComposeActivity extends BaseFragment {
 
     @Override
     public boolean isLightStatusBar() {
-        return true;
+        return !NexLentaColors.dark;
     }
 
     @Override
@@ -138,7 +138,7 @@ public class NexComposeActivity extends BaseFragment {
         progressBar.setVisibility(View.GONE);
         content.addView(progressBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8, 4, 8, 4, 0));
 
-        publishButton = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexComposePublish), true);
+        publishButton = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexComposePublish), NexLentaUi.PILL_PRIMARY);
         publishButton.setOnClickListener(v -> publish());
         content.addView(publishButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 16, 0, 0));
 
@@ -405,7 +405,7 @@ public class NexComposeActivity extends BaseFragment {
             return;
         }
         setStatus(TextUtils.isEmpty(error) ? LocaleController.getString(R.string.NexComposeUploadError) : error, -1);
-        statusView.setTextColor(0xFFE0394E);
+        statusView.setTextColor(NexLentaColors.ERROR);
         publishButton.setText(LocaleController.getString(notConnected ? R.string.NexComposePublish : R.string.NexFeedLoginRetry));
     }
 

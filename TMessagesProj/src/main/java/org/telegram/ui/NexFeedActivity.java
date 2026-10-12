@@ -28,6 +28,7 @@ import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.CoreLogin;
 import uz.nexgramm.core.CoreTokens;
 import uz.nexgramm.core.PixelfedClient;
+import uz.nexgramm.core.PixelfedProfileSync;
 import uz.nexgramm.core.PixelfedStatus;
 
 // NexGramm: Lenta tab. Not logged in to the core -> silent initData login with a short loading view;
@@ -156,6 +157,11 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
             }
 
             @Override
+            public BaseFragment getFragment() {
+                return NexFeedActivity.this;
+            }
+
+            @Override
             public void onComposeClick() {
                 presentFragment(new NexComposeActivity(status -> {
                     if (nativeView != null) {
@@ -273,6 +279,8 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         if (!nativeView.isLoaded()) {
             nativeView.reload();
         }
+        // Telegram name and photo → Pixelfed profile, once (never over the user's own later changes)
+        PixelfedProfileSync.syncOnce(currentAccount);
     }
 
     private void showLentaWebView() {

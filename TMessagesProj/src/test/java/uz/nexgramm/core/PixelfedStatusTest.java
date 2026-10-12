@@ -88,4 +88,33 @@ public class PixelfedStatusTest {
         assertEquals("9", status.statusId);
         assertEquals("5", status.authorId);
     }
+
+    @Test
+    public void parsesTimeLinkSavedAndPlace() throws Exception {
+        final PixelfedStatus s = PixelfedStatus.oneFromJson("{\"id\":\"77\",\"created_at\":\"2026-10-12T10:00:00.000000Z\","
+            + "\"url\":\"https://feed.test/p/ann/77\",\"bookmarked\":true,\"place\":{\"name\":\"Samarqand\",\"country\":\"UZ\"},"
+            + "\"account\":{\"id\":\"5\",\"username\":\"ann\"},\"media_attachments\":[{\"type\":\"video\",\"url\":\"https://cdn.test/v.mp4\"}]}");
+        assertEquals(1791799200000L, s.createdAt);
+        assertEquals("https://feed.test/p/ann/77", s.url);
+        assertEquals("https://feed.test/p/ann/77", s.shareUrl());
+        assertTrue(s.bookmarked);
+        assertEquals("Samarqand", s.placeName);
+        assertTrue(s.hasVideo());
+
+        final PixelfedStatus noLink = PixelfedStatus.oneFromJson("{\"id\":\"8\",\"url\":\"http://x\",\"account\":{\"id\":\"5\",\"username\":\"ann\"}}");
+        assertNull(noLink.url);
+        assertEquals(PixelfedClient.BASE + "/p/ann/8", noLink.shareUrl());
+        assertNull(noLink.placeName);
+        assertFalse(noLink.hasVideo());
+    }
+
+    @Test
+    public void parsesIsoTimes() {
+        assertEquals(1791799200000L, PixelfedStatus.parseTime("2026-10-12T10:00:00Z"));
+        assertEquals(1791799200123L, PixelfedStatus.parseTime("2026-10-12T10:00:00.123456Z"));
+        assertEquals(1791799200000L, PixelfedStatus.parseTime("2026-10-12T15:00:00+05:00"));
+        assertEquals(1791799200000L, PixelfedStatus.parseTime("2026-10-12T05:00:00-0500"));
+        assertEquals(0L, PixelfedStatus.parseTime("yesterday"));
+        assertEquals(0L, PixelfedStatus.parseTime(null));
+    }
 }
