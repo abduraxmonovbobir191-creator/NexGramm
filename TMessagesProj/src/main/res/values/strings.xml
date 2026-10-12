@@ -11263,6 +11263,7 @@
     <string name="NexFeedLoginNoBot">Bot sozlanmagan: ilova NEXGRAMM_BOT_USERNAME bilan qayta yig\'ilishi kerak.</string>
     <string name="NexFeedConnected">Ulandi</string>
     <string name="NexFeedConnectedText">Lenta tez orada shu yerda ochiladi.</string>
+    <string name="NexFeedLoginMethod">Kirish usuli: %1$s</string>
     <string name="NexFeedTokenExpires">Access token muddati: %1$s</string>
     <string name="NexFeedLogout">Chiqish</string>
 </resources>
