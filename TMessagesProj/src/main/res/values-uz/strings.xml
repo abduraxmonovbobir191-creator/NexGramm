@@ -144,7 +144,7 @@
     <string name="NexCoverColor">Rang</string>
     <string name="NexCoverPattern">Emoji naqsh</string>
     <string name="NexCoverPhotoHint">Rasm muqova bo\'ylab kesib ko\'rsatiladi.</string>
-    <string name="NexCoverVideoHint">Videoning birinchi 6 soniyasi ovozsiz takrorlanadi (video kamida 4 soniya).</string>
+    <string name="NexCoverVideoHint">Videoning birinchi 10 soniyasi ovozsiz takrorlanadi (video kamida 2 soniya).</string>
     <string name="NexCoverVisible">Muqova NexGramm foydalanuvchilariga ko\'rinadi</string>
     <string name="NexCoverSave">Saqlash</string>
     <string name="NexCoverSaved">Muqova saqlandi</string>
@@ -153,7 +153,7 @@
     <string name="NexCoverNoMedia">Avval galereyadan tanlang.</string>
     <string name="NexCoverStorageOff">Rasm va video muqova hozircha ishlamaydi. Rang tanlang.</string>
     <string name="NexCoverTooLarge">Fayl juda katta. Boshqasini tanlang.</string>
-    <string name="NexCoverVideoShort">Video kamida 4 soniya bo\'lsin.</string>
+    <string name="NexCoverVideoShort">Video kamida 2 soniya bo\'lsin.</string>
     <string name="NexCoverLogin">Lentani qayta oching (kirish uchun), keyin muqovani o\'zgartiring.</string>
     <string name="NexMeNoUsername">Username yo\'q</string>
     <string name="NexMePhone">Telefon</string>

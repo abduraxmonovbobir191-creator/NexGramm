@@ -146,7 +146,8 @@ public class NexProfileActivity extends BaseFragment {
         tabsView = new LinearLayout(context);
         tabsView.setOrientation(LinearLayout.HORIZONTAL);
 
-        root.addView(createTopBar(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        // fixed height: its MATCH_PARENT background would otherwise stretch a WRAP_CONTENT bar to the whole screen
+        root.addView(createTopBar(context), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56), Gravity.TOP));
 
         fragmentView = root;
         loadAccount();

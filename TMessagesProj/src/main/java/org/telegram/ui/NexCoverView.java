@@ -15,11 +15,20 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.VideoPlayer;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Arrays;
+
+import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.NexCover;
 import uz.nexgramm.core.NexPalette;
 
@@ -128,6 +137,80 @@ final class NexCoverView extends FrameLayout {
         }
         stopVideo();
         videoUrl = url;
+        if (url.startsWith("http")) {
+            // played from the phone: downloaded once, then it loops smoothly with no traffic
+            final File cached = cachedVideo(url);
+            if (cached.length() > 0) {
+                startPlayer(Uri.fromFile(cached));
+                return;
+            }
+            CoreClient.EXECUTOR.execute(() -> {
+                final boolean ok = download(url, cached);
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (ok && url.equals(videoUrl) && player == null) {
+                        startPlayer(Uri.fromFile(cached));
+                    }
+                });
+            });
+            return;
+        }
+        startPlayer(Uri.parse(url));
+    }
+
+    private static File cachedVideo(String url) {
+        final File dir = new File(ApplicationLoader.applicationContext.getCacheDir(), "nex_covers");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        return new File(dir, Integer.toHexString(url.hashCode()) + "_" + url.length() + ".mp4");
+    }
+
+    // Background thread; keeps the 6 newest cover videos. Nothing about the URL is logged.
+    private static boolean download(String url, File target) {
+        final File part = new File(target.getPath() + ".part");
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(15_000);
+            connection.setReadTimeout(30_000);
+            if (connection.getResponseCode() != 200) {
+                return false;
+            }
+            long total = 0;
+            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
+                final byte[] buffer = new byte[32 * 1024];
+                int read;
+                while ((read = in.read(buffer)) > 0) {
+                    total += read;
+                    if (total > 8L * 1024 * 1024) {
+                        return false;
+                    }
+                    out.write(buffer, 0, read);
+                }
+            }
+            if (!part.renameTo(target)) {
+                return false;
+            }
+            final File[] files = target.getParentFile() == null ? null : target.getParentFile().listFiles();
+            if (files != null && files.length > 6) {
+                Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                for (int i = 6; i < files.length; i++) {
+                    //noinspection ResultOfMethodCallIgnored
+                    files[i].delete();
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            part.delete();
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void startPlayer(Uri uri) {
         final TextureView texture = new TextureView(getContext());
         texture.setAlpha(0f);
         textureView = texture;
@@ -164,7 +247,7 @@ final class NexCoverView extends FrameLayout {
             }
         });
         videoPlayer.setTextureView(texture);
-        videoPlayer.preparePlayer(Uri.parse(url), "other");
+        videoPlayer.preparePlayer(uri, "other");
         videoPlayer.setLooping(true);
         videoPlayer.setMute(true);
         videoPlayer.play();
