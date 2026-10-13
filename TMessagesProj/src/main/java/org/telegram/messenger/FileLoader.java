@@ -212,6 +212,8 @@ public class FileLoader extends BaseController {
     private final ConcurrentHashMap<String, FileUploadOperation> uploadOperationPathsEnc = new ConcurrentHashMap<>();
     private int currentUploadOperationsCount = 0;
     private int currentUploadSmallOperationsCount = 0;
+    // NexGramm: uploads that really started (a cancelled queued one must not free a slot) and when
+    private final HashMap<FileUploadOperation, Long> runningUploads = new HashMap<>();
 
 
     private final ConcurrentHashMap<String, FileLoadOperation> loadOperationPaths = new ConcurrentHashMap<>();
@@ -443,25 +445,7 @@ public class FileLoader extends BaseController {
                         } else {
                             uploadOperationPaths.remove(location);
                         }
-                        if (small) {
-                            currentUploadSmallOperationsCount--;
-                            if (currentUploadSmallOperationsCount < 1) {
-                                FileUploadOperation operation12 = uploadSmallOperationQueue.poll();
-                                if (operation12 != null) {
-                                    currentUploadSmallOperationsCount++;
-                                    operation12.start();
-                                }
-                            }
-                        } else {
-                            currentUploadOperationsCount--;
-                            if (currentUploadOperationsCount < 1) {
-                                FileUploadOperation operation12 = uploadOperationQueue.poll();
-                                if (operation12 != null) {
-                                    currentUploadOperationsCount++;
-                                    operation12.start();
-                                }
-                            }
-                        }
+                        onUploadDone(operation, small, true);
                         if (delegate != null) {
                             delegate.fileDidUploaded(location, inputFile, inputEncryptedFile, key, iv, operation.getTotalFileSize());
                         }
@@ -479,25 +463,7 @@ public class FileLoader extends BaseController {
                         if (delegate != null) {
                             delegate.fileDidFailedUpload(location, encrypted);
                         }
-                        if (small) {
-                            currentUploadSmallOperationsCount--;
-                            if (currentUploadSmallOperationsCount < 1) {
-                                FileUploadOperation operation1 = uploadSmallOperationQueue.poll();
-                                if (operation1 != null) {
-                                    currentUploadSmallOperationsCount++;
-                                    operation1.start();
-                                }
-                            }
-                        } else {
-                            currentUploadOperationsCount--;
-                            if (currentUploadOperationsCount < 1) {
-                                FileUploadOperation operation1 = uploadOperationQueue.poll();
-                                if (operation1 != null) {
-                                    currentUploadOperationsCount++;
-                                    operation1.start();
-                                }
-                            }
-                        }
+                        onUploadDone(operation, small, false);
                     });
                 }
 
@@ -509,21 +475,54 @@ public class FileLoader extends BaseController {
                 }
             });
             if (small) {
-                if (currentUploadSmallOperationsCount < 1) {
-                    currentUploadSmallOperationsCount++;
-                    operation.start();
-                } else {
-                    uploadSmallOperationQueue.add(operation);
-                }
+                uploadSmallOperationQueue.add(operation);
             } else {
-                if (currentUploadOperationsCount < 1) {
-                    currentUploadOperationsCount++;
-                    operation.start();
-                } else {
-                    uploadOperationQueue.add(operation);
-                }
+                uploadOperationQueue.add(operation);
             }
+            startQueuedUploads();
         });
+    }
+
+    // NexGramm: several uploads side by side (a video sent to four chats no longer waits in a line), as many
+    // as the network takes: by network type and the measured speed (uz.nexgramm.core.NexParallel).
+    // Called on fileLoaderQueue only.
+    private void startQueuedUploads() {
+        final int network = ApplicationLoader.isConnectionSlow() ? uz.nexgramm.core.NexParallel.NETWORK_SLOW
+            : ApplicationLoader.getAutodownloadNetworkType() == StatsController.TYPE_WIFI ? uz.nexgramm.core.NexParallel.NETWORK_WIFI
+            : uz.nexgramm.core.NexParallel.NETWORK_MOBILE;
+        while (currentUploadOperationsCount < uz.nexgramm.core.NexParallel.maxUploads(network, false)) {
+            final FileUploadOperation next = uploadOperationQueue.poll();
+            if (next == null) {
+                break;
+            }
+            currentUploadOperationsCount++;
+            runningUploads.put(next, System.currentTimeMillis());
+            next.start();
+        }
+        while (currentUploadSmallOperationsCount < uz.nexgramm.core.NexParallel.maxUploads(network, true)) {
+            final FileUploadOperation next = uploadSmallOperationQueue.poll();
+            if (next == null) {
+                break;
+            }
+            currentUploadSmallOperationsCount++;
+            runningUploads.put(next, System.currentTimeMillis());
+            next.start();
+        }
+    }
+
+    private void onUploadDone(FileUploadOperation operation, boolean small, boolean success) {
+        final Long startedAt = runningUploads.remove(operation);
+        if (startedAt != null) {
+            if (small) {
+                currentUploadSmallOperationsCount--;
+            } else {
+                currentUploadOperationsCount--;
+            }
+            if (success) {
+                uz.nexgramm.core.NexParallel.onUploaded(operation.getTotalFileSize(), System.currentTimeMillis() - startedAt);
+            }
+        }
+        startQueuedUploads();
     }
 
     public void setForceStreamLoadingFile(TLRPC.FileLocation location, String ext) {

@@ -119,6 +119,8 @@ public final class NexLentaUi {
         button.setSingleLine(true);
         stylePill(button, style);
         button.setText(text);
+        // soft iOS-like press: shrinks a little, springs back
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(button, 0.04f, 1.6f);
         return button;
     }
 
@@ -151,6 +153,7 @@ public final class NexLentaUi {
         } else {
             button.setBackground(Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), bg, Theme.multAlpha(bg, 0.8f)));
         }
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(button, 0.08f, 1.6f);
         return button;
     }
 

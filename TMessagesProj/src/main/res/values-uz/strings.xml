@@ -198,8 +198,9 @@
     <string name="NexMeNewStory">Yangi istoriya</string>
     <string name="NexMeStatStories">Istoriya</string>
     <string name="NexMeStatGifts">Sovg\'a</string>
-    <string name="NexMeStatContacts">Kontakt</string>
     <string name="NexMeNoArchive">Arxiv bo\'sh.</string>
+    <string name="NexMeSetPhoto">Profil rasmi yoki videosi</string>
+    <string name="NexMeBackground">Fon</string>
     <string name="NexAiWhatToday">Bugun nima</string>
     <string name="NexAiWhatTodayItalic">qilamiz?</string>
     <string name="NexAiModeChat">Chat</string>

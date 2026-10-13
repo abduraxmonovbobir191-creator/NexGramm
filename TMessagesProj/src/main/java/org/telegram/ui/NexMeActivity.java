@@ -1,11 +1,15 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.Spannable;
+import android.text.SpannableString;
 import android.text.TextUtils;
+import android.text.style.URLSpan;
 import android.text.method.LinkMovementMethod;
 import android.text.util.Linkify;
 import android.util.TypedValue;
@@ -25,7 +29,9 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.ContactsController;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ImageLoader;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.NotificationCenter;
@@ -37,22 +43,31 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
+import org.telegram.ui.Components.ImageUpdater;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
 import org.telegram.ui.Components.RadialProgressView;
+import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.ShareAlert;
+import org.telegram.ui.Components.URLSpanNoUnderline;
 import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.Stories.StoriesUtilities;
 import org.telegram.ui.Stories.StoryViewer;
 import org.telegram.ui.Stories.recorder.StoryRecorder;
 
+import java.io.File;
+import java.util.ArrayList;
+
+import uz.nexgramm.core.CoreClient;
+import uz.nexgramm.core.NexCover;
 import uz.nexgramm.core.PixelfedFormat;
 
 // NexGramm: the Profile tab — the one profile of the app: the user's Telegram profile in a wide, clean,
-// TikTok-like layout. Name, @username, photo (+ = new story), counters (stories, gifts, contacts), bio,
-// phone / birthday, Edit; below, the stories as a grid: kept on the profile, or the archive.
+// TikTok-like layout: a background (NexGramm cover: photo, video or color), the photo (+ = new photo or
+// video, or remove it), name, @username, stories and gifts counters, bio, phone / birthday, Edit and
+// Background; below, the stories in a 4-column grid: kept on the profile, or the archive.
 // Lenta posts, likes and saved posts live in the Lenta (own Lenta profile), not here.
-public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate, NotificationCenter.NotificationCenterDelegate {
+public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate, NotificationCenter.NotificationCenterDelegate, ImageUpdater.ImageUpdaterDelegate {
 
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_TABS = 1;
@@ -60,7 +75,9 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private static final int TYPE_STATE = 3;
     private static final int TAB_PROFILE = 0;
     private static final int TAB_ARCHIVE = 1;
-    private static final int AVATAR_DP = 96;
+    private static final int AVATAR_DP = 92;
+    private static final int COVER_DP = 150;
+    private static final int COLUMNS = 4;
     private static final int BAR_DP = 60;
 
     private RecyclerView listView;
@@ -70,13 +87,16 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private LinearLayout tabsView;
 
     private TextView barTitle;
+    private NexCoverView coverView;
     private BackupImageView avatarView;
-    private View avatarRing;
+    private ImageUpdater imageUpdater;
+    private TLRPC.FileLocation uploadingSmall;
+    private TLRPC.FileLocation uploadingBig;
+    private int coverGeneration;
     private TextView nameView;
     private TextView usernameView;
     private TextView storiesCount;
     private TextView giftsCount;
-    private TextView contactsCount;
     private TextView bioView;
     private LinearLayout chipsRow;
 
@@ -106,7 +126,6 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         getNotificationCenter().addObserver(this, NotificationCenter.updateInterfaces);
         getNotificationCenter().addObserver(this, NotificationCenter.storiesUpdated);
         getNotificationCenter().addObserver(this, NotificationCenter.storiesListUpdated);
-        getNotificationCenter().addObserver(this, NotificationCenter.contactsDidLoad);
         final TLRPC.User user = getUserConfig().getCurrentUser();
         if (user != null) {
             getMessagesController().loadFullUser(user, classGuid, true);
@@ -127,12 +146,18 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         getNotificationCenter().removeObserver(this, NotificationCenter.updateInterfaces);
         getNotificationCenter().removeObserver(this, NotificationCenter.storiesUpdated);
         getNotificationCenter().removeObserver(this, NotificationCenter.storiesListUpdated);
-        getNotificationCenter().removeObserver(this, NotificationCenter.contactsDidLoad);
         if (profileStories != null && profileLink >= 0) {
             profileStories.unlink(profileLink);
         }
         if (archiveStories != null && archiveLink >= 0) {
             archiveStories.unlink(archiveLink);
+        }
+        coverGeneration++;
+        if (imageUpdater != null) {
+            imageUpdater.clear();
+        }
+        if (coverView != null) {
+            coverView.release();
         }
     }
 
@@ -184,11 +209,12 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         root.setBackgroundColor(NexLentaColors.BACKGROUND);
 
         listView = new RecyclerView(context);
-        layoutManager = new GridLayoutManager(context, 3);
+        layoutManager = new GridLayoutManager(context, COLUMNS);
         layoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
             @Override
             public int getSpanSize(int position) {
-                return adapter.getItemViewType(position) == TYPE_STORY ? 1 : 3;
+                final int type = adapter.getItemViewType(position);
+                return type == TYPE_STORY || type == TYPE_ADD ? 1 : COLUMNS;
             }
         });
         listView.setLayoutManager(layoutManager);
@@ -217,8 +243,14 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         tabsView.setOrientation(LinearLayout.HORIZONTAL);
         rebuildTabs();
 
+        imageUpdater = new ImageUpdater(true, ImageUpdater.FOR_TYPE_USER, true);
+        imageUpdater.setOpenWithFrontfaceCamera(true);
+        imageUpdater.parentFragment = this;
+        imageUpdater.setDelegate(this);
+
         fragmentView = root;
         bind();
+        loadCover();
         return fragmentView;
     }
 
@@ -272,53 +304,71 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private View createHeader(Context context) {
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(4), AndroidUtilities.dp(20), AndroidUtilities.dp(16));
+        column.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(4), AndroidUtilities.dp(16), AndroidUtilities.dp(14));
 
-        // name + @username (left), photo with "+" (right)
-        final LinearLayout identity = new LinearLayout(context);
-        identity.setOrientation(LinearLayout.HORIZONTAL);
-        identity.setGravity(Gravity.CENTER_VERTICAL);
-        final LinearLayout names = new LinearLayout(context);
-        names.setOrientation(LinearLayout.VERTICAL);
-        nameView = new TextView(context);
-        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26);
-        nameView.setTypeface(AndroidUtilities.bold());
-        nameView.setTextColor(NexLentaColors.TEXT);
-        nameView.setMaxLines(2);
-        nameView.setEllipsize(TextUtils.TruncateAt.END);
-        names.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        usernameView = new TextView(context);
-        usernameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        usernameView.setTextColor(NexLentaColors.SECONDARY_TEXT);
-        usernameView.setSingleLine(true);
-        usernameView.setEllipsize(TextUtils.TruncateAt.END);
-        usernameView.setOnClickListener(v -> copyUsername());
-        names.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
-        identity.addView(names, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 0, 0, 16, 0));
+        // background: the NexGramm cover (photo, muted video, color / emoji) on a rounded card
+        final FrameLayout coverCard = new FrameLayout(context);
+        coverCard.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 24));
+        coverCard.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, android.graphics.Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), AndroidUtilities.dp(24));
+            }
+        });
+        coverCard.setClipToOutline(true);
+        coverView = new NexCoverView(context, false);
+        coverCard.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        coverCard.setOnClickListener(v -> openCoverEditor());
+        column.addView(coverCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, COVER_DP));
 
+        // the photo overlapping the background; + sets a new photo or video (or removes it)
         final FrameLayout avatarFrame = new FrameLayout(context);
-        avatarRing = new View(context);
-        avatarFrame.addView(avatarRing, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        final GradientDrawable ring = new GradientDrawable();
+        ring.setShape(GradientDrawable.OVAL);
+        ring.setColor(NexLentaColors.BACKGROUND);
+        avatarFrame.setBackground(ring);
+        avatarFrame.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
         avatarView = new BackupImageView(context);
-        avatarView.setRoundRadius(AndroidUtilities.dp((AVATAR_DP - 10) / 2f));
+        avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
         avatarView.setOnClickListener(v -> openPhoto());
-        avatarFrame.addView(avatarView, LayoutHelper.createFrame(AVATAR_DP - 10, AVATAR_DP - 10, Gravity.CENTER));
+        avatarView.setOnLongClickListener(v -> {
+            openPhotoMenu();
+            return true;
+        });
+        avatarFrame.addView(avatarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        final FrameLayout avatarHolder = new FrameLayout(context);
+        avatarHolder.addView(avatarFrame, LayoutHelper.createFrame(AVATAR_DP, AVATAR_DP, Gravity.LEFT | Gravity.TOP));
         final ImageView plus = new ImageView(context);
         plus.setScaleType(ImageView.ScaleType.CENTER);
-        plus.setImageResource(R.drawable.msg_add);
+        plus.setImageResource(R.drawable.msg_addphoto);
         plus.setColorFilter(new PorterDuffColorFilter(NexLentaColors.ON_ACCENT, PorterDuff.Mode.SRC_IN));
         final GradientDrawable plusBg = new GradientDrawable();
         plusBg.setShape(GradientDrawable.OVAL);
         plusBg.setColor(NexLentaColors.ACCENT);
         plusBg.setStroke(AndroidUtilities.dp(3), NexLentaColors.BACKGROUND);
         plus.setBackground(plusBg);
-        plus.setContentDescription(LocaleController.getString(R.string.NexMeNewStory));
-        plus.setOnClickListener(v -> openStoryRecorder());
-        avatarFrame.addView(plus, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.BOTTOM));
-        identity.addView(avatarFrame, LayoutHelper.createLinear(AVATAR_DP, AVATAR_DP));
-        column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        plus.setContentDescription(LocaleController.getString(R.string.NexMeSetPhoto));
+        plus.setOnClickListener(v -> openPhotoMenu());
+        ScaleStateListAnimator.apply(plus, 0.1f, 1.6f);
+        avatarHolder.addView(plus, LayoutHelper.createFrame(34, 34, Gravity.LEFT | Gravity.TOP, AVATAR_DP - 32, AVATAR_DP - 34, 0, 0));
+        column.addView(avatarHolder, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 12, -AVATAR_DP / 2f, 0, 0));
 
-        // stories · gifts · contacts
+        nameView = new TextView(context);
+        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26);
+        nameView.setTypeface(AndroidUtilities.bold());
+        nameView.setTextColor(NexLentaColors.TEXT);
+        nameView.setMaxLines(2);
+        nameView.setEllipsize(TextUtils.TruncateAt.END);
+        column.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 4, 10, 4, 0));
+        usernameView = new TextView(context);
+        usernameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        usernameView.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        usernameView.setSingleLine(true);
+        usernameView.setEllipsize(TextUtils.TruncateAt.END);
+        usernameView.setOnClickListener(v -> copyUsername());
+        column.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 4, 4, 4, 0));
+
+        // stories · gifts
         final LinearLayout stats = new LinearLayout(context);
         stats.setOrientation(LinearLayout.HORIZONTAL);
         storiesCount = addStat(context, stats, R.string.NexMeStatStories, () -> {
@@ -326,16 +376,15 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             layoutManager.scrollToPositionWithOffset(1, 0);
         });
         giftsCount = addStat(context, stats, R.string.NexMeStatGifts, () -> presentFragment(new NexGiftsActivity()));
-        contactsCount = addStat(context, stats, R.string.NexMeStatContacts, () -> presentFragment(new ContactsActivity(null)));
-        column.addView(stats, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, -8, 14, 0, 0));
+        column.addView(stats, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, -4, 12, 0, 0));
 
         bioView = new TextView(context);
         bioView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         bioView.setLineSpacing(AndroidUtilities.dp(2), 1f);
         bioView.setTextColor(NexLentaColors.TEXT);
-        bioView.setLinkTextColor(NexLentaColors.TEXT);
+        bioView.setLinkTextColor(NexLentaColors.ACCENT);
         bioView.setVisibility(View.GONE);
-        column.addView(bioView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+        column.addView(bioView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 4, 10, 4, 0));
 
         // phone, birthday: small chips, tap copies
         final HorizontalScrollView chipsScroll = new HorizontalScrollView(context);
@@ -345,10 +394,18 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         chipsScroll.addView(chipsRow);
         column.addView(chipsScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
 
-        final TextView edit = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexProfileEdit), NexLentaUi.PILL_CARD);
+        // Edit (Telegram name, bio, username, birthday) · Background (cover: photo, video, color)
+        final LinearLayout buttons = new LinearLayout(context);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        final TextView edit = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexProfileEdit), NexLentaUi.PILL_PRIMARY);
         edit.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         edit.setOnClickListener(v -> presentFragment(new UserInfoActivity()));
-        column.addView(edit, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 46, 0, 16, 0, 0));
+        buttons.addView(edit, LayoutHelper.createLinear(0, 48, 1f));
+        final TextView background = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexMeBackground), NexLentaUi.PILL_CARD);
+        background.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        background.setOnClickListener(v -> openCoverEditor());
+        buttons.addView(background, LayoutHelper.createLinear(0, 48, 1f, 10, 0, 0, 0));
+        column.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 16, 0, 0));
         return column;
     }
 
@@ -381,14 +438,13 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         chip.setSingleLine(true);
         chip.setGravity(Gravity.CENTER_VERTICAL);
         chip.setText(text);
-        chip.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0);
+        final android.graphics.drawable.Drawable iconDrawable = context.getResources().getDrawable(icon).mutate();
+        iconDrawable.setBounds(0, 0, AndroidUtilities.dp(18), AndroidUtilities.dp(18));
+        iconDrawable.setColorFilter(new PorterDuffColorFilter(NexLentaColors.SECONDARY_TEXT, PorterDuff.Mode.SRC_IN));
+        chip.setCompoundDrawablesRelative(iconDrawable, null, null, null);
         chip.setCompoundDrawablePadding(AndroidUtilities.dp(6));
-        for (android.graphics.drawable.Drawable d : chip.getCompoundDrawablesRelative()) {
-            if (d != null) {
-                d.setColorFilter(new PorterDuffColorFilter(NexLentaColors.SECONDARY_TEXT, PorterDuff.Mode.SRC_IN));
-            }
-        }
-        chip.setPadding(AndroidUtilities.dp(10), 0, AndroidUtilities.dp(14), 0);
+        chip.setPadding(AndroidUtilities.dp(12), 0, AndroidUtilities.dp(14), 0);
+        ScaleStateListAnimator.apply(chip, 0.05f, 1.6f);
         chip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(16), NexLentaColors.CARD, Theme.multAlpha(NexLentaColors.CARD, 0.8f)));
         chip.setOnClickListener(v -> {
             AndroidUtilities.addToClipboard(text);
@@ -397,32 +453,41 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         chipsRow.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 34, 0, 0, 8, 0));
     }
 
+    // Stories | Archive: a segmented pill, the selected one filled
     private void rebuildTabs() {
         final Context context = tabsView.getContext();
         tabsView.removeAllViews();
+        tabsView.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(4), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
+        final LinearLayout pill = new LinearLayout(context);
+        pill.setOrientation(LinearLayout.HORIZONTAL);
+        pill.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 22));
+        pill.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
         final int[] icons = {R.drawable.nex_ic_grid, R.drawable.msg_stories_archive};
-        final int[] names = {R.string.ProfileStories, R.string.ProfileStoriesArchive};
+        final int[] names = {R.string.NexMeStatStories, R.string.ProfileStoriesArchiveTab};
         for (int i = 0; i < icons.length; i++) {
             final int t = i;
-            final FrameLayout cell = new FrameLayout(context);
-            final ImageView icon = new ImageView(context);
-            icon.setScaleType(ImageView.ScaleType.CENTER);
-            icon.setImageResource(icons[i]);
-            icon.setContentDescription(LocaleController.getString(names[i]));
-            icon.setColorFilter(new PorterDuffColorFilter(t == tab ? NexLentaColors.TEXT : NexLentaColors.SECONDARY_TEXT, PorterDuff.Mode.SRC_IN));
-            cell.addView(icon, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-            final View divider = new View(context);
-            divider.setBackgroundColor(NexLentaColors.DIVIDER);
-            cell.addView(divider, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1, Gravity.BOTTOM));
-            if (t == tab) {
-                final View underline = new View(context);
-                underline.setBackground(NexLentaUi.roundRect(NexLentaColors.TEXT, 2));
-                cell.addView(underline, LayoutHelper.createFrame(40, 2.5f, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+            final boolean selected = t == tab;
+            final TextView option = new TextView(context);
+            option.setGravity(Gravity.CENTER);
+            option.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            option.setTypeface(AndroidUtilities.bold());
+            option.setSingleLine(true);
+            option.setText(LocaleController.getString(names[i]));
+            final int fg = selected ? NexLentaColors.ON_ACCENT : NexLentaColors.SECONDARY_TEXT;
+            option.setTextColor(fg);
+            final android.graphics.drawable.Drawable icon = context.getResources().getDrawable(icons[i]).mutate();
+            icon.setBounds(0, 0, AndroidUtilities.dp(18), AndroidUtilities.dp(18));
+            icon.setColorFilter(new PorterDuffColorFilter(fg, PorterDuff.Mode.SRC_IN));
+            option.setCompoundDrawablesRelative(icon, null, null, null);
+            option.setCompoundDrawablePadding(AndroidUtilities.dp(6));
+            if (selected) {
+                option.setBackground(NexLentaUi.roundRect(NexLentaColors.ACCENT, 18));
             }
-            cell.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.06f), Theme.RIPPLE_MASK_ALL));
-            cell.setOnClickListener(v -> selectTab(t));
-            tabsView.addView(cell, LayoutHelper.createLinear(0, 48, 1f));
+            option.setOnClickListener(v -> selectTab(t));
+            ScaleStateListAnimator.apply(option, 0.04f, 1.6f);
+            pill.addView(option, LayoutHelper.createLinear(0, 38, 1f));
         }
+        tabsView.addView(pill, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
     }
 
     private void selectTab(int t) {
@@ -454,19 +519,22 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         final String username = UserObject.getPublicUsername(user);
         usernameView.setText(username != null ? "@" + username : LocaleController.getString(R.string.NexMeNoUsername));
         barTitle.setText(username != null ? "@" + username : name);
-        avatarView.setForUserOrChat(user, new AvatarDrawable(user));
+        if (uploadingSmall == null) {
+            avatarView.setForUserOrChat(user, new AvatarDrawable(user));
+        }
 
-        // a ring in the accent while there are stories of the last 24 hours
-        final boolean active = getMessagesController().getStoriesController().hasStories(user.id);
-        final GradientDrawable ring = new GradientDrawable();
-        ring.setShape(GradientDrawable.OVAL);
-        ring.setStroke(AndroidUtilities.dp(2.5f), active ? NexLentaColors.ACCENT : 0);
-        avatarRing.setBackground(ring);
 
         final TLRPC.UserFull full = getMessagesController().getUserFull(user.id);
         final String about = full != null && full.about != null ? full.about.trim() : "";
-        bioView.setText(about);
-        Linkify.addLinks(bioView, Linkify.WEB_URLS);
+        final SpannableString bio = new SpannableString(about);
+        Linkify.addLinks(bio, Linkify.WEB_URLS);
+        for (URLSpan span : bio.getSpans(0, bio.length(), URLSpan.class)) {
+            final int start = bio.getSpanStart(span);
+            final int end = bio.getSpanEnd(span);
+            bio.removeSpan(span);
+            bio.setSpan(new URLSpanNoUnderline(span.getURL()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        bioView.setText(bio);
         bioView.setMovementMethod(LinkMovementMethod.getInstance());
         bioView.setVisibility(about.isEmpty() ? View.GONE : View.VISIBLE);
 
@@ -481,7 +549,6 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
 
         storiesCount.setText(PixelfedFormat.count(profileStories == null ? 0 : profileStories.getCount()));
         giftsCount.setText(PixelfedFormat.count(full == null ? 0 : full.stargifts_count));
-        contactsCount.setText(PixelfedFormat.count(ContactsController.getInstance(currentAccount).contacts.size()));
     }
 
     private void copyUsername() {
@@ -505,14 +572,14 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         showDialog(ShareAlert.createShareAlert(getParentActivity(), null, link, false, link, false));
     }
 
-    // The profile photos full screen, as in Telegram; no photo yet: Edit profile, where one is set
+    // The profile photos full screen, as in Telegram; no photo yet: the photo menu
     private void openPhoto() {
         final TLRPC.User user = getUserConfig().getCurrentUser();
         if (user == null || getParentActivity() == null) {
             return;
         }
-        if (user.photo == null || user.photo.photo_big == null) {
-            presentFragment(new UserInfoActivity());
+        if (!hasPhoto(user)) {
+            openPhotoMenu();
             return;
         }
         PhotoViewer.getInstance().setParentActivity(this);
@@ -520,6 +587,176 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             user.photo.photo_big.dc_id = user.photo.dc_id;
         }
         PhotoViewer.getInstance().openPhoto(user.photo.photo_big, new PhotoViewer.EmptyPhotoViewerProvider());
+    }
+
+    private static boolean hasPhoto(TLRPC.User user) {
+        return user.photo != null && user.photo.photo_big != null && !(user.photo instanceof TLRPC.TL_userProfilePhotoEmpty);
+    }
+
+    // Telegram's own photo menu: camera, gallery, video, emoji avatar, remove
+    private void openPhotoMenu() {
+        final TLRPC.User user = getUserConfig().getCurrentUser();
+        if (user == null || imageUpdater == null || getParentActivity() == null) {
+            return;
+        }
+        imageUpdater.openMenu(hasPhoto(user), () -> getMessagesController().deleteUserPhoto(null), dialog -> {
+        }, 0);
+    }
+
+    @Override
+    public void didUploadPhoto(TLRPC.InputFile photo, TLRPC.InputFile video, double videoStartTimestamp, String videoPath,
+                               TLRPC.PhotoSize bigSize, TLRPC.PhotoSize smallSize, boolean isVideo, TLRPC.VideoSize emojiMarkup) {
+        AndroidUtilities.runOnUIThread(() -> {
+            if (photo == null && video == null && emojiMarkup == null) {
+                // picked: show it at once while it uploads
+                uploadingSmall = smallSize.location;
+                uploadingBig = bigSize.location;
+                avatarView.setImage(ImageLocation.getForLocal(uploadingSmall), "92_92", new AvatarDrawable(getUserConfig().getCurrentUser()), null);
+                return;
+            }
+            final TLRPC.TL_photos_uploadProfilePhoto req = new TLRPC.TL_photos_uploadProfilePhoto();
+            if (photo != null) {
+                req.file = photo;
+                req.flags |= 1;
+            }
+            if (video != null) {
+                req.video = video;
+                req.flags |= 2;
+                req.video_start_ts = videoStartTimestamp;
+                req.flags |= 4;
+            }
+            if (emojiMarkup != null) {
+                req.video_emoji_markup = emojiMarkup;
+                req.flags |= 16;
+            }
+            getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                if (error == null && response instanceof TLRPC.TL_photos_photo) {
+                    TLRPC.User user = getMessagesController().getUser(getUserConfig().getClientUserId());
+                    if (user == null) {
+                        user = getUserConfig().getCurrentUser();
+                        if (user == null) {
+                            return;
+                        }
+                        getMessagesController().putUser(user, false);
+                    } else {
+                        getUserConfig().setCurrentUser(user);
+                    }
+                    final TLRPC.TL_photos_photo photosPhoto = (TLRPC.TL_photos_photo) response;
+                    final ArrayList<TLRPC.PhotoSize> sizes = photosPhoto.photo.sizes;
+                    final TLRPC.PhotoSize small = FileLoader.getClosestPhotoSizeWithSize(sizes, 150);
+                    final TLRPC.PhotoSize big = FileLoader.getClosestPhotoSizeWithSize(sizes, 800);
+                    final TLRPC.VideoSize videoSize = photosPhoto.photo.video_sizes.isEmpty() ? null : FileLoader.getClosestVideoSizeWithSize(photosPhoto.photo.video_sizes, 1000);
+                    user.photo = new TLRPC.TL_userProfilePhoto();
+                    user.photo.photo_id = photosPhoto.photo.id;
+                    if (small != null) {
+                        user.photo.photo_small = small.location;
+                    }
+                    if (big != null) {
+                        user.photo.photo_big = big.location;
+                    }
+                    // the picked files become the cache of the new photo: no download again
+                    if (small != null && uploadingSmall != null) {
+                        final File dest = FileLoader.getInstance(currentAccount).getPathToAttach(small, true);
+                        final File src = FileLoader.getInstance(currentAccount).getPathToAttach(uploadingSmall, true);
+                        src.renameTo(dest);
+                        final String oldKey = uploadingSmall.volume_id + "_" + uploadingSmall.local_id + "@90_90";
+                        final String newKey = small.location.volume_id + "_" + small.location.local_id + "@90_90";
+                        ImageLoader.getInstance().replaceImageInCache(oldKey, newKey, ImageLocation.getForUserOrChat(currentAccount, user, ImageLocation.TYPE_SMALL), false);
+                    }
+                    if (videoSize != null && videoPath != null) {
+                        new File(videoPath).renameTo(FileLoader.getInstance(currentAccount).getPathToAttach(videoSize, "mp4", true));
+                    } else if (big != null && uploadingBig != null) {
+                        FileLoader.getInstance(currentAccount).getPathToAttach(uploadingBig, true)
+                            .renameTo(FileLoader.getInstance(currentAccount).getPathToAttach(big, true));
+                    }
+                    getMessagesController().getDialogPhotos(user.id).addPhotoAtStart(photosPhoto.photo);
+                    final ArrayList<TLRPC.User> users = new ArrayList<>();
+                    users.add(user);
+                    getMessagesStorage().putUsersAndChats(users, null, false, true);
+                    final TLRPC.UserFull userFull = getMessagesController().getUserFull(getUserConfig().getClientUserId());
+                    if (userFull != null) {
+                        userFull.profile_photo = photosPhoto.photo;
+                        getMessagesStorage().updateUserInfo(userFull, false);
+                    }
+                } else if (getParentActivity() != null) {
+                    Toast.makeText(getParentActivity(), LocaleController.getString(R.string.NexActionFailed), Toast.LENGTH_SHORT).show();
+                }
+                uploadingSmall = null;
+                uploadingBig = null;
+                getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, org.telegram.messenger.MessagesController.UPDATE_MASK_ALL);
+                getNotificationCenter().postNotificationName(NotificationCenter.mainUserInfoChanged);
+                getUserConfig().saveConfig(true);
+            }));
+        });
+    }
+
+    @Override
+    public void didUploadFailed() {
+        uploadingSmall = null;
+        uploadingBig = null;
+        bind();
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (imageUpdater != null) {
+            imageUpdater.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResultFragment(int requestCode, String[] permissions, int[] grantResults) {
+        if (imageUpdater != null) {
+            imageUpdater.onRequestPermissionsResultFragment(requestCode, permissions, grantResults);
+        }
+    }
+
+    // ---- background: the NexGramm cover (needs the silent NexGramm sign-in, not the Lenta) ----
+
+    private void loadCover() {
+        final String id = NexCover.ownId(tgUserId());
+        if (id == null || coverView == null) {
+            return;
+        }
+        final String key = NexCover.idKey(id);
+        if (NexCover.isCached(key)) {
+            coverView.setCover(NexCover.cached(key));
+        }
+        final int gen = coverGeneration;
+        CoreClient.EXECUTOR.execute(() -> {
+            final NexCover cover;
+            try {
+                cover = NexCover.loadByIdBlocking(id);
+            } catch (Exception e) {
+                return; // offline: keep what is shown
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen == coverGeneration && coverView != null) {
+                    coverView.setCover(cover);
+                }
+            });
+        });
+    }
+
+    private void openCoverEditor() {
+        final long userId = tgUserId();
+        NexAiUi.withCoreLogin(currentAccount, userId, () -> {
+            final String id = NexCover.ownId(userId);
+            final TLRPC.User user = getUserConfig().getCurrentUser();
+            if (id == null || user == null || fragmentView == null) {
+                return;
+            }
+            final String key = NexCover.idKey(id);
+            presentFragment(new NexCoverEditActivity(user, key, NexCover.cached(key), cover -> {
+                if (coverView != null) {
+                    coverView.setCover(cover);
+                }
+            }));
+        }, () -> {
+            if (getParentActivity() != null) {
+                Toast.makeText(getParentActivity(), LocaleController.getString(R.string.NexAiLogin), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void openStoryRecorder() {
@@ -552,17 +789,35 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         super.onResume();
         if (fragmentView != null) {
             bind();
+            loadCover();
             adapter.notifyDataSetChanged();
+        }
+        if (coverView != null) {
+            coverView.resume();
         }
     }
 
-    // ---- list: header, tabs, stories grid ----
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (coverView != null) {
+            coverView.pause();
+        }
+    }
+
+    // ---- list: header, tabs, stories grid (4 columns, rounded tiles; "+" first on the profile tab) ----
+
+    private static final int TYPE_ADD = 4;
 
     private class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         private int storyCount() {
             final StoriesController.StoriesList list = currentList();
             return list == null ? 0 : list.messageObjects.size();
+        }
+
+        private int addCount() {
+            return tab == TAB_PROFILE ? 1 : 0;
         }
 
         private boolean showState() {
@@ -572,7 +827,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
 
         @Override
         public int getItemCount() {
-            return 2 + storyCount() + (showState() ? 1 : 0);
+            return 2 + addCount() + storyCount() + (showState() ? 1 : 0);
         }
 
         @Override
@@ -583,7 +838,11 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             if (position == 1) {
                 return TYPE_TABS;
             }
-            return position - 2 < storyCount() ? TYPE_STORY : TYPE_STATE;
+            final int index = position - 2;
+            if (index < addCount()) {
+                return TYPE_ADD;
+            }
+            return index - addCount() < storyCount() ? TYPE_STORY : TYPE_STATE;
         }
 
         @NonNull
@@ -596,8 +855,8 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             } else if (viewType == TYPE_TABS) {
                 AndroidUtilities.removeFromParent(tabsView);
                 view = tabsView;
-            } else if (viewType == TYPE_STORY) {
-                view = new StoryTile(parent.getContext());
+            } else if (viewType == TYPE_STORY || viewType == TYPE_ADD) {
+                view = new StoryTile(parent.getContext(), viewType == TYPE_ADD);
             } else {
                 view = new StateView(parent.getContext());
             }
@@ -608,41 +867,61 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
 
         @Override
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+            final int index = position - 2;
             if (holder.itemView instanceof StoryTile) {
-                final MessageObject object = currentList().messageObjects.get(position - 2);
-                ((StoryTile) holder.itemView).set(object.storyItem, (position - 2) % 3);
+                final StoryTile tile = (StoryTile) holder.itemView;
+                if (tile.add) {
+                    tile.set(null, 0);
+                } else {
+                    final MessageObject object = currentList().messageObjects.get(index - addCount());
+                    tile.set(object.storyItem, index % COLUMNS);
+                }
             } else if (holder.itemView instanceof StateView) {
                 ((StateView) holder.itemView).update();
             }
         }
     }
 
-    // 3:4 story tile with the view count, 1 px gaps
+    // 3:4 story tile with rounded corners and the view count; the "+" tile posts a new story
     private class StoryTile extends FrameLayout {
+        private final boolean add;
         private final BackupImageView imageView;
         private final TextView viewsView;
         private TL_stories.StoryItem story;
 
-        StoryTile(Context context) {
+        StoryTile(Context context, boolean add) {
             super(context);
+            this.add = add;
+            final FrameLayout inner = new FrameLayout(context);
+            inner.setBackground(NexLentaUi.roundRect(add ? NexLentaColors.CARD : NexLentaColors.PLACEHOLDER, 12));
             imageView = new BackupImageView(context);
-            imageView.setBackgroundColor(NexLentaColors.PLACEHOLDER);
-            addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            imageView.setRoundRadius(AndroidUtilities.dp(12));
+            inner.addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             viewsView = new TextView(context);
-            viewsView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            viewsView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
             viewsView.setTypeface(AndroidUtilities.bold());
             viewsView.setTextColor(0xFFFFFFFF);
             viewsView.setShadowLayer(AndroidUtilities.dp(2), 0, 0, 0x99000000);
-            viewsView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.msg_views, 0, 0, 0);
+            final android.graphics.drawable.Drawable eye = context.getResources().getDrawable(R.drawable.msg_views).mutate();
+            eye.setBounds(0, 0, AndroidUtilities.dp(14), AndroidUtilities.dp(14));
+            eye.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+            viewsView.setCompoundDrawables(eye, null, null, null);
             viewsView.setCompoundDrawablePadding(AndroidUtilities.dp(3));
-            for (android.graphics.drawable.Drawable d : viewsView.getCompoundDrawables()) {
-                if (d != null) {
-                    d.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
-                }
+            inner.addView(viewsView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 6, 0, 0, 5));
+            if (add) {
+                final ImageView plus = new ImageView(context);
+                plus.setScaleType(ImageView.ScaleType.CENTER);
+                plus.setImageResource(R.drawable.msg_add);
+                plus.setColorFilter(new PorterDuffColorFilter(NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
+                inner.addView(plus, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+                setContentDescription(LocaleController.getString(R.string.NexMeNewStory));
             }
-            addView(viewsView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 6, 0, 0, 6));
+            addView(inner, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            ScaleStateListAnimator.apply(this, 0.04f, 1.6f);
             setOnClickListener(v -> {
-                if (story != null) {
+                if (add) {
+                    openStoryRecorder();
+                } else if (story != null) {
                     openStory(story);
                 }
             });
@@ -651,16 +930,23 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             final int width = MeasureSpec.getSize(widthMeasureSpec);
-            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(width * 4 / 3, MeasureSpec.EXACTLY));
+            final int inner = width - getPaddingLeft() - getPaddingRight();
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(inner * 4 / 3 + getPaddingBottom(), MeasureSpec.EXACTLY));
         }
 
+        // column 0..3: 12 dp at the screen edges, 6 dp between tiles
         void set(TL_stories.StoryItem story, int column) {
             this.story = story;
-            final int gap = Math.max(1, AndroidUtilities.dp(1));
-            setPadding(column == 0 ? 0 : gap / 2 + gap % 2, 0, column == 2 ? 0 : gap / 2, gap);
+            final int edge = AndroidUtilities.dp(12);
+            final int half = AndroidUtilities.dp(3);
+            setPadding(column == 0 ? edge : half, 0, column == COLUMNS - 1 ? edge : half, AndroidUtilities.dp(6));
+            if (add) {
+                viewsView.setVisibility(View.GONE);
+                return;
+            }
             imageView.getImageReceiver().clearImage();
             if (story != null) {
-                StoriesUtilities.setImage(imageView.getImageReceiver(), story, "150_200");
+                StoriesUtilities.setImage(imageView.getImageReceiver(), story, "120_160");
             }
             final int views = story != null && story.views != null ? story.views.views_count : 0;
             viewsView.setText(PixelfedFormat.count(views));

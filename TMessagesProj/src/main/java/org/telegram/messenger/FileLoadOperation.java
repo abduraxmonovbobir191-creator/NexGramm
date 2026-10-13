@@ -286,7 +286,9 @@ public class FileLoadOperation {
     }
 
     private void updateParams() {
-        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {
+        // NexGramm: Telegram's fast download mode (512 KB parts, 8 at once) also on unmetered Wi-Fi
+        final boolean fastNetwork = ApplicationLoader.getAutodownloadNetworkType() == StatsController.TYPE_WIFI;
+        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams || fastNetwork) && !forceSmallChunk) {
             downloadChunkSizeBig = 1024 * 512;
             maxDownloadRequests = 8;
             maxDownloadRequestsBig = 8;

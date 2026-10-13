@@ -4401,6 +4401,8 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(open_direct, R.drawable.msg_markunread, getString(R.string.ChannelOpenDirect));
                 headerItem.setSubItemShown(open_direct, ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && currentChat.linked_monoforum_id != 0 && ChatObject.canManageMonoForum(currentAccount, -currentChat.linked_monoforum_id));
             }
+            // NexGramm: NEX AI also in the ⋮ menu, so it is there in every chat (private ones too)
+            headerItem.lazilyAddSubItem(nex_ai, R.drawable.nex_ic_sparkle, LocaleController.getString(R.string.NexAiChatTitle));
             if (currentUser != null && chatMode != MODE_SAVED) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
                 headerItem.lazilyAddSubItem(video_call, R.drawable.msg_videocall, LocaleController.getString(R.string.VideoCall));
