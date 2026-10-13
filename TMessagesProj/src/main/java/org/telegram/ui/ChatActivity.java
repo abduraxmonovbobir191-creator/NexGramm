@@ -441,6 +441,7 @@ public class ChatActivity extends BaseFragment implements
     private ActionBarMenu.LazyItem attachItem;
     private ActionBarMenuItem.Item savedChatsItem, savedChatsGap;;
     private ActionBarMenuItem headerItem;
+    private ActionBarMenuItem nexAiItem;
     private ActionBarMenu.LazyItem editTextItem;
     protected ActionBarMenuItem searchItem;
     protected ActionBarMenuItem topicCreateItem;
@@ -1247,6 +1248,7 @@ public class ChatActivity extends BaseFragment implements
 
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
+    public final static int OPTION_NEX_ASK = 900; // NexGramm: NEX AI about this message
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -1686,6 +1688,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int charge_fee = 72;
 
     private final static int chat_menu_topic_create = 73;
+    private final static int nex_ai = 90; // NexGramm: ✦ NEX AI for this chat
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -3959,6 +3962,8 @@ public class ChatActivity extends BaseFragment implements
                     getSendMessagesHelper().sendMessage(SendMessagesHelper.SendMessageParams.of("/help", dialog_id, null, null, null, false, null, null, null, true, 0, 0, null, false));
                 } else if (id == bot_settings) {
                     getSendMessagesHelper().sendMessage(SendMessagesHelper.SendMessageParams.of("/settings", dialog_id, null, null, null, false, null, null, null, true, 0, 0, null, false));
+                } else if (id == nex_ai) {
+                    openNexAiForChat();
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4295,6 +4300,9 @@ public class ChatActivity extends BaseFragment implements
             if (currentUser != null) {
                 userFull = getMessagesController().getUserFull(currentUser.id);
             }
+            // NexGramm: ✦ NEX AI (summary, reply suggestions, rewrite of the draft, questions)
+            nexAiItem = menu.addItem(nex_ai, R.drawable.nex_ic_sparkle);
+            nexAiItem.setContentDescription(LocaleController.getString(R.string.NexAiChatTitle));
             headerItem = menu.addItem(chat_menu_options, otherIcon);
             headerItem.setSubMenuDelegate(new ActionBarMenuItem.ActionBarSubMenuItemDelegate() {
                 @Override
@@ -33309,6 +33317,59 @@ public class ChatActivity extends BaseFragment implements
         MediaController.saveFile(path, getParentActivity(), messageObject.isVideo() ? 1 : 0, null, null);
     }
 
+    // NexGramm: text NEX AI gets for a message (text or media caption)
+    private CharSequence nexMessageText(MessageObject message) {
+        if (message == null) {
+            return null;
+        }
+        if (!TextUtils.isEmpty(message.caption)) {
+            return message.caption;
+        }
+        return message.type == MessageObject.TYPE_TEXT ? message.messageText : null;
+    }
+
+    // NexGramm: ✦ in the header — recent visible messages "Name: text" (oldest first) and the draft
+    private void openNexAiForChat() {
+        final java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+        for (int i = Math.min(messages.size(), 80) - 1; i >= 0; i--) {
+            final MessageObject message = messages.get(i);
+            final CharSequence text = nexMessageText(message);
+            if (TextUtils.isEmpty(text) || message.isSponsored()) {
+                continue;
+            }
+            String name;
+            if (message.isOutOwner()) {
+                name = LocaleController.getString(R.string.NexAiMe);
+            } else {
+                final long senderId = message.getSenderId();
+                if (senderId > 0) {
+                    name = UserObject.getFirstName(getMessagesController().getUser(senderId));
+                } else {
+                    final TLRPC.Chat chat = getMessagesController().getChat(-senderId);
+                    name = chat != null ? chat.title : "?";
+                }
+            }
+            lines.add(name + ": " + text.toString().replace('\n', ' '));
+        }
+        String title = "";
+        if (currentUser != null) {
+            title = UserObject.getUserName(currentUser);
+        } else if (currentChat != null) {
+            title = currentChat.title;
+        }
+        final CharSequence draft = chatActivityEnterView != null ? chatActivityEnterView.getFieldText() : null;
+        NexAiSheet.forChat(this, title, lines, draft == null ? null : draft.toString(), this::nexInsert);
+    }
+
+    // NexGramm: NEX AI text into the message field (the user still sends it themselves)
+    private void nexInsert(String text) {
+        if (chatActivityEnterView == null || TextUtils.isEmpty(text)) {
+            return;
+        }
+        chatActivityEnterView.setFieldText(text);
+        chatActivityEnterView.openKeyboard();
+    }
+
     private void processSelectedOption(int option) {
         if (selectedObject == null || getParentActivity() == null) {
             return;
@@ -33374,6 +33435,10 @@ public class ChatActivity extends BaseFragment implements
                 DialogsActivity fragment = new DialogsActivity(args);
                 fragment.setDelegate(this);
                 presentFragment(fragment);
+                break;
+            }
+            case OPTION_NEX_ASK: {
+                NexAiSheet.forMessage(this, nexMessageText(selectedObject), this::nexInsert);
                 break;
             }
             case OPTION_COPY: {
@@ -45831,6 +45896,12 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_TRANSLATE);
                     icons.add(R.drawable.msg_translate);
                 }
+                if (selectedObject != null && !selectedObject.isEphemeral() && !TextUtils.isEmpty(nexMessageText(selectedObject))) {
+                    // NexGramm: NEX AI about this message
+                    items.add(LocaleController.getString(R.string.NexAiAskMenu));
+                    options.add(OPTION_NEX_ASK);
+                    icons.add(R.drawable.nex_ic_sparkle);
+                }
                 if (message.canEditMessage(currentChat) && message.type != MessageObject.TYPE_POLL || chatMode == MODE_WELCOME_MESSAGES) {
                     items.add(LocaleController.getString(R.string.Edit));
                     options.add(OPTION_EDIT);
@@ -46177,6 +46248,12 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.TranslateMessage));
                     options.add(OPTION_TRANSLATE);
                     icons.add(R.drawable.msg_translate);
+                }
+                if (selectedObject != null && !selectedObject.isEphemeral() && !TextUtils.isEmpty(nexMessageText(selectedObject))) {
+                    // NexGramm: NEX AI about this message
+                    items.add(LocaleController.getString(R.string.NexAiAskMenu));
+                    options.add(OPTION_NEX_ASK);
+                    icons.add(R.drawable.nex_ic_sparkle);
                 }
                 if (allowEdit || chatMode == MODE_WELCOME_MESSAGES) {
                     items.add(LocaleController.getString(R.string.Edit));

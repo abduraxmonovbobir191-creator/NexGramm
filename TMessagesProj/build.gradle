@@ -162,6 +162,13 @@ android {
         }
         buildConfigField "String", "CORE_API_URL", "\"" + coreApiUrl + "\""
         buildConfigField "String", "NEXGRAMM_BOT_USERNAME", "\"" + botUsername + "\""
+        // NEX AI backend (NexCode, accepts the core's JWT since B5.1): -PNEX_API_URL=https://host or env;
+        // empty = the AI features say "not connected yet"
+        def nexApiUrl = (project.findProperty('NEX_API_URL') ?: System.getenv('NEX_API_URL') ?: '').toString().trim().replaceFirst('/+$', '')
+        if (!(nexApiUrl ==~ /(https:\/\/[A-Za-z0-9.\-]+(:[0-9]+)?)?/)) {
+            throw new GradleException("NEX_API_URL must be empty or https://host[:port] without a path, got: " + nexApiUrl)
+        }
+        buildConfigField "String", "NEX_API_URL", "\"" + nexApiUrl + "\""
 
         externalNativeBuild {
             cmake {
