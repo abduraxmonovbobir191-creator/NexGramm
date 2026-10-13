@@ -11333,7 +11333,7 @@
     <string name="NexCoverColor">Color</string>
     <string name="NexCoverPattern">Emoji pattern</string>
     <string name="NexCoverPhotoHint">The photo is cropped to fill the cover.</string>
-    <string name="NexCoverVideoHint">The first 6 seconds play muted on repeat (the video must be at least 4 s).</string>
+    <string name="NexCoverVideoHint">The first 10 seconds play muted on repeat (the video must be at least 2 s).</string>
     <string name="NexCoverVisible">Your cover is visible to NexGramm users</string>
     <string name="NexCoverSave">Save</string>
     <string name="NexCoverSaved">Cover saved</string>
@@ -11342,7 +11342,7 @@
     <string name="NexCoverNoMedia">Choose from the gallery first.</string>
     <string name="NexCoverStorageOff">Photo and video covers aren\'t available yet. Pick a color.</string>
     <string name="NexCoverTooLarge">The file is too large. Choose another one.</string>
-    <string name="NexCoverVideoShort">The video must be at least 4 seconds long.</string>
+    <string name="NexCoverVideoShort">The video must be at least 2 seconds long.</string>
     <string name="NexCoverLogin">Open Feed again to sign in, then change the cover.</string>
     <string name="NexMeNoUsername">No username</string>
     <string name="NexMePhone">Phone</string>

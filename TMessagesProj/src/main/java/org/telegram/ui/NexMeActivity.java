@@ -2,6 +2,7 @@ package org.telegram.ui;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
@@ -88,6 +89,9 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private TextView barTitle;
     private View topBar;
     private View topBarBackground;
+    // texts and bar icons that turn white with a soft shadow over a background (photo, video, color)
+    private final ArrayList<TextView> coverTexts = new ArrayList<>();
+    private final ArrayList<ImageView> barIcons = new ArrayList<>();
     private NexCoverView coverView;
     private View coverHolder;
     private BackupImageView avatarView;
@@ -268,6 +272,13 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             solid = Math.max(0f, Math.min(1f, (offset - fadeFrom) / (float) AndroidUtilities.dp(48)));
         }
         topBarBackground.setAlpha(solid);
+        if (coverHolder != null && coverHolder.getVisibility() == View.VISIBLE) {
+            // white over the background, the page's text color once the bar turns solid
+            final int iconColor = uz.nexgramm.core.NexPalette.blend(0xFFFFFFFF, NexLentaColors.TEXT, solid);
+            for (ImageView icon : barIcons) {
+                icon.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.SRC_IN));
+            }
+        }
         // the @username shows in the bar once the name scrolled away
         barTitle.setAlpha(offset > AndroidUtilities.dp(110) ? 1f : 0f);
     }
@@ -314,6 +325,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         button.setColorFilter(new PorterDuffColorFilter(NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
         button.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.1f), Theme.RIPPLE_MASK_CIRCLE_20DP));
         button.setContentDescription(LocaleController.getString(description));
+        barIcons.add(button);
         return button;
     }
 
@@ -330,17 +342,13 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         final FrameLayout holder = new FrameLayout(context);
         coverView = new NexCoverView(context, true);
         holder.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        // a light veil of the page color keeps the name, bio and chips readable on any photo
-        final View veil = new View(context);
-        veil.setBackgroundColor(Theme.multAlpha(NexLentaColors.BACKGROUND, 0.5f));
-        holder.addView(veil, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         holder.setVisibility(View.GONE);
         coverHolder = holder;
         header.addView(holder, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(AndroidUtilities.dp(16), AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 4), AndroidUtilities.dp(16), AndroidUtilities.dp(20));
+        column.setPadding(AndroidUtilities.dp(16), AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 4), AndroidUtilities.dp(16), AndroidUtilities.dp(30));
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         // name + @username (left), photo with + (right)
@@ -440,7 +448,10 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         background.setCompoundDrawablePadding(AndroidUtilities.dp(8));
         background.setOnClickListener(v -> openCoverEditor());
         buttons.addView(background, LayoutHelper.createLinear(0, 46, 1f, 10, 0, 0, 0));
-        outer.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 4, 16, 0));
+        column.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 16, 0, 0));
+        coverTexts.add(nameView);
+        coverTexts.add(usernameView);
+        coverTexts.add(bioView);
         return outer;
     }
 
@@ -452,6 +463,31 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         coverView.setCover(cover);
         coverHolder.setVisibility(cover == null ? View.GONE : View.VISIBLE);
         coverHolder.post(this::updateTopBar);
+        applyCoverStyle(cover != null);
+    }
+
+    // Over a background the texts and bar icons are white with a soft shadow, so the background keeps its
+    // own bright colors (no dark veil) and everything stays readable; without one, the page colors
+    private void applyCoverStyle(boolean onCover) {
+        for (TextView text : coverTexts) {
+            if (!(text.getTag() instanceof Integer)) {
+                text.setTag(text.getCurrentTextColor()); // the page color, to go back to
+            }
+            final int pageColor = (Integer) text.getTag();
+            final boolean secondary = text != nameView && Color.alpha(pageColor) < 0xF0;
+            text.setTextColor(onCover ? (secondary ? 0xE6FFFFFF : 0xFFFFFFFF) : pageColor);
+            if (text == bioView) {
+                text.setLinkTextColor(onCover ? 0xFFFFFFFF : NexLentaColors.TEXT);
+            }
+            if (onCover) {
+                text.setShadowLayer(AndroidUtilities.dp(6), 0, AndroidUtilities.dp(1), 0x99000000);
+            } else {
+                text.setShadowLayer(0, 0, 0, 0);
+            }
+        }
+        for (ImageView icon : barIcons) {
+            icon.setColorFilter(new PorterDuffColorFilter(onCover ? 0xFFFFFFFF : NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
+        }
     }
 
     private TextView addStat(Context context, LinearLayout stats, int labelRes, Runnable action) {
@@ -470,6 +506,8 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         label.setTextColor(Theme.multAlpha(NexLentaColors.TEXT, 0.75f));
         label.setText(LocaleController.getString(labelRes));
         box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
+        coverTexts.add(number);
+        coverTexts.add(label);
         box.setOnClickListener(v -> action.run());
         stats.addView(box, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 16, 0));
         return number;
@@ -572,7 +610,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             final int start = bio.getSpanStart(span);
             final int end = bio.getSpanEnd(span);
             bio.removeSpan(span);
-            bio.setSpan(new URLSpanNoUnderline(span.getURL()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            bio.setSpan(new URLSpanNoUnderline(span.getURL(), true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         bioView.setText(bio);
         bioView.setMovementMethod(LinkMovementMethod.getInstance());

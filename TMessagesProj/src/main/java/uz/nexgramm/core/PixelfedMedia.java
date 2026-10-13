@@ -37,13 +37,14 @@ public final class PixelfedMedia {
 
     // Profile cover (CONTRACT covers)
     private static final int COVER_IMAGE_SIDE = 1600;
-    public static final long COVER_LONG_MS = 6_000;
-    public static final long COVER_SHORT_MS = 4_000;
+    // cover videos: the first 2..10 whole seconds (CONTRACT v1.6)
+    public static final long COVER_LONG_MS = 10_000;
+    public static final long COVER_SHORT_MS = 2_000;
     private static final int COVER_VIDEO_LONG_SIDE = 960;
     private static final int COVER_VIDEO_SHORT_SIDE = 540;
-    private static final long COVER_VIDEO_MAX_BYTES = 3L * 1024 * 1024;
-    private static final long COVER_VIDEO_BUDGET_BYTES = 2_600_000; // container overhead stays under 3 MB
-    private static final int COVER_VIDEO_MAX_BITRATE = 2_000_000;
+    private static final long COVER_VIDEO_MAX_BYTES = 6L * 1024 * 1024;
+    private static final long COVER_VIDEO_BUDGET_BYTES = 5_600_000; // container overhead stays under 6 MB
+    private static final int COVER_VIDEO_MAX_BITRATE = 3_000_000;
 
     public static final String IMAGE_MIME = "image/jpeg";
     public static final String VIDEO_MIME = "video/mp4";
@@ -280,7 +281,7 @@ public final class PixelfedMedia {
             if (meta.durationMs < COVER_SHORT_MS) {
                 throw new VideoException("video_short");
             }
-            final long keptMs = meta.durationMs >= COVER_LONG_MS ? COVER_LONG_MS : COVER_SHORT_MS;
+            final long keptMs = Math.min(COVER_LONG_MS, meta.durationMs / 1000 * 1000); // whole seconds
             final File out = encode(copy, meta, keptMs, COVER_VIDEO_LONG_SIDE, COVER_VIDEO_SHORT_SIDE,
                 COVER_VIDEO_BUDGET_BYTES, COVER_VIDEO_MAX_BITRATE, true, progress);
             if (out.length() > COVER_VIDEO_MAX_BYTES) {
