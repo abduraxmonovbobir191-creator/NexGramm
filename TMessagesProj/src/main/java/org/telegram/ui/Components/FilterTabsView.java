@@ -1333,7 +1333,7 @@ public class FilterTabsView extends FrameLayout {
     public void setNexChips(boolean nexChips) {
         this.nexChips = nexChips;
         if (nexChips) {
-            tabLineColorKey = Theme.key_chats_actionBackground;
+            tabLineColorKey = Theme.key_glass_tabSelected; // same pill as the selected bottom tab
             selectorDrawable.setColor(Theme.getColor(tabLineColorKey, resourcesProvider));
         }
         invalidate();

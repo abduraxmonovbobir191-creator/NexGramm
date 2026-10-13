@@ -50,7 +50,12 @@ public class NexCoverEditActivity extends BaseFragment {
     private static final int PICK_PHOTO = 7101;
     private static final int PICK_VIDEO = 7102;
 
-    private final PixelfedAccount account;
+    // who the preview shows, and the cache key the saved cover is kept under
+    private final String displayName;
+    private final String handle;
+    private final String avatarUrl;
+    private final org.telegram.tgnet.TLRPC.User telegramUser;
+    private final String cacheKey;
     private final Callback callback;
     private int tab = TAB_COLOR;
     private Integer color;
@@ -67,8 +72,23 @@ public class NexCoverEditActivity extends BaseFragment {
     private LinearLayout optionsView;
     private TextView saveButton;
 
+    // From the Lenta profile
     public NexCoverEditActivity(PixelfedAccount account, NexCover current, Callback callback) {
-        this.account = account;
+        this(account.displayName, account.username, account.avatarUrl, null, account.username, current, callback);
+    }
+
+    // From the Profile tab: the Telegram name and photo; the cover is the same NexGramm cover
+    public NexCoverEditActivity(org.telegram.tgnet.TLRPC.User user, String cacheKey, NexCover current, Callback callback) {
+        this(org.telegram.messenger.UserObject.getUserName(user), org.telegram.messenger.UserObject.getPublicUsername(user), null, user, cacheKey, current, callback);
+    }
+
+    private NexCoverEditActivity(String displayName, String handle, String avatarUrl, org.telegram.tgnet.TLRPC.User telegramUser,
+                                 String cacheKey, NexCover current, Callback callback) {
+        this.displayName = displayName == null ? "" : displayName;
+        this.handle = handle;
+        this.avatarUrl = avatarUrl;
+        this.telegramUser = telegramUser;
+        this.cacheKey = cacheKey;
         this.current = current;
         this.callback = callback;
         if (current != null) {
@@ -165,10 +185,12 @@ public class NexCoverEditActivity extends BaseFragment {
         avatarFrame.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
         final BackupImageView avatar = new BackupImageView(context);
         avatar.setRoundRadius(AndroidUtilities.dp(60));
-        if (account.avatarUrl == null || account.avatarUrl.contains("/avatars/default")) {
-            avatar.setImageDrawable(NexLentaUi.initialsAvatar(account.displayName, true));
+        if (telegramUser != null) {
+            avatar.setForUserOrChat(telegramUser, new org.telegram.ui.Components.AvatarDrawable(telegramUser));
+        } else if (avatarUrl == null || avatarUrl.contains("/avatars/default")) {
+            avatar.setImageDrawable(NexLentaUi.initialsAvatar(displayName, true));
         } else {
-            avatar.setImage(account.avatarUrl, "120_120", NexLentaUi.initialsAvatar(account.displayName, true));
+            avatar.setImage(avatarUrl, "120_120", NexLentaUi.initialsAvatar(displayName, true));
         }
         avatarFrame.addView(avatar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         card.addView(avatarFrame, LayoutHelper.createFrame(88, 88, Gravity.TOP | Gravity.LEFT, 18, 106, 0, 0));
@@ -176,13 +198,13 @@ public class NexCoverEditActivity extends BaseFragment {
         final TextView name = NexLentaUi.serifTitle(context, 30);
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
-        name.setText(account.displayName);
+        name.setText(displayName);
         card.addView(name, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT, 120, 158, 16, 0));
         final TextView username = new TextView(context);
         username.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         username.setTextColor(NexLentaColors.SECONDARY_TEXT);
         username.setSingleLine(true);
-        username.setText("@" + account.username);
+        username.setText(handle == null ? "" : "@" + handle);
         card.addView(username, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT, 120, 196, 16, 18));
         return card;
     }
@@ -359,7 +381,7 @@ public class NexCoverEditActivity extends BaseFragment {
             return;
         }
         final long userId = getUserConfig().getClientUserId();
-        final String username = account.username;
+        final String username = cacheKey;
         if (tab != TAB_COLOR) {
             final Uri uri = tab == TAB_PHOTO ? photoUri : videoUri;
             if (uri == null) {

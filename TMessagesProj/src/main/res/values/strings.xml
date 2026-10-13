@@ -11387,8 +11387,9 @@
     <string name="NexMeNewStory">New story</string>
     <string name="NexMeStatStories">Stories</string>
     <string name="NexMeStatGifts">Gifts</string>
-    <string name="NexMeStatContacts">Contacts</string>
     <string name="NexMeNoArchive">The archive is empty.</string>
+    <string name="NexMeSetPhoto">Set photo or video</string>
+    <string name="NexMeBackground">Background</string>
     <string name="NexAiWhatToday">What shall we</string>
     <string name="NexAiWhatTodayItalic">do today?</string>
     <string name="NexAiModeChat">Chat</string>

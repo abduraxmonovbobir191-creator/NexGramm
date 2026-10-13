@@ -462,8 +462,9 @@
     <string name="NexMeNewStory">Новая история</string>
     <string name="NexMeStatStories">Истории</string>
     <string name="NexMeStatGifts">Подарки</string>
-    <string name="NexMeStatContacts">Контакты</string>
     <string name="NexMeNoArchive">Архив пуст.</string>
+    <string name="NexMeSetPhoto">Фото или видео профиля</string>
+    <string name="NexMeBackground">Фон</string>
     <string name="NexAiWhatToday">Чем займёмся</string>
     <string name="NexAiWhatTodayItalic">сегодня?</string>
     <string name="NexAiModeChat">Чат</string>

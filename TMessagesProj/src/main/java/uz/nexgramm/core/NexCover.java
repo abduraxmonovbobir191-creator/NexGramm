@@ -112,6 +112,46 @@ public final class NexCover {
         return cover;
     }
 
+    // GET /v1/covers/{nexgramm_id}: the cover of a NexGramm user (cached under "id:" + id)
+    public static NexCover loadByIdBlocking(String nexgrammId) throws IOException {
+        final CoreClient.Response response = CoreClient.requestBlocking("GET", "/v1/covers/" + Uri.encode(nexgrammId), null, null);
+        NexCover cover = null;
+        if (response.code == 200) {
+            try {
+                cover = fromJson(response.body);
+            } catch (JSONException e) {
+                throw new IOException("bad cover");
+            }
+        } else if (response.code != 404) {
+            throw new IOException("cover http " + response.code);
+        }
+        remember(idKey(nexgrammId), cover);
+        return cover;
+    }
+
+    public static String idKey(String nexgrammId) {
+        return "id:" + nexgrammId;
+    }
+
+    // The own NexGramm id: "sub" of the core access token (read locally, never logged); null when not logged in
+    public static String ownId(long tgUserId) {
+        final CoreTokens tokens = CoreClient.getTokens(tgUserId);
+        if (tokens == null || tokens.accessToken == null) {
+            return null;
+        }
+        final String[] parts = tokens.accessToken.split("\\.");
+        if (parts.length < 2) {
+            return null;
+        }
+        try {
+            final byte[] payload = android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+            final String sub = new org.json.JSONObject(new String(payload, "UTF-8")).optString("sub", "");
+            return sub.isEmpty() ? null : sub;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // PUT /v1/covers (JSON): color / color_emoji / emoji
     public static NexCover savePlainBlocking(long tgUserId, String username, String mode, Integer color, String glyph)
         throws IOException, CoreClient.NotLoggedInException {
