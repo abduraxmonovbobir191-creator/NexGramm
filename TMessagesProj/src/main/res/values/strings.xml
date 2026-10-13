@@ -11384,6 +11384,9 @@
     <string name="NexAiNoCaption">This post has no text for NEX to read.</string>
     <string name="NexMeFullProfile">Full Telegram profile</string>
     <string name="NexFeedMyProfile">My Feed profile</string>
+    <string name="NexMeAllStories">All</string>
+    <string name="NexMeNoStories">No stories yet. Tap + to post one.</string>
+    <string name="NexMeNewStory">New story</string>
     <string name="NexAiWhatToday">What shall we</string>
     <string name="NexAiWhatTodayItalic">do today?</string>
     <string name="NexAiModeChat">Chat</string>
