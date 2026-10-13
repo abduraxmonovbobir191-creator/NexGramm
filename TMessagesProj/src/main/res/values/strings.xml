@@ -11380,6 +11380,7 @@
     <string name="NexAiSuggestHint">Tap a reply to put it in the message field:</string>
     <string name="NexAiMe">Me</string>
     <string name="NexAiHello">Hi, %1$s</string>
+    <string name="NexSearchHint">Search chats, messages, posts</string>
     <string name="NexAiWhatToday">What shall we</string>
     <string name="NexAiWhatTodayItalic">do today?</string>
     <string name="NexAiModeChat">Chat</string>

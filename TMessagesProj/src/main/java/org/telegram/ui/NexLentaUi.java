@@ -34,7 +34,7 @@ import uz.nexgramm.core.PixelfedFormat;
 
 // NexGramm: shared look of the Lenta screens (design screenshots: serif display titles, white/black pills,
 // frosted panels over photos, pastel initials avatars), light and dark
-final class NexLentaUi {
+public final class NexLentaUi {
 
     static final int PILL_PRIMARY = 0;   // black (white in dark mode)
     static final int PILL_CARD = 1;      // white card pill
@@ -49,7 +49,7 @@ final class NexLentaUi {
     }
 
     // Display serif of the design (Instrument Serif, OFL, assets/fonts/nex_serif.ttf); system serif if missing
-    static Typeface serif() {
+    public static Typeface serif() {
         if (serif == null) {
             try {
                 serif = Typeface.createFromAsset(ApplicationLoader.applicationContext.getAssets(), "fonts/nex_serif.ttf");

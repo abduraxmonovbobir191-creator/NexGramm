@@ -505,6 +505,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     public ActionBarMenuItem searchItem;
     private ActionBarMenuItem optionsItem;
     private ActionBarMenuItem speedItem;
+    private View nexAiSearchButton;
     public static boolean switchingTheme;
     private ActionBarMenuItem doneItem;
     private ProxyDrawable proxyDrawable;
@@ -3296,6 +3297,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             fragmentSearchField.addAdditionalIcon(speedItem);
             fragmentSearchField.updateColors();
         }
+        if (initialDialogsType == DIALOGS_TYPE_DEFAULT && folderId == 0) {
+            // NexGramm: white search pill with the ✦ orb that opens NEX AI
+            fragmentSearchField.setWhiteBackground();
+            final ImageView orb = new ImageView(context);
+            orb.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            orb.setPadding(dp(4), dp(4), dp(4), dp(4));
+            orb.setImageDrawable(new NexAiUi.OrbDrawable(true));
+            orb.setContentDescription(getString(R.string.NexTabAi));
+            orb.setOnClickListener(v -> openNexAiTab());
+            fragmentSearchField.addAdditionalIcon(orb);
+            orb.setLayoutParams(new LinearLayout.LayoutParams(dp(36), dp(36), Gravity.CENTER_VERTICAL));
+            nexAiSearchButton = orb;
+        }
 
         fragmentSearchField.setCloseButtonOnClickListener(() -> {
             if (searchViewPager != null && searchViewPager.actionModeShowing()) {
@@ -3513,6 +3527,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 statusDrawable.center = true;
                 // NexGramm: plain "NexGramm" title instead of the Telegram logo
                 actionBar.setTitle(getString(R.string.NexAppTitle), statusDrawable);
+                if (actionBar.getTitleTextView() != null) {
+                    actionBar.getTitleTextView().setTypeface(NexLentaUi.serif());
+                }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
@@ -3561,6 +3578,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
             };
+            filterTabsView.setNexChips(true);
             filterTabsView.setVisibility(View.GONE);
             canShowFilterTabsView = false;
             animatorFilterTabsVisible.setValue(false, false);
@@ -7472,6 +7490,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             searchAnimator = null;
         }
         searchIsShowed = show;
+        if (nexAiSearchButton != null) {
+            nexAiSearchButton.setVisibility(show ? View.GONE : View.VISIBLE);
+        }
         blur3_InvalidateBlur();
         if (show) {
             boolean onlyDialogsAdapter;
@@ -14049,9 +14070,22 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         fragmentSearchField.setBlurredBackgroundVisibility(animatorSearchVisible.getFloatValue());
     }
 
+    private void openNexAiTab() {
+        final INavigationLayout layout = getParentLayout();
+        if (layout != null) {
+            for (BaseFragment fragment : layout.getFragmentStack()) {
+                if (fragment instanceof MainTabsActivity) {
+                    ((MainTabsActivity) fragment).openNexAiTab();
+                    return;
+                }
+            }
+        }
+        presentFragment(NexAiActivity.create());
+    }
+
     private void checkUi_searchFieldHint() {
         final boolean topics = getRightSlidingProgress() > 0.5f;
-        final String hint = getString(topics ? R.string.SearchTopics : R.string.SearchChats);
+        final String hint = getString(topics ? R.string.SearchTopics : folderId == 0 && initialDialogsType == DIALOGS_TYPE_DEFAULT ? R.string.NexSearchHint : R.string.SearchChats);
 
         fragmentSearchField.editText.setContentDescription(hint);
         fragmentSearchField.editText.setHint(hint);

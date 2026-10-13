@@ -97,6 +97,20 @@ public final class NexPalette {
         "glass_tabSelectedText", "chat_goDownButtonCounter", "topics_unreadCounterText", "chat_messagePanelVoicePressed"
     };
 
+    // Pastel avatars of the design (initials in dark text); muted dark versions with light text in dark mode.
+    // Order of Telegram's keys_avatar_background: red, orange, violet, green, cyan, blue, pink
+    public static final String[] AVATAR_KEYS = {"Red", "Orange", "Violet", "Green", "Cyan", "Blue", "Pink"};
+    private static final int[] AVATAR_LIGHT = {0xFFF1D9D6, 0xFFF2E3D0, 0xFFE4DCF1, 0xFFD8E6DD, 0xFFD3E6EC, 0xFFD6DCE8, 0xFFF0DCE6};
+    private static final int[] AVATAR_DARK = {0xFF4A3436, 0xFF4A3F30, 0xFF3D3550, 0xFF2F4237, 0xFF2D4148, 0xFF333A4A, 0xFF4A3442};
+
+    public int avatar(int index) {
+        return (dark ? AVATAR_DARK : AVATAR_LIGHT)[index];
+    }
+
+    public int avatarText() {
+        return dark ? 0xFFEDEDF2 : 0xFF2A2A30;
+    }
+
     // Key groups that keep their own colors (avatars, charts, code, premium gradients, calls ...)
     private static final String[] KEEP_PREFIXES = {
         "avatar_", "chart", "statisticChart", "code_", "premium", "gift", "stories", "voipgroup_", "calls_",

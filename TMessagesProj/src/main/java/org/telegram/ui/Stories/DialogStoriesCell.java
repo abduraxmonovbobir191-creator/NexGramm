@@ -336,8 +336,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         // NexGramm: "NexGramm" text instead of the Telegram logo
         telegramLogoView = new TextView(context);
         telegramLogoView.setText(getString(R.string.NexAppTitle));
-        telegramLogoView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
-        telegramLogoView.setTypeface(AndroidUtilities.bold());
+        telegramLogoView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+        telegramLogoView.setTypeface(org.telegram.ui.NexLentaUi.serif());
         telegramLogoView.setTextColor(getTextLogoColor());
         telegramLogoView.setIncludeFontPadding(false);
         telegramLogoView.setSingleLine();
