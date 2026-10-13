@@ -236,7 +236,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             }
         });
         root.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        root.addView(createTopBar(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        root.addView(createTopBar(context), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP), Gravity.TOP));
 
         headerView = createHeader(context);
         tabsView = new LinearLayout(context);
@@ -278,7 +278,6 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         topBarBackground.setBackgroundColor(NexLentaColors.BACKGROUND);
         bar.addView(topBarBackground, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         bar.setPadding(0, AndroidUtilities.statusBarHeight, 0, 0);
-        bar.setClickable(true);
         topBar = bar;
 
         final ImageView qr = barButton(context, R.drawable.msg_qrcode, R.string.QrCode);
@@ -333,7 +332,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         holder.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         // a light veil of the page color keeps the name, bio and chips readable on any photo
         final View veil = new View(context);
-        veil.setBackgroundColor(Theme.multAlpha(NexLentaColors.BACKGROUND, 0.35f));
+        veil.setBackgroundColor(Theme.multAlpha(NexLentaColors.BACKGROUND, 0.5f));
         holder.addView(veil, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         holder.setVisibility(View.GONE);
         coverHolder = holder;
@@ -359,7 +358,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         names.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         usernameView = new TextView(context);
         usernameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        usernameView.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        usernameView.setTextColor(Theme.multAlpha(NexLentaColors.TEXT, 0.75f));
         usernameView.setSingleLine(true);
         usernameView.setEllipsize(TextUtils.TruncateAt.END);
         usernameView.setOnClickListener(v -> copyUsername());
@@ -468,7 +467,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         box.addView(number, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
         final TextView label = new TextView(context);
         label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        label.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        label.setTextColor(Theme.multAlpha(NexLentaColors.TEXT, 0.75f));
         label.setText(LocaleController.getString(labelRes));
         box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
         box.setOnClickListener(v -> action.run());
