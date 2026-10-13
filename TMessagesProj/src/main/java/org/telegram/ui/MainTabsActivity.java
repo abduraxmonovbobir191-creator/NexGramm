@@ -791,6 +791,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         viewPager.scrollToPosition(POSITION_FEED);
     }
 
+    // NexGramm: the ✦ in the chats search opens the NEX AI tab
+    public void openNexAiTab() {
+        selectTab(POSITION_NEX_AI, true);
+        viewPager.scrollToPosition(POSITION_NEX_AI);
+    }
+
     public void selectTab(int position, boolean animated) {
         for (int a = 0; a < tabs.length; a++) {
             GlassTabView tab = tabs[a];

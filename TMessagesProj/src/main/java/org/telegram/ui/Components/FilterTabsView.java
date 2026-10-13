@@ -356,6 +356,16 @@ public class FilterTabsView extends FrameLayout {
                     textPaint.setColor(ColorUtils.blendARGB(color1, color2, animationValue));
                 }
             }
+            // NexGramm: chip mode — the selected tab sits on a filled accent pill, so its text turns on-accent
+            float nexSelected = 0;
+            if (nexChips) {
+                if ((animatingIndicator || manualScrollingToPosition != -1) && (currentTab.id == id1 || currentTab.id == id2)) {
+                    nexSelected = currentTab.id == id1 ? animatingIndicatorProgress : 1f - animatingIndicatorProgress;
+                } else if (currentTab.id == id1) {
+                    nexSelected = 1f;
+                }
+                textPaint.setColor(ColorUtils.blendARGB(textPaint.getColor(), Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider), nexSelected));
+            }
             emojiColorFilter = new PorterDuffColorFilter(textPaint.getColor(), PorterDuff.Mode.SRC_IN);
 
             float counterWidth;
@@ -459,6 +469,11 @@ public class FilterTabsView extends FrameLayout {
                     }
                 } else {
                     counterPaint.setColor(textPaint.getColor());
+                }
+                if (nexSelected > 0) {
+                    final int onAccent = Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider);
+                    counterPaint.setColor(ColorUtils.blendARGB(counterPaint.getColor(), onAccent, nexSelected));
+                    textCounterPaint.setColor(ColorUtils.blendARGB(textCounterPaint.getColor(), Theme.getColor(tabLineColorKey, resourcesProvider), nexSelected));
                 }
 
                 float x;
@@ -821,6 +836,7 @@ public class FilterTabsView extends FrameLayout {
     private final GradientDrawable selectorDrawable;
 
     private int tabLineColorKey = Theme.key_actionBarTabLine;
+    private boolean nexChips;
     private int activeTextColorKey = Theme.key_actionBarTabActiveText;
     private int unactiveTextColorKey = Theme.key_actionBarTabUnactiveText;
     private int selectorColorKey = Theme.key_actionBarTabSelector;
@@ -1313,6 +1329,13 @@ public class FilterTabsView extends FrameLayout {
         adapter.notifyDataSetChanged();
     }
 
+    // NexGramm: folder chips — the selected tab is a filled accent pill instead of a faint highlight
+    public void setNexChips(boolean nexChips) {
+        this.nexChips = nexChips;
+        invalidate();
+        listView.invalidateViews();
+    }
+
     public void setColors(int line, int active, int unactive, int selector, int background) {
         tabLineColorKey = line;
         backgroundColorKey = background;
@@ -1388,8 +1411,11 @@ public class FilterTabsView extends FrameLayout {
 
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
+        if (nexChips && child == listView) {
+            drawSelector(canvas);
+        }
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (child == listView) {
+        if (!nexChips && child == listView) {
             drawSelector(canvas);
         }
         long newTime = SystemClock.elapsedRealtime();
@@ -1508,7 +1534,7 @@ public class FilterTabsView extends FrameLayout {
 
             final int y = height / 2 - dp(14);
             selectorDrawable.setBounds((int) (indicatorX - dp(TAB_INTERNAL_PADDING) - add), y, (int) (indicatorX + indicatorWidth + dp(TAB_INTERNAL_PADDING) + add), y + dp(28));
-            selectorDrawable.setAlpha(31);
+            selectorDrawable.setAlpha(nexChips ? (int) (255 * listView.getAlpha()) : 31);
             selectorDrawable.draw(canvas);
             canvas.restore();
         }

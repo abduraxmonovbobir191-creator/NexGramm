@@ -6175,6 +6175,17 @@ public class Theme {
             }
         }
         out.put(key_chats_onlineCircle, uz.nexgramm.core.NexPalette.ONLINE);
+        for (int i = 0; i < uz.nexgramm.core.NexPalette.AVATAR_KEYS.length; i++) {
+            final int top = ThemeColors.stringKeyToInt("avatar_background" + uz.nexgramm.core.NexPalette.AVATAR_KEYS[i]);
+            final int bottom = ThemeColors.stringKeyToInt("avatar_background2" + uz.nexgramm.core.NexPalette.AVATAR_KEYS[i]);
+            if (top >= 0) {
+                out.put(top, palette.avatar(i));
+            }
+            if (bottom >= 0) {
+                out.put(bottom, palette.avatar(i));
+            }
+        }
+        out.put(key_avatar_text, palette.avatarText());
         for (int i = 0, N = out.size(); i < N; i++) {
             currentColors.put(out.keyAt(i), out.valueAt(i));
         }
