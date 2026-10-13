@@ -193,11 +193,13 @@
     <string name="NexAiHello">Salom, %1$s</string>
     <string name="NexSearchHint">Chat, xabar, post qidirish</string>
     <string name="NexAiNoCaption">Bu postda NEX o\'qiydigan matn yo\'q.</string>
-    <string name="NexMeFullProfile">To\'liq Telegram profili</string>
     <string name="NexFeedMyProfile">Lentadagi profilim</string>
-    <string name="NexMeAllStories">Hammasi</string>
     <string name="NexMeNoStories">Hali istoriya yo\'q. Qo\'yish uchun + ni bosing.</string>
     <string name="NexMeNewStory">Yangi istoriya</string>
+    <string name="NexMeStatStories">Istoriya</string>
+    <string name="NexMeStatGifts">Sovg\'a</string>
+    <string name="NexMeStatContacts">Kontakt</string>
+    <string name="NexMeNoArchive">Arxiv bo\'sh.</string>
     <string name="NexAiWhatToday">Bugun nima</string>
     <string name="NexAiWhatTodayItalic">qilamiz?</string>
     <string name="NexAiModeChat">Chat</string>
