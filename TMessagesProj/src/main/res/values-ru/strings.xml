@@ -459,6 +459,9 @@
     <string name="NexAiNoCaption">В этом посте нет текста для NEX.</string>
     <string name="NexMeFullProfile">Полный профиль Telegram</string>
     <string name="NexFeedMyProfile">Мой профиль в Ленте</string>
+    <string name="NexMeAllStories">Все</string>
+    <string name="NexMeNoStories">Историй пока нет. Нажмите +, чтобы опубликовать.</string>
+    <string name="NexMeNewStory">Новая история</string>
     <string name="NexAiWhatToday">Чем займёмся</string>
     <string name="NexAiWhatTodayItalic">сегодня?</string>
     <string name="NexAiModeChat">Чат</string>
