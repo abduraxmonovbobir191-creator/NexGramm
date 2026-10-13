@@ -192,6 +192,7 @@
     <string name="NexAiMe">Men</string>
     <string name="NexAiHello">Salom, %1$s</string>
     <string name="NexSearchHint">Chat, xabar, post qidirish</string>
+    <string name="NexAiNoCaption">Bu postda NEX o\'qiydigan matn yo\'q.</string>
     <string name="NexAiWhatToday">Bugun nima</string>
     <string name="NexAiWhatTodayItalic">qilamiz?</string>
     <string name="NexAiModeChat">Chat</string>

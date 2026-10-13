@@ -456,6 +456,7 @@
     <string name="NexAiMe">Я</string>
     <string name="NexAiHello">Привет, %1$s</string>
     <string name="NexSearchHint">Поиск чатов, сообщений, постов</string>
+    <string name="NexAiNoCaption">В этом посте нет текста для NEX.</string>
     <string name="NexAiWhatToday">Чем займёмся</string>
     <string name="NexAiWhatTodayItalic">сегодня?</string>
     <string name="NexAiModeChat">Чат</string>

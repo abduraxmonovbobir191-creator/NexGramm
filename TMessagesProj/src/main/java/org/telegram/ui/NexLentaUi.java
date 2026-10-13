@@ -9,8 +9,11 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.graphics.fonts.Font;
+import android.graphics.fonts.FontFamily;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -52,7 +55,15 @@ public final class NexLentaUi {
     public static Typeface serif() {
         if (serif == null) {
             try {
-                serif = Typeface.createFromAsset(ApplicationLoader.applicationContext.getAssets(), "fonts/nex_serif.ttf");
+                if (Build.VERSION.SDK_INT >= 29) {
+                    // Instrument Serif has Latin only: Cyrillic etc. fall back to the system serif, not to sans
+                    final Font font = new Font.Builder(ApplicationLoader.applicationContext.getAssets(), "fonts/nex_serif.ttf").build();
+                    serif = new Typeface.CustomFallbackBuilder(new FontFamily.Builder(font).build())
+                        .setSystemFallback("serif")
+                        .build();
+                } else {
+                    serif = Typeface.createFromAsset(ApplicationLoader.applicationContext.getAssets(), "fonts/nex_serif.ttf");
+                }
             } catch (Throwable e) {
                 serif = Typeface.SERIF;
             }

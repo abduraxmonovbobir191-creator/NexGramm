@@ -4745,11 +4745,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         });
         searchTabsAndFiltersLayout.addView(filtersView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP));
 
-        floatingButtonStories = new FragmentFloatingButton(context, resourceProvider, true);
-        floatingButtonStories.setContentDescription(getString(R.string.StoryPrivacyButtonPost));
-        floatingButtonStories.setImageResource(R.drawable.outline_fab_story_24);
-        floatingButtonStories.setOnClickListener(v -> openStoriesRecorder());
-        contentView.addView(floatingButtonStories, FragmentFloatingButton.createSubButtonLayoutParams());
+        // NexGramm: no story camera button over the pencil; stories are posted from the stories row
 
         floatingButton3 = new FragmentFloatingButton(context, resourceProvider);
         contentView.addView(floatingButton3, FragmentFloatingButton.createDefaultLayoutParams());
@@ -4776,7 +4772,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         });
 
-        if (!isArchive() && initialDialogsType == DIALOGS_TYPE_DEFAULT) {
+        if (floatingButtonStories != null && !isArchive() && initialDialogsType == DIALOGS_TYPE_DEFAULT) {
             if (MessagesController.getInstance(currentAccount).getMainSettings().getBoolean("storyhint", true)) {
                 storyHint = new HintView2(context, HintView2.DIRECTION_RIGHT)
                         .setRounding(8)
