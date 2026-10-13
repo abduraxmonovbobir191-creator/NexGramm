@@ -232,7 +232,7 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
 
     @Override
     public void onAiClick(PixelfedStatus status) {
-        NexPostActions.aiSoon(getParentActivity());
+        NexPostActions.askAi(this, status);
     }
 
     @Override

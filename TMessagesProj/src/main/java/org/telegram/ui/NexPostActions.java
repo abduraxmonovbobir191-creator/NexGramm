@@ -170,6 +170,19 @@ final class NexPostActions {
         });
     }
 
+    // ✦ under a post: NEX explains / translates the caption (same sheet as for a chat message)
+    static void askAi(BaseFragment fragment, PixelfedStatus status) {
+        if (fragment == null || status == null) {
+            return;
+        }
+        final String caption = NexCommentsActivity.htmlToText(status.contentHtml).trim();
+        if (caption.isEmpty()) {
+            Toast.makeText(fragment.getParentActivity(), LocaleController.getString(R.string.NexAiNoCaption), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        NexAiUi.withConsent(fragment, () -> NexAiSheet.forMessage(fragment, caption, null));
+    }
+
     static void aiSoon(Context context) {
         if (context != null) {
             Toast.makeText(context, LocaleController.getString(R.string.NexSoon), Toast.LENGTH_SHORT).show();

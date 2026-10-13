@@ -1332,6 +1332,10 @@ public class FilterTabsView extends FrameLayout {
     // NexGramm: folder chips — the selected tab is a filled accent pill instead of a faint highlight
     public void setNexChips(boolean nexChips) {
         this.nexChips = nexChips;
+        if (nexChips) {
+            tabLineColorKey = Theme.key_chats_actionBackground;
+            selectorDrawable.setColor(Theme.getColor(tabLineColorKey, resourcesProvider));
+        }
         invalidate();
         listView.invalidateViews();
     }

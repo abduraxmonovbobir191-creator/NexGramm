@@ -533,7 +533,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     @Override
     public void onAiClick(PixelfedStatus status) {
-        NexPostActions.aiSoon(getContext());
+        NexPostActions.askAi(delegate.getFragment(), status);
     }
 
     @Override
