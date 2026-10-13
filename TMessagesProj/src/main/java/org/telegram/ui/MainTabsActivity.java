@@ -772,7 +772,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         } else if (position == POSITION_PROFILE) {
             // NexGramm: own minimal profile (Telegram identity + Lenta grid + cover); the classic Telegram
             // profile opens from its avatar and menu
-            return NexProfileActivity.createMainTab();
+            return new NexMeActivity();
         }
         return null;
     }

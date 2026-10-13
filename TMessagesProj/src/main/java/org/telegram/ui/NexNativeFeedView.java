@@ -167,6 +167,16 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         heartButton.setContentDescription(LocaleController.getString(R.string.NexFeedNotifications));
         heartButton.setOnClickListener(v -> NexPostActions.aiSoon(getContext()));
         buttons.addView(heartButton, LayoutHelper.createLinear(56, 56, 12, 0, 0, 0));
+        // own Lenta profile: my posts, liked and saved posts
+        final ImageView meButton = NexLentaUi.circleButton(context, R.drawable.msg_openprofile, NexLentaUi.PILL_CARD, false);
+        meButton.setContentDescription(LocaleController.getString(R.string.NexFeedMyProfile));
+        meButton.setOnClickListener(v -> {
+            final BaseFragment fragment = delegate.getFragment();
+            if (fragment != null) {
+                fragment.presentFragment(new NexProfileActivity(null));
+            }
+        });
+        buttons.addView(meButton, LayoutHelper.createLinear(56, 56, 12, 0, 0, 0));
         header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 10, 0, 0));
         header.setPadding(AndroidUtilities.dp(22), AndroidUtilities.dp(6), AndroidUtilities.dp(22), AndroidUtilities.dp(18));
         headerView = header;
