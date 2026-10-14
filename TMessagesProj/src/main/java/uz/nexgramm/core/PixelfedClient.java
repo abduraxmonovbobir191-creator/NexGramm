@@ -558,6 +558,85 @@ public final class PixelfedClient {
         }
     }
 
+    // Stories are switched off on the server (Pixelfed answers 404 to every stories call then)
+    public static final class StoriesOffException extends IOException {
+        StoriesOffException() {
+            super("stories_off");
+        }
+    }
+
+    // The daily limit of new stories is reached (Pixelfed answers 418)
+    public static final class StoriesLimitException extends IOException {
+        StoriesLimitException() {
+            super("stories_limit");
+        }
+    }
+
+    // GET /api/v1.1/stories/carousel
+    public static PixelfedStories storiesBlocking(long tgUserId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1.1/stories/carousel", null);
+        if (response.code == 404) {
+            throw new StoriesOffException();
+        }
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedStories.fromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad stories");
+        }
+    }
+
+    // POST /api/v1.1/stories/add (multipart "file": jpeg / png / mp4) then /api/v1.1/stories/publish
+    public static void postStoryBlocking(long tgUserId, File file, String mime, int durationS, UploadProgress progress) throws IOException, NotConnectedException {
+        final ArrayList<String[]> fields = new ArrayList<>();
+        fields.add(new String[]{"duration", String.valueOf(durationS)});
+        final PixelfedTokens tokens = freshTokensBlocking(tgUserId);
+        Response response = transport.multipart("/api/v1.1/stories/add", fields, "file", file, mediaFileName(mime), mime, tokens.accessToken, progress);
+        if (response.code == 401) {
+            final PixelfedTokens refreshed = refreshBlocking(tgUserId, tokens.accessToken);
+            response = transport.multipart("/api/v1.1/stories/add", fields, "file", file, mediaFileName(mime), mime, refreshed.accessToken, progress);
+            if (response.code == 401) {
+                clearTokens(tgUserId);
+                throw new NotConnectedException();
+            }
+        }
+        if (response.code == 404) {
+            throw new StoriesOffException();
+        }
+        if (response.code == 418) {
+            throw new StoriesLimitException();
+        }
+        if (response.code != 200) {
+            throw new HttpException("story", response);
+        }
+        final String mediaId;
+        try {
+            mediaId = new JSONObject(response.body).getString("media_id");
+        } catch (JSONException e) {
+            throw new IOException("bad story");
+        }
+        final Response published = apiBlocking(tgUserId, "POST", "/api/v1.1/stories/publish", form(
+            "media_id", mediaId, "duration", String.valueOf(durationS), "can_reply", "1", "can_react", "1"));
+        if (published.code != 200) {
+            throw new HttpException("story", published);
+        }
+    }
+
+    // POST /api/v1.1/stories/seen (only followed accounts' stories count; errors do not matter)
+    public static void storySeenBlocking(long tgUserId, String storyId) throws IOException, NotConnectedException {
+        apiBlocking(tgUserId, "POST", "/api/v1.1/stories/seen", form("id", storyId));
+    }
+
+    // POST /api/v1.1/stories/self-expire/:id: removes one of the user's own stories
+    public static void deleteStoryBlocking(long tgUserId, String storyId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "POST", "/api/v1.1/stories/self-expire/" + encode(storyId), "");
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+    }
+
     // GET /api/v1/accounts/:id
     public static PixelfedAccount accountBlocking(long tgUserId, String accountId) throws IOException, NotConnectedException {
         final Response response = apiBlocking(tgUserId, "GET", "/api/v1/accounts/" + encode(accountId), null);

@@ -40,6 +40,7 @@ import java.util.HashSet;
 import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.PixelfedClient;
 import uz.nexgramm.core.PixelfedStatus;
+import uz.nexgramm.core.PixelfedStories;
 
 // NexGramm: the native Lenta (design screenshot "Lenta"): header with "Siz uchun" / "Kuzatayotganlar"
 // (public local vs home timeline), serif "Lenta", "+" (new post) and ♡; then the posts (NexPostCell),
@@ -81,6 +82,8 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private final Adapter adapter = new Adapter();
     private final FrameLayout refreshIndicator;
     private final View headerView;
+    private final NexStoriesBar storiesBar;
+    private long storiesLoadedAt;
     private final TextView modeView;
 
     private final ArrayList<PixelfedStatus> items = new ArrayList<>();
@@ -183,8 +186,30 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         });
         buttons.addView(meButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
         header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 10, 0, 0));
-        header.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(6), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
-        headerView = header;
+        header.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(6), AndroidUtilities.dp(16), AndroidUtilities.dp(8));
+        // stories under the title, as in Instagram
+        final LinearLayout headerColumn = new LinearLayout(context);
+        headerColumn.setOrientation(LinearLayout.VERTICAL);
+        headerColumn.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        storiesBar = new NexStoriesBar(context, tgUserId, new NexStoriesBar.Delegate() {
+            @Override
+            public void onOpenStories(ArrayList<PixelfedStories.Group> groups, int index) {
+                final BaseFragment fragment = delegate.getFragment();
+                if (fragment != null) {
+                    fragment.presentFragment(new NexStoryViewerActivity(groups, index));
+                }
+            }
+
+            @Override
+            public void onAddStory() {
+                final BaseFragment fragment = delegate.getFragment();
+                if (fragment != null) {
+                    fragment.presentFragment(new NexStoryComposeActivity(() -> loadStories(true)));
+                }
+            }
+        });
+        headerColumn.addView(storiesBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
+        headerView = headerColumn;
         updateModeText();
 
         // Pull-to-refresh spinner: a card circle that follows the finger
@@ -248,6 +273,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         generation++;
         loading = false;
         showRefreshing();
+        loadStories(true);
         loadPage(true, null);
     }
 
@@ -686,8 +712,20 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         }
     }
 
+    // Stories again when coming back (seen rings, new stories), at most every 30 s unless forced
+    private void loadStories(boolean force) {
+        final long now = android.os.SystemClock.elapsedRealtime();
+        if (force || storiesLoadedAt == 0 || now - storiesLoadedAt > 30_000) {
+            storiesLoadedAt = now;
+            storiesBar.load();
+        } else {
+            storiesBar.refreshRings();
+        }
+    }
+
     public void onResume() {
         paused = false;
+        loadStories(false);
         updateVisibleCounts();
         listView.post(this::updateActiveVideo);
     }

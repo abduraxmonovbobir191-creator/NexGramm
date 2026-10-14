@@ -91,6 +91,17 @@
     <string name="NexNotifFollowed">sizga obuna bo\'ldi</string>
     <string name="NexNotifShared">postingizni ulashdi</string>
     <string name="NexNotifEmpty">Hozircha bildirishnoma yo\'q. Layklar, izohlar va yangi obunachilar shu yerda chiqadi.</string>
+    <string name="NexStoryYours">Istoriyangiz</string>
+    <string name="NexStoryDeleteTitle">Istoriya o\'chirilsinmi?</string>
+    <string name="NexStoryDeleteText">U hamma uchun yo\'qoladi.</string>
+    <string name="NexStoryHint">Istoriya obunachilaringizga 24 soat ko\'rinadi.</string>
+    <string name="NexStoryVideoHint">Video: istoriyaga birinchi 30 soniya tushadi.</string>
+    <string name="NexStoryChange">Almashtirish</string>
+    <string name="NexStoryShare">Istoriyaga ulashish</string>
+    <string name="NexStoryPosting">Ulashilmoqda…</string>
+    <string name="NexStoryOff">Istoriyalar hozircha serverda o\'chiq.</string>
+    <string name="NexStoryLimit">Bugungi istoriyalar chegarasi tugadi. Ertaga urinib ko\'ring.</string>
+    <string name="NexStoryPosted">Istoriya ulashildi</string>
     <string name="NexFeedOfflineTitle">Internet yo\'q</string>
     <string name="NexFeedOffline">Ulanishni tekshirib, qayta urinib ko\'ring.</string>
     <string name="NexFeedEmptyFollowingTitle">Hali hech kim yo\'q</string>

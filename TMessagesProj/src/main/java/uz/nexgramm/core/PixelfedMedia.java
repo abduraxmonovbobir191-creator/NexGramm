@@ -46,6 +46,11 @@ public final class PixelfedMedia {
     private static final long COVER_VIDEO_BUDGET_BYTES = 5_600_000; // container overhead stays under 6 MB
     private static final int COVER_VIDEO_MAX_BITRATE = 3_000_000;
 
+    // Stories (Pixelfed): up to 30 s, within Pixelfed's default 15 MB upload limit
+    public static final long STORY_MAX_MS = 30_000;
+    private static final long STORY_MAX_BYTES = 15L * 1000 * 1024;
+    private static final long STORY_BUDGET_BYTES = 13L * 1024 * 1024;
+
     public static final String IMAGE_MIME = "image/jpeg";
     public static final String VIDEO_MIME = "video/mp4";
 
@@ -294,6 +299,35 @@ public final class PixelfedMedia {
         } finally {
             //noinspection ResultOfMethodCallIgnored
             copy.delete();
+        }
+    }
+
+    // Story video (Pixelfed stories): the first 1..30 whole seconds, ≤ 720p, ≤ 15 MB (Pixelfed's default upload
+    // limit). Short small mp4 files are sent as they are. Returns the length in seconds via durationOut[0].
+    public static File prepareStoryVideo(Uri uri, int[] durationOut, Progress progress) throws IOException {
+        final File copy = copyToCache(uri, "vid");
+        boolean keepCopy = false;
+        try {
+            final String mime = ApplicationLoader.applicationContext.getContentResolver().getType(uri);
+            final VideoMeta meta = readMeta(copy);
+            final long keptMs = Math.max(1000, Math.min(STORY_MAX_MS, meta.durationMs / 1000 * 1000));
+            durationOut[0] = (int) (keptMs / 1000);
+            if (meta.durationMs <= STORY_MAX_MS && copy.length() <= STORY_MAX_BYTES && (mime == null || VIDEO_MIME.equals(mime))) {
+                keepCopy = true;
+                return copy;
+            }
+            final File out = encode(copy, meta, keptMs, VIDEO_LONG_SIDE, VIDEO_SHORT_SIDE, STORY_BUDGET_BYTES, VIDEO_MAX_BITRATE, false, progress);
+            if (out.length() > STORY_MAX_BYTES) {
+                //noinspection ResultOfMethodCallIgnored
+                out.delete();
+                throw new TooLargeException();
+            }
+            return out;
+        } finally {
+            if (!keepCopy) {
+                //noinspection ResultOfMethodCallIgnored
+                copy.delete();
+            }
         }
     }
 
