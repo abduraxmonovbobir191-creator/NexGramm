@@ -685,11 +685,12 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        // NexGramm: light / dark mode and the app accent color (shown under the title, like the other rows)
+        // NexGramm: its own card first — features (ghost mode, deleted / edited messages, chat lock …) and the
+        // look (light / dark mode and the accent color, shown under the title like the other rows)
+        items.add(SettingCell.Factory.of(31, 0xFF8E8E93, 0xFF5B5B63, R.drawable.ghost, getString(R.string.NexFeaturesTitle), getString(R.string.NexFeaturesInfo)));
         items.add(SettingCell.Factory.of(30, 0xFFB48CF5, 0xFF7C3AED, R.drawable.msg_palette, getString(R.string.NexAppearanceSettingsRow),
             NexAppearanceActivity.modeName(NexAppearanceActivity.currentMode()) + " · " + NexAppearanceActivity.accentName(Theme.getNexgrammAccent())));
-        // NexGramm: ghost mode, deleted / edited messages
-        items.add(SettingCell.Factory.of(31, 0xFF8E8E93, 0xFF5B5B63, R.drawable.ghost, getString(R.string.NexFeaturesTitle), getString(R.string.NexFeaturesInfo)));
+        items.add(UItem.asShadow(null));
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
         items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
@@ -700,6 +701,13 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo)));
         items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
 
+        items.add(UItem.asShadow(null));
+
+        // NexGramm: talk to the NexGramm team (through the NexGramm bot)
+        items.add(UItem.asHeader(getString(R.string.NexFeedbackHeader)));
+        items.add(SettingCell.Factory.of(34, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_ask, getString(R.string.NexFeedbackSupport), getString(R.string.NexFeedbackSupportInfo)));
+        items.add(SettingCell.Factory.of(32, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_features, getString(R.string.NexFeedbackSuggestion), getString(R.string.NexFeedbackSuggestionInfo)));
+        items.add(SettingCell.Factory.of(33, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.msg_report, getString(R.string.NexFeedbackComplaint), getString(R.string.NexFeedbackComplaintInfo)));
         items.add(UItem.asShadow(null));
 
         if (!getMessagesController().premiumFeaturesBlocked()) {
@@ -830,6 +838,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
             case 31:
                 presentSettingFragment(new NexFeaturesActivity());
+                break;
+            case 32:
+                presentSettingFragment(new NexFeedbackActivity(NexFeedbackActivity.SUGGESTION));
+                break;
+            case 33:
+                presentSettingFragment(new NexFeedbackActivity(NexFeedbackActivity.COMPLAINT));
+                break;
+            case 34:
+                presentSettingFragment(new NexFeedbackActivity(NexFeedbackActivity.SUPPORT));
                 break;
             case 3:
                 presentSettingFragment(new PrivacySettingsActivity());
