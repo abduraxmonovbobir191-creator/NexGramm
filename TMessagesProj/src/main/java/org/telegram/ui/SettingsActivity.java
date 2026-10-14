@@ -688,6 +688,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         // NexGramm: light / dark mode and the app accent color (shown under the title, like the other rows)
         items.add(SettingCell.Factory.of(30, 0xFFB48CF5, 0xFF7C3AED, R.drawable.msg_palette, getString(R.string.NexAppearanceSettingsRow),
             NexAppearanceActivity.modeName(NexAppearanceActivity.currentMode()) + " · " + NexAppearanceActivity.accentName(Theme.getNexgrammAccent())));
+        // NexGramm: ghost mode, deleted / edited messages
+        items.add(SettingCell.Factory.of(31, 0xFF8E8E93, 0xFF5B5B63, R.drawable.ghost, getString(R.string.NexFeaturesTitle), getString(R.string.NexFeaturesInfo)));
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
         items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
@@ -825,6 +827,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
             case 30:
                 presentSettingFragment(new NexAppearanceActivity());
+                break;
+            case 31:
+                presentSettingFragment(new NexFeaturesActivity());
                 break;
             case 3:
                 presentSettingFragment(new PrivacySettingsActivity());

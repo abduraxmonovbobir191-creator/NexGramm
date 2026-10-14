@@ -1689,6 +1689,7 @@ public class ChatActivity extends BaseFragment implements
 
     private final static int chat_menu_topic_create = 73;
     private final static int nex_ai = 90; // NexGramm: ✦ NEX AI for this chat
+    private final static int nex_saved = 91; // NexGramm: messages others deleted / edited here (when kept)
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -3964,6 +3965,8 @@ public class ChatActivity extends BaseFragment implements
                     getSendMessagesHelper().sendMessage(SendMessagesHelper.SendMessageParams.of("/settings", dialog_id, null, null, null, false, null, null, null, true, 0, 0, null, false));
                 } else if (id == nex_ai) {
                     openNexAiForChat();
+                } else if (id == nex_saved) {
+                    presentFragment(new NexSavedActivity(dialog_id));
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4403,6 +4406,9 @@ public class ChatActivity extends BaseFragment implements
             }
             // NexGramm: NEX AI also in the ⋮ menu, so it is there in every chat (private ones too)
             headerItem.lazilyAddSubItem(nex_ai, R.drawable.nex_ic_sparkle, LocaleController.getString(R.string.NexAiChatTitle));
+            if (uz.nexgramm.core.NexSaved.keepDeleted() || uz.nexgramm.core.NexSaved.keepEdits()) {
+                headerItem.lazilyAddSubItem(nex_saved, R.drawable.msg_delete, LocaleController.getString(R.string.NexSavedTitle));
+            }
             if (currentUser != null && chatMode != MODE_SAVED) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
                 headerItem.lazilyAddSubItem(video_call, R.drawable.msg_videocall, LocaleController.getString(R.string.VideoCall));

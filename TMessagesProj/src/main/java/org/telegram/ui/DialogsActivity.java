@@ -13715,6 +13715,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         io.add(R.drawable.ghost, getString(R.string.NexGhostTitle), () -> presentFragment(new NexGhostActivity()));
+        // NexGramm: every chat of this list read at once
+        final ArrayList<TLRPC.Dialog> nexUnread = new ArrayList<>();
+        for (TLRPC.Dialog d : getMessagesController().getDialogs(folderId)) {
+            if (d.unread_count > 0 || d.unread_mark || d.unread_mentions_count > 0) {
+                nexUnread.add(d);
+            }
+        }
+        io.addIf(!nexUnread.isEmpty(), R.drawable.msg_markread, getString(R.string.MarkAllAsRead), () -> markDialogsAsRead(nexUnread));
         final boolean isCurrentThemeDark;
         if (resourceProvider != null) {
             isCurrentThemeDark = resourceProvider.isDark();
