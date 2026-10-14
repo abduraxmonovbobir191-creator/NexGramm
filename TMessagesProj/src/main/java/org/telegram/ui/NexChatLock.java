@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -79,6 +80,11 @@ public final class NexChatLock {
     }
 
     public static void authenticate(FragmentActivity activity, Runnable onSuccess) {
+        authenticate(activity, onSuccess, null);
+    }
+
+    // onFail: a finger / face that was not accepted (the prompt stays open)
+    public static void authenticate(FragmentActivity activity, Runnable onSuccess, Runnable onFail) {
         if (activity == null) {
             return;
         }
@@ -87,6 +93,13 @@ public final class NexChatLock {
                 @Override
                 public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                     onSuccess.run();
+                }
+
+                @Override
+                public void onAuthenticationFailed() {
+                    if (onFail != null) {
+                        onFail.run();
+                    }
                 }
             });
             prompt.authenticate(new BiometricPrompt.PromptInfo.Builder()
@@ -107,6 +120,7 @@ public final class NexChatLock {
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(Gravity.CENTER_HORIZONTAL);
         final ImageView icon = new ImageView(context);
+        icon.setTag(ICON_TAG);
         icon.setImageResource(R.drawable.msg_secret);
         icon.setColorFilter(new android.graphics.PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText), android.graphics.PorterDuff.Mode.SRC_IN));
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -129,7 +143,38 @@ public final class NexChatLock {
         button.setText(LocaleController.getString(R.string.NexLockUnlock));
         button.setOnClickListener(v -> onUnlockClick.run());
         column.addView(button, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 48, Gravity.CENTER_HORIZONTAL, 0, 24, 0, 0));
+        column.setTag(COLUMN_TAG);
         cover.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
+        // the lock drops in with a small spring
+        icon.setScaleX(0.4f);
+        icon.setScaleY(0.4f);
+        icon.setAlpha(0f);
+        icon.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(60).setDuration(520).setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
+        NexMotion.enter(title, 1);
+        NexMotion.enter(button, 2);
         return cover;
+    }
+
+    private static final String ICON_TAG = "nex_lock_icon";
+    private static final String COLUMN_TAG = "nex_lock_column";
+
+    // Unlocked: the lock opens, then the cover lifts off and fades
+    static void reveal(View cover) {
+        final View icon = cover.findViewWithTag(ICON_TAG);
+        if (icon instanceof ImageView) {
+            ((ImageView) icon).setImageResource(R.drawable.menu_unlock);
+            NexMotion.pulse(icon);
+        }
+        cover.setClickable(false);
+        cover.animate().alpha(0f).scaleX(1.06f).scaleY(1.06f).setStartDelay(160).setDuration(340).setInterpolator(NexMotion.EASE)
+            .withEndAction(() -> AndroidUtilities.removeFromParent(cover)).start();
+    }
+
+    // Not accepted: the lock shakes "no"
+    static void shake(View cover) {
+        final View column = cover == null ? null : cover.findViewWithTag(COLUMN_TAG);
+        if (column != null) {
+            NexMotion.shake(column);
+        }
     }
 }

@@ -1,10 +1,16 @@
 package org.telegram.ui;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.AnimatorSet;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.SystemClock;
@@ -14,7 +20,9 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.TextureView;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -86,6 +94,141 @@ public class NexStoryViewerActivity extends BaseFragment {
         }
     };
 
+    // ---- motion: out of the story circle, drag down, back into the circle ----
+    private FrameLayout stage;
+    private ColorDrawable backdrop;
+    private float originX = -1;
+    private float originY;
+    private float originSize;
+    private float stageScale = 1f;
+    private float stageInset;
+    private float stageRadius;
+    private ValueAnimator stageAnimator;
+    private boolean closing;
+
+    // the story circle it opens from (and closes into)
+    void setOrigin(View from) {
+        if (from == null || from.getWidth() == 0) {
+            return;
+        }
+        final int[] loc = new int[2];
+        from.getLocationInWindow(loc);
+        originX = loc[0] + from.getWidth() / 2f;
+        originY = loc[1] + from.getHeight() / 2f;
+        originSize = from.getWidth();
+    }
+
+    // scale from the top-left corner, then moved; inset / radius shape the visible part (a circle at the ends)
+    private void setStage(float scale, float tx, float ty, float inset, float radius) {
+        stageScale = scale;
+        stageInset = inset;
+        stageRadius = radius;
+        stage.setPivotX(0);
+        stage.setPivotY(0);
+        stage.setScaleX(scale);
+        stage.setScaleY(scale);
+        stage.setTranslationX(tx);
+        stage.setTranslationY(ty);
+        stage.setClipToOutline(scale != 1f || inset != 0 || radius != 0);
+        stage.invalidateOutline();
+    }
+
+    // the finger pulls the story down: it shrinks into a rounded card that follows the finger
+    private void dragStage(float dx, float dy) {
+        if (stageAnimator != null) {
+            stageAnimator.cancel();
+            stageAnimator = null;
+        }
+        final float w = stage.getWidth();
+        final float h = stage.getHeight();
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        final float scale = 1f - 0.3f * Math.min(1f, dy / (h * 0.7f));
+        final float cx = w / 2f + dx * 0.6f;
+        final float cy = h / 2f + dy;
+        setStage(scale, cx - scale * w / 2f, cy - scale * h / 2f, 0, AndroidUtilities.dp(26) / scale);
+    }
+
+    // not far enough: back to full screen
+    private void settleStage() {
+        final float fromScale = stageScale;
+        final float fromX = stage.getTranslationX();
+        final float fromY = stage.getTranslationY();
+        final float fromRadius = stageRadius;
+        stageAnimator = ValueAnimator.ofFloat(0f, 1f);
+        stageAnimator.setDuration(420);
+        stageAnimator.setInterpolator(NexMotion.EASE);
+        stageAnimator.addUpdateListener(a -> {
+            final float p = (float) a.getAnimatedValue();
+            setStage(fromScale + (1f - fromScale) * p, fromX * (1f - p), fromY * (1f - p), 0, fromRadius * (1f - p));
+        });
+        stageAnimator.start();
+    }
+
+    @Override
+    public AnimatorSet onCustomTransitionAnimation(boolean isOpen, Runnable callback) {
+        if (stage == null || fragmentView == null || getParentLayout() == null || getParentLayout().getView() == null) {
+            return null;
+        }
+        final View layout = getParentLayout().getView();
+        final float w = layout.getWidth();
+        final float h = layout.getHeight();
+        if (w <= 0 || h <= 0) {
+            return null;
+        }
+        if (fragmentView.getParent() instanceof View) {
+            ((View) fragmentView.getParent()).setTranslationX(0);
+        }
+        if (stageAnimator != null) {
+            stageAnimator.cancel();
+            stageAnimator = null;
+        }
+        // the far end: the story circle, or without one a slightly smaller screen in the middle
+        final float[] end;
+        if (originX >= 0) {
+            final int[] loc = new int[2];
+            layout.getLocationInWindow(loc);
+            final float s = originSize / w;
+            end = new float[]{s, originX - loc[0] - s * w / 2f, originY - loc[1] - s * h / 2f, Math.max(0, (h - w) / 2f), w / 2f};
+        } else {
+            end = new float[]{0.9f, w * 0.05f, h * 0.05f, 0, AndroidUtilities.dp(26) / 0.9f};
+        }
+        final float[] from = isOpen ? end : new float[]{stageScale, stage.getTranslationX(), stage.getTranslationY(), stageInset, stageRadius};
+        final float[] to = isOpen ? new float[]{1f, 0, 0, 0, 0} : end;
+        final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.addUpdateListener(a -> {
+            final float p = (float) a.getAnimatedValue();
+            setStage(from[0] + (to[0] - from[0]) * p, from[1] + (to[1] - from[1]) * p, from[2] + (to[2] - from[2]) * p,
+                from[3] + (to[3] - from[3]) * p, from[4] + (to[4] - from[4]) * p);
+            backdrop.setAlpha((int) (255 * (isOpen ? p : 1f - p)));
+            stage.setAlpha(isOpen ? Math.min(1f, p / 0.2f) : (p < 0.75f ? 1f : (1f - p) / 0.25f));
+        });
+        animator.setDuration(isOpen ? 440 : 380);
+        animator.setInterpolator(NexMotion.EASE);
+        final AnimatorSet set = new AnimatorSet();
+        set.playTogether(animator);
+        set.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (isOpen) {
+                    setStage(1f, 0, 0, 0, 0);
+                    stage.setAlpha(1f);
+                    backdrop.setAlpha(255);
+                }
+                callback.run();
+            }
+        });
+        // the first frame already in the starting state
+        setStage(from[0], from[1], from[2], from[3], from[4]);
+        if (isOpen) {
+            backdrop.setAlpha(0);
+            stage.setAlpha(0f);
+        }
+        set.start();
+        return set;
+    }
+
     public NexStoryViewerActivity(ArrayList<PixelfedStories.Group> groups, int groupIndex) {
         this.groups = groups;
         this.groupIndex = groupIndex;
@@ -104,7 +247,18 @@ public class NexStoryViewerActivity extends BaseFragment {
     public View createView(Context context) {
         actionBar.setAddToContainer(false);
         final FrameLayout root = new FrameLayout(context);
-        root.setBackgroundColor(0xFF000000);
+        backdrop = new ColorDrawable(0xFF000000);
+        root.setBackground(backdrop);
+        // everything of the story sits on a stage, which grows out of the story circle and can be dragged down
+        stage = new FrameLayout(context);
+        stage.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, (int) stageInset, view.getWidth(), (int) (view.getHeight() - stageInset), stageRadius);
+            }
+        });
+        root.addView(stage, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        final int touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
 
         mediaFrame = new FrameLayout(context) {
             @Override
@@ -115,7 +269,7 @@ public class NexStoryViewerActivity extends BaseFragment {
                 }
             }
         };
-        root.addView(mediaFrame, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        stage.addView(mediaFrame, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         imageView = new BackupImageView(context);
         imageView.getImageReceiver().setAspectFit(true);
         imageView.getImageReceiver().setDelegate(new ImageReceiver.ImageReceiverDelegate() {
@@ -128,18 +282,59 @@ public class NexStoryViewerActivity extends BaseFragment {
         });
         mediaFrame.addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        // tap left / right, hold to pause
+        // tap left / right, hold to pause, drag down to close
         final View touch = new View(context) {
             private long downAt;
+            private float downX;
+            private float downY;
+            private boolean dragging;
+            private float lastY;
+            private long lastAt;
+            private float speed; // px per ms, downwards
 
             @Override
             public boolean onTouchEvent(MotionEvent e) {
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         downAt = SystemClock.uptimeMillis();
+                        downX = e.getRawX();
+                        downY = e.getRawY();
+                        lastY = downY;
+                        lastAt = downAt;
+                        speed = 0;
+                        dragging = false;
                         setHeld(true);
                         return true;
+                    case MotionEvent.ACTION_MOVE: {
+                        final float dx = e.getRawX() - downX;
+                        final float dy = e.getRawY() - downY;
+                        if (!dragging && dy > touchSlop && dy > Math.abs(dx) * 1.2f && !closing) {
+                            dragging = true;
+                            downY += touchSlop;
+                        }
+                        if (dragging) {
+                            final long now = SystemClock.uptimeMillis();
+                            if (now > lastAt) {
+                                speed = (e.getRawY() - lastY) / (now - lastAt);
+                            }
+                            lastY = e.getRawY();
+                            lastAt = now;
+                            dragStage(e.getRawX() - downX, Math.max(0, e.getRawY() - downY));
+                        }
+                        return true;
+                    }
                     case MotionEvent.ACTION_UP:
+                        if (dragging) {
+                            dragging = false;
+                            if (e.getRawY() - downY > AndroidUtilities.dp(110) || speed > 1.2f) {
+                                closing = true;
+                                finishFragment(); // flies back into its circle
+                            } else {
+                                settleStage();
+                                setHeld(false);
+                            }
+                            return true;
+                        }
                         setHeld(false);
                         if (SystemClock.uptimeMillis() - downAt < 250) {
                             if (e.getX() < getWidth() / 3f) {
@@ -150,18 +345,22 @@ public class NexStoryViewerActivity extends BaseFragment {
                         }
                         return true;
                     case MotionEvent.ACTION_CANCEL:
+                        if (dragging) {
+                            dragging = false;
+                            settleStage();
+                        }
                         setHeld(false);
                         return true;
                 }
                 return true;
             }
         };
-        root.addView(touch, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        stage.addView(touch, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         // top: a soft shade so the white segments and names read on light photos
         final View shade = new View(context);
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x66000000, 0x00000000}));
-        root.addView(shade, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 140, Gravity.TOP));
+        stage.addView(shade, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 140, Gravity.TOP));
 
         final LinearLayout top = new LinearLayout(context);
         top.setOrientation(LinearLayout.VERTICAL);
@@ -195,7 +394,7 @@ public class NexStoryViewerActivity extends BaseFragment {
         close.setOnClickListener(v -> finishFragment());
         author.addView(close, LayoutHelper.createLinear(40, 40));
         top.addView(author, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 8, 0, 0));
-        root.addView(top, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        stage.addView(top, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
 
         fragmentView = root;
         if (groupIndex < 0 || groupIndex >= groups.size()) {

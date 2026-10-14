@@ -91,6 +91,7 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
         listView.setClipToPadding(false);
         listView.setPadding(0, AndroidUtilities.dp(4), 0, AndroidUtilities.dp(8));
         listView.setAdapter(adapter);
+        NexMotion.bounce(listView);
         root.addView(listView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
 
         // Input bar
@@ -115,6 +116,7 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
         sendButton.setColorFilter(new PorterDuffColorFilter(NexLentaColors.ACCENT, PorterDuff.Mode.SRC_IN));
         sendButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.1f), Theme.RIPPLE_MASK_CIRCLE_20DP));
         sendButton.setOnClickListener(v -> send());
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(sendButton, 0.1f, 1.6f);
         bar.addView(sendButton, LayoutHelper.createLinear(44, 44, 4, 0, 0, 0));
         root.addView(bar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
@@ -389,6 +391,9 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
             like.addView(likeCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
             like.setOnClickListener(v -> {
                 if (comment != null) {
+                    if (!comment.likePending) {
+                        NexMotion.likeBounce(likeIcon, !comment.favourited);
+                    }
                     NexNativeFeedView.toggleLike(getParentActivity(), tgUserId(), comment, this::updateLike, () -> {
                     });
                 }

@@ -98,6 +98,7 @@ public class NexSavedActivity extends BaseFragment {
             }
         };
         listView.setAdapter(adapter);
+        NexMotion.bounce(listView);
         root.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         emptyView = new TextView(context);

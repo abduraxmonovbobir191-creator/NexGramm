@@ -76,7 +76,7 @@ public class NexFeedbackActivity extends BaseFragment {
             }
         });
 
-        final ScrollView scroll = new ScrollView(context);
+        final ScrollView scroll = new NexMotion.BounceScrollView(context);
         scroll.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -126,6 +126,7 @@ public class NexFeedbackActivity extends BaseFragment {
         addPhoto.setGravity(Gravity.CENTER_VERTICAL);
         addPhoto.setPadding(0, AndroidUtilities.dp(10), 0, AndroidUtilities.dp(10));
         addPhoto.setOnClickListener(v -> pickPhoto());
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(addPhoto, 0.05f, 1.6f);
         column.addView(addPhoto, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
 
         sendButton = new TextView(context);
@@ -137,6 +138,7 @@ public class NexFeedbackActivity extends BaseFragment {
             Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
         sendButton.setText(LocaleController.getString(R.string.NexFeedbackSend));
         sendButton.setOnClickListener(v -> send());
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(sendButton, 0.04f, 1.6f);
         column.addView(sendButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50, 0, 20, 0, 0));
 
         final TextView note = new TextView(context);

@@ -85,6 +85,8 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private final Adapter adapter = new Adapter();
     private View headerView;
     private LinearLayout tabsView;
+    private NexMotion.Tabs tabsPill;
+    private boolean tabsAnimate;
 
     private TextView barTitle;
     private View topBar;
@@ -228,6 +230,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         listView.setClipToPadding(false);
         listView.setPadding(0, 0, 0, AndroidUtilities.navigationBarHeight + AndroidUtilities.dp(104));
         listView.setAdapter(adapter);
+        NexMotion.bounce(listView);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -245,6 +248,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         headerView = createHeader(context);
         tabsView = new LinearLayout(context);
         tabsView.setOrientation(LinearLayout.HORIZONTAL);
+        tabsPill = null; // a new view tree: a new pill
         rebuildTabs();
 
         imageUpdater = new ImageUpdater(true, ImageUpdater.FOR_TYPE_USER, true);
@@ -542,10 +546,14 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         tabsView.removeAllViews();
         tabsView.setGravity(Gravity.CENTER_HORIZONTAL);
         tabsView.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(14), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
-        final LinearLayout pill = new LinearLayout(context);
-        pill.setOrientation(LinearLayout.HORIZONTAL);
-        pill.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 22));
-        pill.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
+        // one pill kept across rebuilds, so its highlight can slide from one label to the other
+        if (tabsPill == null) {
+            tabsPill = new NexMotion.Tabs(context, NexMotion.Tabs.PILL, Theme.multAlpha(NexLentaColors.ACCENT, 0.15f));
+            tabsPill.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 22));
+            tabsPill.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
+        }
+        tabsPill.removeAllViews();
+        final LinearLayout pill = tabsPill;
         final int[] names = {R.string.NexMeStatStories, R.string.ProfileStoriesArchiveTab};
         for (int i = 0; i < names.length; i++) {
             final int t = i;
@@ -558,27 +566,31 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             option.setText(LocaleController.getString(names[i]));
             option.setTextColor(selected ? NexLentaColors.ACCENT : NexLentaColors.SECONDARY_TEXT);
             option.setPadding(AndroidUtilities.dp(20), 0, AndroidUtilities.dp(20), 0);
-            if (selected) {
-                option.setBackground(NexLentaUi.roundRect(Theme.multAlpha(NexLentaColors.ACCENT, 0.15f), 18));
-            }
             option.setOnClickListener(v -> selectTab(t));
             ScaleStateListAnimator.apply(option, 0.04f, 1.6f);
             pill.addView(option, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 38));
         }
+        AndroidUtilities.removeFromParent(pill);
         tabsView.addView(pill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+        tabsPill.setIndicatorColor(Theme.multAlpha(NexLentaColors.ACCENT, 0.15f));
+        tabsPill.select(tab, tabsAnimate);
     }
 
     private void selectTab(int t) {
         if (tab == t) {
             return;
         }
+        final int direction = t > tab ? 1 : -1;
         tab = t;
+        tabsAnimate = true;
         rebuildTabs();
+        tabsAnimate = false;
         final StoriesController.StoriesList list = currentList();
         if (list != null && list.messageObjects.isEmpty() && !list.isLoading()) {
             list.load(false, 30);
         }
         adapter.notifyDataSetChanged();
+        NexMotion.slideRows(listView, 2, direction);
     }
 
     private StoriesController.StoriesList currentList() {

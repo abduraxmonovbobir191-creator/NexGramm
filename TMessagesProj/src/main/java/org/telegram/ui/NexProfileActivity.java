@@ -92,7 +92,8 @@ public class NexProfileActivity extends BaseFragment {
     private NexCoverView coverView;
     private GradientDrawable avatarRing;
     private final ArrayList<TextView> coverTexts = new ArrayList<>();
-    private LinearLayout tabsView;
+    private NexMotion.Tabs tabsView;
+    private boolean tabsAnimate;
     private View topBarBackground;
     private TextView topBarTitle;
 
@@ -133,6 +134,7 @@ public class NexProfileActivity extends BaseFragment {
         listView.setClipToPadding(false);
         listView.setPadding(0, 0, 0, AndroidUtilities.navigationBarHeight + AndroidUtilities.dp(96));
         listView.setAdapter(adapter);
+        NexMotion.bounce(listView);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -145,8 +147,7 @@ public class NexProfileActivity extends BaseFragment {
         });
         root.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         headerView = createHeader(context);
-        tabsView = new LinearLayout(context);
-        tabsView.setOrientation(LinearLayout.HORIZONTAL);
+        tabsView = new NexMotion.Tabs(context, NexMotion.Tabs.UNDERLINE, NexLentaColors.TEXT);
 
         // fixed height: its MATCH_PARENT background would otherwise stretch a WRAP_CONTENT bar to the whole screen
         root.addView(createTopBar(context), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56), Gravity.TOP));
@@ -387,29 +388,36 @@ public class NexProfileActivity extends BaseFragment {
             final View divider = new View(context);
             divider.setBackgroundColor(NexLentaColors.DIVIDER);
             cell.addView(divider, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1, Gravity.BOTTOM));
-            if (t == tab) {
-                final View underline = new View(context);
-                underline.setBackground(NexLentaUi.roundRect(NexLentaColors.TEXT, 2));
-                cell.addView(underline, LayoutHelper.createFrame(36, 2.5f, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
-            }
             cell.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.06f), Theme.RIPPLE_MASK_ALL));
             cell.setOnClickListener(v -> selectTab(t));
             tabsView.addView(cell, LayoutHelper.createLinear(0, 48, 1f));
         }
+        tabsView.select(tabIndex(tab), tabsAnimate); // the underline slides to the new tab
+    }
+
+    private int tabIndex(int t) {
+        if (t == TAB_POSTS) {
+            return 0;
+        }
+        return own ? (t == TAB_LIKED ? 1 : 2) : 1;
     }
 
     private void selectTab(int t) {
         if (tab == t) {
             return;
         }
+        final int direction = tabIndex(t) > tabIndex(tab) ? 1 : -1;
         tab = t;
+        tabsAnimate = true;
         rebuildTabs();
+        tabsAnimate = false;
         if (tab == TAB_SAVED && saved == null) {
             loadList(true);
         } else if (tab == TAB_LIKED && liked == null) {
             loadList(false);
         }
         adapter.notifyDataSetChanged();
+        NexMotion.slideRows(listView, 2, direction); // the grid comes in from the side of the new tab
     }
 
     private boolean isListTab() {
@@ -844,6 +852,7 @@ public class NexProfileActivity extends BaseFragment {
                     openPost(status);
                 }
             });
+            org.telegram.ui.Components.ScaleStateListAnimator.apply(this, 0.04f, 1.5f);
         }
 
         @Override
