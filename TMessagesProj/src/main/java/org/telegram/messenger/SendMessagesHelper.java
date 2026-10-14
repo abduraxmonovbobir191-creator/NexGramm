@@ -4310,7 +4310,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             final int nexPeriod = scheduleRepeatPeriod;
             scheduleRepeatPeriod = 0;
             sendMessageParams.scheduleRepeatPeriod = 0;
-            if (message != null && photo == null && document == null && location == null && game == null && poll == null
+            if (uz.nexgramm.core.NexPremium.isActive(getUserConfig().getClientUserId()) && message != null && photo == null && document == null && location == null && game == null && poll == null
                 && todo == null && invoice == null && user == null && path == null) {
                 final int copies = nexRepeatCopies(nexPeriod);
                 for (int k = 1; k <= copies; k++) {

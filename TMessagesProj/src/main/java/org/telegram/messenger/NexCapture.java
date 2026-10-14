@@ -21,7 +21,7 @@ final class NexCapture {
 
     // dialogId: -channelId for a channel / supergroup, 0 for users and basic groups (ids unique per account)
     static void deleted(MessagesStorage storage, int account, long dialogId, ArrayList<Integer> mids) {
-        if (mids == null || mids.isEmpty() || !NexSaved.keepDeleted()) {
+        if (mids == null || mids.isEmpty() || !NexSaved.keepDeleted() || !premium(account)) {
             return;
         }
         final ArrayList<Integer> ids = new ArrayList<>(mids);
@@ -37,7 +37,7 @@ final class NexCapture {
                 while (cursor.next()) {
                     final long uid = cursor.longValue(0);
                     final TLRPC.Message m = read(cursor);
-                    if (m == null || m.out || uid == self || m instanceof TLRPC.TL_messageService) {
+                    if (m == null || m.out || uid == self || m instanceof TLRPC.TL_messageService || selfDestructs(m)) {
                         continue;
                     }
                     final String text = describe(m);
@@ -56,7 +56,7 @@ final class NexCapture {
     }
 
     static void edited(MessagesStorage storage, int account, long dialogId, int mid, String newText) {
-        if (dialogId == 0 || mid <= 0 || !NexSaved.keepEdits()) {
+        if (dialogId == 0 || mid <= 0 || !NexSaved.keepEdits() || !premium(account)) {
             return;
         }
         final long savedAt = System.currentTimeMillis();
@@ -84,6 +84,16 @@ final class NexCapture {
                 }
             }
         });
+    }
+
+    // NexGramm Premium (keeping copies is a Premium feature)
+    private static boolean premium(int account) {
+        return uz.nexgramm.core.NexPremium.isActive(UserConfig.getInstance(account).getClientUserId());
+    }
+
+    // messages meant to disappear (auto-delete timer, view-once media) are never kept
+    private static boolean selfDestructs(TLRPC.Message m) {
+        return m.ttl_period != 0 || m.ttl != 0 || m.media != null && m.media.ttl_seconds != 0;
     }
 
     private static TLRPC.Message read(SQLiteCursor cursor) throws Exception {

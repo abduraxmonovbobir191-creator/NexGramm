@@ -62,6 +62,9 @@ public class NexFeaturesActivity extends BaseFragment {
         deletedCell.setTextAndValueAndCheck(LocaleController.getString(R.string.NexFeaturesKeepDeleted),
             LocaleController.getString(R.string.NexFeaturesKeepDeletedInfo), NexSaved.keepDeleted(), true, true);
         deletedCell.setOnClickListener(v -> {
+            if (!NexSaved.keepDeleted() && !NexPremiumActivity.check(this)) {
+                return; // NexGramm Premium
+            }
             NexSaved.setKeepDeleted(!NexSaved.keepDeleted());
             deletedCell.setChecked(NexSaved.keepDeleted());
         });
@@ -72,6 +75,9 @@ public class NexFeaturesActivity extends BaseFragment {
         editsCell.setTextAndValueAndCheck(LocaleController.getString(R.string.NexFeaturesKeepEdits),
             LocaleController.getString(R.string.NexFeaturesKeepEditsInfo), NexSaved.keepEdits(), true, true);
         editsCell.setOnClickListener(v -> {
+            if (!NexSaved.keepEdits() && !NexPremiumActivity.check(this)) {
+                return; // NexGramm Premium
+            }
             NexSaved.setKeepEdits(!NexSaved.keepEdits());
             editsCell.setChecked(NexSaved.keepEdits());
         });

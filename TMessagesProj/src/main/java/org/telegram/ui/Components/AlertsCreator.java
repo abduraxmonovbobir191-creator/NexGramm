@@ -4660,7 +4660,10 @@ public class AlertsCreator {
                     }
                 }
                 sb.append(" v");
-                if (true) { // NexGramm: repeats for everyone (without Premium the next copies are scheduled ahead)
+                // NexGramm: repeats with Telegram Premium (server-side) or NexGramm Premium (the next copies are
+                // scheduled ahead, SendMessagesHelper)
+                if (UserConfig.getInstance(UserConfig.selectedAccount).isPremium()
+                    || uz.nexgramm.core.NexPremium.isActive(UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId())) {
                     final ColoredImageSpan imageSpan = new ColoredImageSpan(R.drawable.arrows_select);
                     imageSpan.spaceScaleX = 0.7f;
                     imageSpan.translate(dp(-1.33f), dp(0));
@@ -4719,15 +4722,15 @@ public class AlertsCreator {
 
         if (repeatTextView != null) {
             repeatTextView.setOnClickListener(v -> {
-                if (false) { // NexGramm: repeats for everyone
+                if (!UserConfig.getInstance(UserConfig.selectedAccount).isPremium()
+                    && !uz.nexgramm.core.NexPremium.isActive(UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId())) {
+                    // NexGramm: offer NexGramm Premium (not Telegram's)
                     BulletinFactory.of(bulletinContainer, resourcesProvider)
-                        .createSimpleBulletin(R.raw.star_premium_2, AndroidUtilities.premiumText(LocaleController.getString(R.string.MessageScheduledRepeatPremium), () -> {
+                        .createSimpleBulletin(R.raw.star_premium_2, AndroidUtilities.premiumText(LocaleController.getString(R.string.NexPremiumRepeatHint), () -> {
                             final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
                             if (lastFragment == null) return;
-                            BaseFragment.BottomSheetParams params = new BaseFragment.BottomSheetParams();
-                            params.transitionFromLeft = true;
-                            params.allowNestedScroll = false;
-                            lastFragment.showAsSheet(new PremiumPreviewFragment("schedule_repeat"), params);
+                            bottomSheet.dismiss();
+                            lastFragment.presentFragment(new org.telegram.ui.NexPremiumActivity());
                         }))
                         .show();
                     return;
