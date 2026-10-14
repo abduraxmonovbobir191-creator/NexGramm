@@ -58,7 +58,7 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
     private static final int TYPE_MEDIA = 1;
     private static final int TYPE_EMPTY = 2;
     private static final int BAR_DP = 56;
-    private static final int AVATAR_DP = 108;
+    private static final int AVATAR_DP = 92;
 
     private long userId;
     private long chatId;
@@ -349,26 +349,26 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
         avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
         avatarView.setOnClickListener(v -> openPhoto());
         avatarFrame.addView(avatarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // the photo on the left, over the banner's lower edge (as on X and in the other NexGramm profiles)
         final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP),
-            Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+            Gravity.LEFT | Gravity.TOP);
+        avatarParams.leftMargin = AndroidUtilities.dp(14);
         avatarParams.topMargin = bannerHeight - AndroidUtilities.dp(AVATAR_DP / 2f);
         top.addView(avatarFrame, avatarParams);
         column.addView(top, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         nameView = new TextView(context);
-        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
+        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
         nameView.setTypeface(AndroidUtilities.bold());
         nameView.setTextColor(NexLentaColors.TEXT);
-        nameView.setGravity(Gravity.CENTER);
         nameView.setMaxLines(2);
         nameView.setEllipsize(TextUtils.TruncateAt.END);
-        column.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 12, 24, 0));
+        column.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 10, 16, 0));
         statusView = new TextView(context);
         statusView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        statusView.setGravity(Gravity.CENTER);
         statusView.setSingleLine(true);
         statusView.setEllipsize(TextUtils.TruncateAt.END);
-        column.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 4, 24, 0));
+        column.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 2, 16, 0));
 
         actionsRow = new LinearLayout(context);
         actionsRow.setOrientation(LinearLayout.HORIZONTAL);

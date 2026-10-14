@@ -215,15 +215,14 @@ public class NexProfileActivity extends BaseFragment {
         // whole header from the very top down below the buttons; in its own colors, no dark fade
         final FrameLayout header = new FrameLayout(context);
         coverView = new NexCoverView(context, false);
-        // a clear banner on top; the name and the rest sit below it, never over the picture
-        final int banner = AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56 + 150);
+        // a clear banner on top, the photo over its lower edge on the left; name and the rest below (as on X)
+        final int banner = AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56 + 96);
         header.addView(coverView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, banner));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(0, banner + AndroidUtilities.dp(16), 0, 0);
+        column.setPadding(0, banner + AndroidUtilities.dp(AVATAR_DP / 2f + 10), 0, 0);
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-        // name + @username (left), avatar (right)
         final FrameLayout identity = new FrameLayout(context);
         final FrameLayout avatarFrame = new FrameLayout(context);
         avatarRing = new GradientDrawable();
@@ -234,12 +233,15 @@ public class NexProfileActivity extends BaseFragment {
         avatarView = new BackupImageView(context);
         avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
         avatarFrame.addView(avatarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        identity.addView(avatarFrame, LayoutHelper.createFrame(AVATAR_DP, AVATAR_DP, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 16, 0));
+        final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.LEFT | Gravity.TOP);
+        avatarParams.leftMargin = AndroidUtilities.dp(14);
+        avatarParams.topMargin = banner - AndroidUtilities.dp(AVATAR_DP / 2f);
+        header.addView(avatarFrame, avatarParams);
 
         final LinearLayout names = new LinearLayout(context);
         names.setOrientation(LinearLayout.VERTICAL);
         nameView = new TextView(context);
-        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
+        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
         nameView.setTypeface(AndroidUtilities.bold());
         nameView.setTextColor(NexLentaColors.TEXT);
         nameView.setMaxLines(2);
@@ -251,8 +253,7 @@ public class NexProfileActivity extends BaseFragment {
         usernameView.setSingleLine(true);
         usernameView.setEllipsize(TextUtils.TruncateAt.END);
         names.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
-        identity.addView(names, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.CENTER_VERTICAL, 16, 0, AVATAR_DP + 28, 0));
-        identity.setMinimumHeight(AndroidUtilities.dp(AVATAR_DP));
+        identity.addView(names, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 16, 0, 16, 0));
         column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         coverTexts.add(nameView);
         coverTexts.add(usernameView);
@@ -263,7 +264,6 @@ public class NexProfileActivity extends BaseFragment {
         followingCountView = addStat(context, stats, R.string.NexProfileFollowingLabel);
         followersCountView = addStat(context, stats, R.string.NexProfileFollowersLabel);
         postsCountView = addStat(context, stats, R.string.NexProfilePostsLabel);
-        column.addView(stats, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 16, 16, 0));
 
         bioView = new TextView(context);
         bioView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
@@ -276,8 +276,7 @@ public class NexProfileActivity extends BaseFragment {
 
         websiteView = new TextView(context);
         websiteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        websiteView.setTypeface(AndroidUtilities.bold());
-        websiteView.setTextColor(NexLentaColors.TEXT);
+        websiteView.setTextColor(NexLentaColors.ACCENT);
         websiteView.setSingleLine(true);
         websiteView.setEllipsize(TextUtils.TruncateAt.END);
         websiteView.setGravity(Gravity.CENTER_VERTICAL);
@@ -285,12 +284,14 @@ public class NexProfileActivity extends BaseFragment {
         websiteView.setCompoundDrawablePadding(AndroidUtilities.dp(6));
         for (android.graphics.drawable.Drawable d : websiteView.getCompoundDrawablesRelative()) {
             if (d != null) {
-                d.setColorFilter(new PorterDuffColorFilter(NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
+                d.setColorFilter(new PorterDuffColorFilter(NexLentaColors.ACCENT, PorterDuff.Mode.SRC_IN));
             }
         }
         websiteView.setVisibility(View.GONE);
         websiteView.setOnClickListener(v -> openWebsite());
         column.addView(websiteView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, Gravity.LEFT, 16, 6, 16, 0));
+        // following · followers · posts, under the bio (as on X)
+        column.addView(stats, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 12, 16, 0));
 
         final LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -349,21 +350,23 @@ public class NexProfileActivity extends BaseFragment {
         avatarRing.setColor(cover ? 0xFFFFFFFF : NexLentaColors.BACKGROUND);
     }
 
+    // "183 following" in one line: the number bold, the word grey (as on X)
     private TextView addStat(Context context, LinearLayout stats, int labelRes) {
         final LinearLayout box = new LinearLayout(context);
-        box.setOrientation(LinearLayout.VERTICAL);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
         final TextView number = new TextView(context);
-        number.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 19);
+        number.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         number.setTypeface(AndroidUtilities.bold());
         number.setTextColor(NexLentaColors.TEXT);
         number.setText("—");
         box.addView(number, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
         final TextView label = new TextView(context);
-        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         label.setTextColor(NexLentaColors.SECONDARY_TEXT);
-        label.setText(LocaleController.getString(labelRes));
-        box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
-        stats.addView(box, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 28, 0));
+        label.setText(LocaleController.getString(labelRes).toLowerCase());
+        box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 4, 0, 0, 0));
+        stats.addView(box, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 18, 0));
         coverTexts.add(number);
         coverTexts.add(label);
         return number;

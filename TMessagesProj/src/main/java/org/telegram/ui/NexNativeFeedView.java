@@ -130,7 +130,10 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         this.delegate = delegate;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         followingMode = prefs().getBoolean("feed_following_" + tgUserId, false);
-        setBackgroundColor(NexLentaColors.BACKGROUND);
+        // a soft glow of the accent at the top, fading into the page
+        final int glow = uz.nexgramm.core.NexPalette.blend(NexLentaColors.ACCENT, NexLentaColors.BACKGROUND, NexLentaColors.dark ? 0.8f : 0.86f);
+        setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{glow, NexLentaColors.BACKGROUND, NexLentaColors.BACKGROUND, NexLentaColors.BACKGROUND}));
 
         listView = new RecyclerView(context);
         // one extra screen laid out ahead: the next post's photo loads and its video can buffer

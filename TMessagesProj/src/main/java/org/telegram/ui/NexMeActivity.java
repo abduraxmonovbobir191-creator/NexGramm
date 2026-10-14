@@ -96,6 +96,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private final ArrayList<ImageView> barIcons = new ArrayList<>();
     private NexCoverView coverView;
     private View coverHolder;
+    private boolean hasCover; // a picture of the user's; else the soft default band
     private LinearLayout headerColumn;
     private BackupImageView avatarView;
     private ImageUpdater imageUpdater;
@@ -272,12 +273,12 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         final View first = layoutManager.findViewByPosition(0);
         final int offset = first == null ? AndroidUtilities.dp(10000) : -first.getTop();
         float solid = 1f;
-        if (coverHolder != null && coverHolder.getVisibility() == View.VISIBLE) {
+        if (coverHolder != null) {
             final int fadeFrom = Math.max(0, coverHolder.getHeight() - topBar.getHeight() - AndroidUtilities.dp(48));
             solid = Math.max(0f, Math.min(1f, (offset - fadeFrom) / (float) AndroidUtilities.dp(48)));
         }
         topBarBackground.setAlpha(solid);
-        if (coverHolder != null && coverHolder.getVisibility() == View.VISIBLE) {
+        if (coverHolder != null && hasCover) {
             // white over the background, the page's text color once the bar turns solid
             final int iconColor = uz.nexgramm.core.NexPalette.blend(0xFFFFFFFF, NexLentaColors.TEXT, solid);
             for (ImageView icon : barIcons) {
@@ -347,14 +348,14 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         final FrameLayout holder = new FrameLayout(context);
         coverView = new NexCoverView(context, true);
         holder.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        holder.setVisibility(View.GONE);
         coverHolder = holder;
-        // a clear banner on top; the name and the rest sit below it, never over the picture
+        // a banner on top (the background, or a soft band), the photo over its lower edge on the left; the name
+        // and the rest below (as on X)
         header.addView(holder, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, bannerHeight()));
 
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(AndroidUtilities.dp(16), AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 4), AndroidUtilities.dp(16), AndroidUtilities.dp(30));
+        column.setPadding(AndroidUtilities.dp(16), bannerHeight() + AndroidUtilities.dp(AVATAR_DP / 2f + 10), AndroidUtilities.dp(16), AndroidUtilities.dp(30));
         headerColumn = column;
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
@@ -365,7 +366,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         final LinearLayout names = new LinearLayout(context);
         names.setOrientation(LinearLayout.VERTICAL);
         nameView = new TextView(context);
-        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26);
+        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
         nameView.setTypeface(AndroidUtilities.bold());
         nameView.setTextColor(NexLentaColors.TEXT);
         nameView.setMaxLines(2);
@@ -378,7 +379,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         usernameView.setEllipsize(TextUtils.TruncateAt.END);
         usernameView.setOnClickListener(v -> copyUsername());
         names.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
-        identity.addView(names, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 0, 0, 16, 0));
+        identity.addView(names, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
 
         final FrameLayout avatarHolder = new FrameLayout(context);
         final FrameLayout avatarFrame = new FrameLayout(context);
@@ -410,7 +411,10 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         plus.setOnClickListener(v -> openPhotoMenu());
         ScaleStateListAnimator.apply(plus, 0.1f, 1.6f);
         avatarHolder.addView(plus, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.BOTTOM));
-        identity.addView(avatarHolder, LayoutHelper.createLinear(AVATAR_DP, AVATAR_DP));
+        final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.LEFT | Gravity.TOP);
+        avatarParams.leftMargin = AndroidUtilities.dp(14);
+        avatarParams.topMargin = bannerHeight() - AndroidUtilities.dp(AVATAR_DP / 2f);
+        header.addView(avatarHolder, avatarParams);
         column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         // stories · gifts
@@ -421,7 +425,6 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             layoutManager.scrollToPositionWithOffset(1, 0);
         });
         giftsCount = addStat(context, stats, R.string.NexMeStatGifts, () -> presentFragment(new NexGiftsActivity()));
-        column.addView(stats, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, -8, 14, 0, 0));
 
         bioView = new TextView(context);
         bioView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
@@ -438,6 +441,8 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         chipsRow.setOrientation(LinearLayout.HORIZONTAL);
         chipsScroll.addView(chipsRow);
         column.addView(chipsScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+        // stories · gifts in one line, under the details (as on X)
+        column.addView(stats, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, -8, 10, 0, 0));
 
         // Edit (Telegram name, bio, username, birthday) · Background (photo, video or color behind the header)
         final LinearLayout buttons = new LinearLayout(context);
@@ -468,16 +473,13 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             return;
         }
         coverView.setCover(cover);
-        coverHolder.setVisibility(cover == null ? View.GONE : View.VISIBLE);
-        headerColumn.setPadding(headerColumn.getPaddingLeft(),
-            cover == null ? AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 4) : bannerHeight() + AndroidUtilities.dp(16),
-            headerColumn.getPaddingRight(), headerColumn.getPaddingBottom());
+        hasCover = cover != null;
         coverHolder.post(this::updateTopBar);
         applyCoverStyle(false); // the texts are on the page now; the bar icons follow updateTopBar
     }
 
     private static int bannerHeight() {
-        return AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 150);
+        return AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 96);
     }
 
     // Over a background the texts and bar icons are white with a soft shadow, so the background keeps its
@@ -505,25 +507,27 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     }
 
     private TextView addStat(Context context, LinearLayout stats, int labelRes, Runnable action) {
+        // "11 stories" in one line: the number bold, the word grey (as on X)
         final LinearLayout box = new LinearLayout(context);
-        box.setOrientation(LinearLayout.VERTICAL);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
         box.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(4), AndroidUtilities.dp(8), AndroidUtilities.dp(4));
         box.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(12), 0, Theme.multAlpha(NexLentaColors.TEXT, 0.08f)));
         final TextView number = new TextView(context);
-        number.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 19);
+        number.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         number.setTypeface(AndroidUtilities.bold());
         number.setTextColor(NexLentaColors.TEXT);
         number.setText("0");
         box.addView(number, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
         final TextView label = new TextView(context);
-        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        label.setTextColor(Theme.multAlpha(NexLentaColors.TEXT, 0.75f));
-        label.setText(LocaleController.getString(labelRes));
-        box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        label.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        label.setText(LocaleController.getString(labelRes).toLowerCase());
+        box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 4, 0, 0, 0));
         coverTexts.add(number);
         coverTexts.add(label);
         box.setOnClickListener(v -> action.run());
-        stats.addView(box, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 16, 0));
+        stats.addView(box, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 6, 0));
         return number;
     }
 
