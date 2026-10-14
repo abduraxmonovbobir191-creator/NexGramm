@@ -11585,7 +11585,12 @@
     <string name="NexPeerAllMedia">All media and files</string>
     <string name="NexPeerNoMedia">No photos or videos yet</string>
     <string name="NexPeerFullProfile">Full profile</string>
-    <string name="NexLentaSearchHint">Search people</string>
-    <string name="NexLentaSearchEmpty">Type a Lenta username</string>
+    <string name="NexLentaSearchHint">Name, @Telegram username or phone</string>
+    <string name="NexLentaSearchEmpty">Type a Lenta name, a @Telegram username or a phone number</string>
     <string name="NexLentaSearchNothing">Nobody found</string>
+    <string name="NexLentaSearchNoLenta">This person has no Lenta page yet</string>
+    <string name="NexLentaSearchViaTelegram">via Telegram: %1$s</string>
+    <string name="NexStoryMusic">Music</string>
+    <string name="NexStoryMusicFrom">Starts at %1$s</string>
+    <string name="NexStoryMusicBad">This file can\'t be used as music</string>
 </resources>

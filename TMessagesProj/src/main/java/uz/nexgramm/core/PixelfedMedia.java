@@ -331,10 +331,168 @@ public final class PixelfedMedia {
         }
     }
 
+    public static final long MUSIC_PHOTO_MS = 15_000; // a photo with a song plays this long
+    private static final int STORY_W = 720;
+    private static final int STORY_H = 1280;
+
+    // A story with a song (Telegram's MediaCodecVideoConvertor mixes it): a photo becomes a 15 s video on a 9:16
+    // card over its own blurred copy; a video keeps its picture, its own sound quieter under the song. The
+    // song plays from musicStartMs. durationOut gets the length in whole seconds.
+    public static File prepareStoryWithMusic(Uri media, boolean isVideo, Uri music, long musicStartMs, int[] durationOut, Progress progress) throws IOException {
+        final File song = copyToCache(music, "aud");
+        try {
+            if (isVideo) {
+                final File copy = copyToCache(media, "vid");
+                try {
+                    final VideoMeta meta = readMeta(copy);
+                    final long keptMs = Math.max(1000, Math.min(STORY_MAX_MS, meta.durationMs / 1000 * 1000));
+                    durationOut[0] = (int) (keptMs / 1000);
+                    final File out = encode(copy, meta, keptMs, VIDEO_LONG_SIDE, VIDEO_SHORT_SIDE, STORY_BUDGET_BYTES, VIDEO_MAX_BITRATE, false, progress,
+                        soundOf(song, musicStartMs, keptMs), 0.3f);
+                    return checkStorySize(out);
+                } finally {
+                    //noinspection ResultOfMethodCallIgnored
+                    copy.delete();
+                }
+            }
+            final File card = storyCard(media);
+            try {
+                durationOut[0] = (int) (MUSIC_PHOTO_MS / 1000);
+                return checkStorySize(encodePhoto(card, MUSIC_PHOTO_MS, soundOf(song, musicStartMs, MUSIC_PHOTO_MS), progress));
+            } finally {
+                //noinspection ResultOfMethodCallIgnored
+                card.delete();
+            }
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            song.delete();
+        }
+    }
+
+    private static MediaCodecVideoConvertor.MixedSoundInfo soundOf(File song, long startMs, long lengthMs) {
+        final MediaCodecVideoConvertor.MixedSoundInfo sound = new MediaCodecVideoConvertor.MixedSoundInfo(song.getAbsolutePath());
+        sound.audioOffset = Math.max(0, startMs) * 1000; // where in the song
+        sound.duration = lengthMs * 1000;
+        sound.volume = 1f;
+        return sound;
+    }
+
+    private static File checkStorySize(File out) throws TooLargeException {
+        if (out.length() > STORY_MAX_BYTES) {
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+            throw new TooLargeException();
+        }
+        return out;
+    }
+
+    // The photo fitted on a 720 x 1280 card, over a blurred, darker copy of itself filling the card
+    private static File storyCard(Uri media) throws IOException {
+        final File jpeg = prepareImage(media); // EXIF rotation applied
+        try {
+            final Bitmap photo = BitmapFactory.decodeFile(jpeg.getAbsolutePath());
+            if (photo == null) {
+                throw new IOException("image");
+            }
+            final Bitmap card = Bitmap.createBitmap(STORY_W, STORY_H, Bitmap.Config.ARGB_8888);
+            final android.graphics.Canvas canvas = new android.graphics.Canvas(card);
+            final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+            // background: a small copy, blurred, stretched to cover
+            final float cover = Math.max(STORY_W / (float) photo.getWidth(), STORY_H / (float) photo.getHeight());
+            final Bitmap small = Bitmap.createScaledBitmap(photo, Math.max(1, photo.getWidth() / 8), Math.max(1, photo.getHeight() / 8), true);
+            try {
+                org.telegram.messenger.Utilities.stackBlurBitmap(small, Math.max(3, small.getWidth() / 12));
+            } catch (Throwable ignore) {
+                // no blur on this device: the stretched copy still works as a background
+            }
+            final float bw = photo.getWidth() * cover;
+            final float bh = photo.getHeight() * cover;
+            canvas.drawBitmap(small, null, new android.graphics.RectF((STORY_W - bw) / 2f, (STORY_H - bh) / 2f, (STORY_W + bw) / 2f, (STORY_H + bh) / 2f), paint);
+            canvas.drawColor(0x55000000);
+            // the photo itself, whole
+            final float fit = Math.min(STORY_W / (float) photo.getWidth(), STORY_H / (float) photo.getHeight());
+            final float fw = photo.getWidth() * fit;
+            final float fh = photo.getHeight() * fit;
+            canvas.drawBitmap(photo, null, new android.graphics.RectF((STORY_W - fw) / 2f, (STORY_H - fh) / 2f, (STORY_W + fw) / 2f, (STORY_H + fh) / 2f), paint);
+            small.recycle();
+            photo.recycle();
+            final File out = newFile("jpg");
+            try (OutputStream os = new FileOutputStream(out)) {
+                card.compress(Bitmap.CompressFormat.JPEG, 90, os);
+            }
+            card.recycle();
+            return out;
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            jpeg.delete();
+        }
+    }
+
+    // A still 9:16 card as an H.264 video of lengthMs with the song (Telegram's photo → video path)
+    private static File encodePhoto(File card, long lengthMs, MediaCodecVideoConvertor.MixedSoundInfo sound, Progress progress) throws IOException {
+        final File out = newFile("mp4");
+        final VideoEditedInfo info = new VideoEditedInfo();
+        info.isPhoto = true;
+        info.muted = false;
+        final MediaCodecVideoConvertor.ConvertVideoParams params = MediaCodecVideoConvertor.ConvertVideoParams.of(
+            card.getAbsolutePath(), out, 0,
+            0, false,
+            STORY_W, STORY_H,
+            STORY_W, STORY_H,
+            30, 1_500_000, 0,
+            -1, -1, -1,
+            true, lengthMs,
+            listener(progress),
+            info
+        );
+        params.soundInfos.add(sound);
+        return run(params, out);
+    }
+
+    private static MediaController.VideoConvertorListener listener(Progress progress) {
+        return new MediaController.VideoConvertorListener() {
+            @Override
+            public boolean checkConversionCanceled() {
+                return false;
+            }
+
+            @Override
+            public void didWriteData(long availableSize, float fraction) {
+                if (progress != null && fraction >= 0) {
+                    progress.onProgress(Math.min(1f, fraction > 1.5f ? fraction / 1000f : fraction));
+                }
+            }
+        };
+    }
+
+    private static File run(MediaCodecVideoConvertor.ConvertVideoParams params, File out) throws VideoException {
+        final boolean error;
+        try {
+            error = new MediaCodecVideoConvertor().convertVideo(params);
+        } catch (Throwable e) {
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+            throw new VideoException("video_compress");
+        }
+        if (error || !out.exists() || out.length() == 0) {
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+            throw new VideoException("video_compress");
+        }
+        return out;
+    }
+
     // Re-encodes the first keptMs of the clip with Telegram's MediaCodecVideoConvertor: size within
     // longSide x shortSide, bitrate within the byte budget, optionally without sound
     private static File encode(File copy, VideoMeta meta, long keptMs, int longSide, int shortSide, long budgetBytes,
                                int maxBitrate, boolean muted, Progress progress) throws IOException {
+        return encode(copy, meta, keptMs, longSide, shortSide, budgetBytes, maxBitrate, muted, progress, null, 1f);
+    }
+
+    // … and with a song mixed in (ownVolume: the clip's own sound under it)
+    private static File encode(File copy, VideoMeta meta, long keptMs, int longSide, int shortSide, long budgetBytes,
+                               int maxBitrate, boolean muted, Progress progress,
+                               MediaCodecVideoConvertor.MixedSoundInfo sound, float ownVolume) throws IOException {
         final int width = meta.width;
         final int height = meta.height;
         final int rotation = meta.rotation;
@@ -378,6 +536,7 @@ public final class PixelfedMedia {
         };
         final VideoEditedInfo info = new VideoEditedInfo();
         info.muted = muted;
+        info.volume = ownVolume;
         final MediaCodecVideoConvertor.ConvertVideoParams params = MediaCodecVideoConvertor.ConvertVideoParams.of(
             copy.getAbsolutePath(), out, 0,
             rotation, false,
@@ -389,6 +548,9 @@ public final class PixelfedMedia {
             listener,
             info
         );
+        if (sound != null) {
+            params.soundInfos.add(sound);
+        }
         final boolean error;
         try {
             error = new MediaCodecVideoConvertor().convertVideo(params);

@@ -348,7 +348,12 @@
     <string name="NexPeerAllMedia">Barcha media va fayllar</string>
     <string name="NexPeerNoMedia">Hali rasm yoki video yo\'q</string>
     <string name="NexPeerFullProfile">To\'liq profil</string>
-    <string name="NexLentaSearchHint">Odamlarni qidirish</string>
-    <string name="NexLentaSearchEmpty">Lenta username\'ini yozing</string>
+    <string name="NexLentaSearchHint">Ism, @Telegram yoki telefon</string>
+    <string name="NexLentaSearchEmpty">Lenta nomi, @Telegram username yoki telefon raqamini yozing</string>
     <string name="NexLentaSearchNothing">Hech kim topilmadi</string>
+    <string name="NexLentaSearchNoLenta">Bu odamning hali Lenta sahifasi yo\'q</string>
+    <string name="NexLentaSearchViaTelegram">Telegram orqali: %1$s</string>
+    <string name="NexStoryMusic">Musiqa</string>
+    <string name="NexStoryMusicFrom">Boshlanishi: %1$s</string>
+    <string name="NexStoryMusicBad">Bu faylni musiqa sifatida qo\'yib bo\'lmaydi</string>
 </resources>

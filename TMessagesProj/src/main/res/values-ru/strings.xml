@@ -612,7 +612,12 @@
     <string name="NexPeerAllMedia">Все медиа и файлы</string>
     <string name="NexPeerNoMedia">Пока нет фото и видео</string>
     <string name="NexPeerFullProfile">Полный профиль</string>
-    <string name="NexLentaSearchHint">Поиск людей</string>
-    <string name="NexLentaSearchEmpty">Введите имя пользователя в Lenta</string>
+    <string name="NexLentaSearchHint">Имя, @Telegram или телефон</string>
+    <string name="NexLentaSearchEmpty">Введите имя в Lenta, @Telegram или номер телефона</string>
     <string name="NexLentaSearchNothing">Никого не нашли</string>
+    <string name="NexLentaSearchNoLenta">У этого человека пока нет страницы в Lenta</string>
+    <string name="NexLentaSearchViaTelegram">через Telegram: %1$s</string>
+    <string name="NexStoryMusic">Музыка</string>
+    <string name="NexStoryMusicFrom">Начало: %1$s</string>
+    <string name="NexStoryMusicBad">Этот файл нельзя использовать как музыку</string>
 </resources>

@@ -35,13 +35,17 @@ import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.PixelfedAccount;
 import uz.nexgramm.core.PixelfedClient;
 
-// NexGramm: find people in the Lenta by their Lenta username (as you type, a short pause first). A row opens
-// the Lenta profile.
+// NexGramm: find people in the Lenta by their Lenta username (as you type, a short pause first), or by their
+// Telegram: "@username" or a phone number is resolved with Telegram, then the core says which Lenta page that
+// person has (GET /v1/lenta/by-tg/{id}). A row opens the Lenta profile.
 public class NexLentaSearchActivity extends BaseFragment {
 
     private EditText input;
     private TextView hintView;
     private final ArrayList<PixelfedAccount> results = new ArrayList<>();
+    private PixelfedAccount telegramMatch; // found through Telegram; shown first
+    private String telegramName;           // whose Telegram it was
+    private boolean telegramMiss;          // that person has no Lenta page
     private final Adapter adapter = new Adapter();
     private int generation;
     private final Runnable search = this::searchNow;
@@ -141,12 +145,19 @@ public class NexLentaSearchActivity extends BaseFragment {
         final int gen = ++generation;
         if (query.isEmpty() || "@".equals(query)) {
             results.clear();
+            telegramMatch = null;
             adapter.notifyDataSetChanged();
             hintView.setText(LocaleController.getString(R.string.NexLentaSearchEmpty));
             hintView.setVisibility(View.VISIBLE);
             return;
         }
         final long userId = tgUserId();
+        if (telegramMatch != null) {
+            telegramMatch = null;
+            adapter.notifyDataSetChanged(); // the count changed
+        }
+        telegramMiss = false;
+        findOnTelegram(query, gen);
         CoreClient.EXECUTOR.execute(() -> {
             ArrayList<PixelfedAccount> found = null;
             try {
@@ -160,11 +171,92 @@ public class NexLentaSearchActivity extends BaseFragment {
                 }
                 results.clear();
                 if (result != null) {
-                    results.addAll(result);
+                    for (PixelfedAccount a : result) {
+                        if (telegramMatch == null || !telegramMatch.id.equals(a.id)) {
+                            results.add(a);
+                        }
+                    }
                 }
                 adapter.notifyDataSetChanged();
-                hintView.setText(LocaleController.getString(result == null ? R.string.NexActionFailed : R.string.NexLentaSearchNothing));
-                hintView.setVisibility(results.isEmpty() ? View.VISIBLE : View.GONE);
+                updateHint(result == null);
+            });
+        });
+    }
+
+    private void updateHint(boolean failed) {
+        hintView.setText(LocaleController.getString(failed ? R.string.NexActionFailed : telegramMiss ? R.string.NexLentaSearchNoLenta : R.string.NexLentaSearchNothing));
+        hintView.setVisibility(results.isEmpty() && telegramMatch == null ? View.VISIBLE : View.GONE);
+    }
+
+    // "@username" or a phone number → the Telegram user → their Lenta page, if they have one
+    private void findOnTelegram(String query, int gen) {
+        final String digits = org.telegram.PhoneFormat.PhoneFormat.stripExceptNumbers(query);
+        if (query.matches("^\\+?[0-9 ()\\-]{7,}$") && digits.length() >= 7) {
+            final org.telegram.tgnet.TLRPC.TL_contacts_resolvePhone req = new org.telegram.tgnet.TLRPC.TL_contacts_resolvePhone();
+            req.phone = digits;
+            getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+                org.telegram.tgnet.TLRPC.User user = null;
+                if (res instanceof org.telegram.tgnet.TLRPC.TL_contacts_resolvedPeer) {
+                    final org.telegram.tgnet.TLRPC.TL_contacts_resolvedPeer r = (org.telegram.tgnet.TLRPC.TL_contacts_resolvedPeer) res;
+                    getMessagesController().putUsers(r.users, false);
+                    final long did = org.telegram.messenger.DialogObject.getPeerDialogId(r.peer);
+                    if (did > 0) {
+                        user = getMessagesController().getUser(did);
+                    }
+                }
+                lentaOf(user, gen);
+            }));
+        } else if (query.matches("^@[A-Za-z][A-Za-z0-9_]{3,31}$")) {
+            getMessagesController().getUserNameResolver().resolve(query.substring(1), peerId -> {
+                final org.telegram.tgnet.TLRPC.User user = peerId != null && peerId > 0 ? getMessagesController().getUser(peerId) : null;
+                lentaOf(user, gen);
+            });
+        }
+    }
+
+    private void lentaOf(org.telegram.tgnet.TLRPC.User user, int gen) {
+        if (user == null || gen != generation) {
+            return;
+        }
+        final long userId = tgUserId();
+        final long personId = user.id;
+        final String name = org.telegram.messenger.UserObject.getUserName(user);
+        CoreClient.EXECUTOR.execute(() -> {
+            PixelfedAccount match = null;
+            boolean none = false;
+            try {
+                final CoreClient.Response response = CoreClient.authedBlocking(userId, "GET", "/v1/lenta/by-tg/" + personId, null);
+                if (response.code == 200) {
+                    final String username = new org.json.JSONObject(response.body).optString("username", "");
+                    for (PixelfedAccount a : PixelfedClient.searchAccountsBlocking(userId, username)) {
+                        if (a.username.equalsIgnoreCase(username)) {
+                            match = a;
+                            break;
+                        }
+                    }
+                } else if (response.code == 404) {
+                    none = true;
+                }
+            } catch (Exception ignore) {
+            }
+            final PixelfedAccount found = match;
+            final boolean noLenta = none;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (gen != generation || fragmentView == null) {
+                    return;
+                }
+                telegramMatch = found;
+                telegramName = name;
+                telegramMiss = noLenta;
+                if (found != null) {
+                    for (int i = results.size() - 1; i >= 0; i--) {
+                        if (results.get(i).id.equals(found.id)) {
+                            results.remove(i);
+                        }
+                    }
+                }
+                adapter.notifyDataSetChanged();
+                updateHint(false);
             });
         });
     }
@@ -172,7 +264,7 @@ public class NexLentaSearchActivity extends BaseFragment {
     private class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         @Override
         public int getItemCount() {
-            return results.size();
+            return results.size() + (telegramMatch != null ? 1 : 0);
         }
 
         @NonNull
@@ -186,7 +278,15 @@ public class NexLentaSearchActivity extends BaseFragment {
 
         @Override
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-            ((Row) holder.itemView).set(results.get(position));
+            if (telegramMatch != null) {
+                if (position == 0) {
+                    ((Row) holder.itemView).set(telegramMatch, LocaleController.formatString(R.string.NexLentaSearchViaTelegram, telegramName));
+                    NexMotion.enter(holder.itemView, 0);
+                    return;
+                }
+                position--;
+            }
+            ((Row) holder.itemView).set(results.get(position), null);
             NexMotion.enter(holder.itemView, Math.min(position, 6));
         }
     }
@@ -231,11 +331,11 @@ public class NexLentaSearchActivity extends BaseFragment {
             ScaleStateListAnimator.apply(this, 0.02f, 1.5f);
         }
 
-        void set(PixelfedAccount a) {
+        void set(PixelfedAccount a, String via) {
             account = a;
             final String display = TextUtils.isEmpty(a.displayName) ? a.username : a.displayName;
             name.setText(display);
-            username.setText("@" + a.username);
+            username.setText(via != null ? "@" + a.username + "  ·  " + via : "@" + a.username);
             if (a.avatarUrl == null || a.avatarUrl.contains("/avatars/default")) {
                 avatar.setImageDrawable(NexLentaUi.initialsAvatar(display, true));
             } else {
