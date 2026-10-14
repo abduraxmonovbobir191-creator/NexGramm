@@ -190,6 +190,9 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     MediaSource.Factory dashMediaSourceFactory;
     HlsMediaSource.Factory hlsMediaSourceFactory;
     ProgressiveMediaSource.Factory progressiveMediaSourceFactory;
+    // NexGramm: https videos of the Lenta / stories go through NexVideoCache when set before preparePlayer
+    public boolean nexCached;
+    private ProgressiveMediaSource.Factory nexCachedFactory;
 
     Handler audioUpdateHandler = new Handler(Looper.getMainLooper());
 
@@ -361,6 +364,12 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
                 }
                 return hlsMediaSourceFactory.createMediaSource(mediaItem);
             default:
+                if (nexCached && uri != null && "https".equals(uri.getScheme())) {
+                    if (nexCachedFactory == null) {
+                        nexCachedFactory = new ProgressiveMediaSource.Factory(NexVideoCache.wrap(mediaDataSourceFactory));
+                    }
+                    return nexCachedFactory.createMediaSource(mediaItem);
+                }
                 if (progressiveMediaSourceFactory == null) {
                     progressiveMediaSourceFactory = new ProgressiveMediaSource.Factory(mediaDataSourceFactory);
                 }

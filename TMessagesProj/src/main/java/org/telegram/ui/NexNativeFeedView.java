@@ -834,7 +834,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     // video is buffered (paused); every other cell releases its player
     private void updateActiveVideo() {
         NexPostCell best = null;
-        float bestFraction = 0.6f;
+        float bestFraction = 0.45f; // starts a little earlier while scrolling
         if (!paused && getVisibility() == View.VISIBLE) {
             for (int i = 0; i < listView.getChildCount(); i++) {
                 final View child = listView.getChildAt(i);

@@ -294,6 +294,7 @@ public class NexVideoViewerActivity extends BaseFragment {
             }
         });
         player.setTextureView(textureView);
+        player.nexCached = true; // seen once = plays at once next time
         player.preparePlayer(Uri.parse(url), "other");
         player.setLooping(true);
         setMuted(false); // sound on, as when a video is opened full screen

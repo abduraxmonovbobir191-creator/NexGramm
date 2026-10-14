@@ -710,6 +710,7 @@ public class NexPostCell extends FrameLayout {
                     }
                 });
                 videoPlayer.setTextureView(texture);
+                videoPlayer.nexCached = true; // seen once = plays at once next time
                 videoPlayer.preparePlayer(Uri.parse(media.url), "other");
                 videoPlayer.setLooping(true);
                 muted = true;
