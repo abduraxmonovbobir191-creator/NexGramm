@@ -85,6 +85,12 @@
     <string name="NexFeedModeForYou">Siz uchun</string>
     <string name="NexFeedModeFollowing">Kuzatayotganlar</string>
     <string name="NexFeedNotifications">Bildirishnomalar</string>
+    <string name="NexNotifLiked">postingizni yoqtirdi</string>
+    <string name="NexNotifCommented">izoh qoldirdi</string>
+    <string name="NexNotifMentioned">sizni eslatdi</string>
+    <string name="NexNotifFollowed">sizga obuna bo\'ldi</string>
+    <string name="NexNotifShared">postingizni ulashdi</string>
+    <string name="NexNotifEmpty">Hozircha bildirishnoma yo\'q. Layklar, izohlar va yangi obunachilar shu yerda chiqadi.</string>
     <string name="NexFeedOfflineTitle">Internet yo\'q</string>
     <string name="NexFeedOffline">Ulanishni tekshirib, qayta urinib ko\'ring.</string>
     <string name="NexFeedEmptyFollowingTitle">Hali hech kim yo\'q</string>

@@ -11409,6 +11409,12 @@
     <string name="NexFeedModeForYou">For you</string>
     <string name="NexFeedModeFollowing">Following</string>
     <string name="NexFeedNotifications">Notifications</string>
+    <string name="NexNotifLiked">liked your post</string>
+    <string name="NexNotifCommented">commented</string>
+    <string name="NexNotifMentioned">mentioned you</string>
+    <string name="NexNotifFollowed">started following you</string>
+    <string name="NexNotifShared">shared your post</string>
+    <string name="NexNotifEmpty">No notifications yet. Likes, comments and new followers will show up here.</string>
     <string name="NexFeedOfflineTitle">No internet</string>
     <string name="NexFeedOffline">Check your connection and try again.</string>
     <string name="NexFeedEmptyFollowingTitle">Nobody here yet</string>

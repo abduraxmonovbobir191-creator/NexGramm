@@ -1,6 +1,7 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
@@ -56,7 +57,6 @@ public class NexProfileActivity extends BaseFragment {
     private static final int TAB_SAVED = 2;
     private static final int TAB_LIKED = 3;
 
-    private static final int COVER_DP = 168;
     private static final int AVATAR_DP = 92;
 
     private String accountId;
@@ -90,6 +90,8 @@ public class NexProfileActivity extends BaseFragment {
     private TextView mainButton;
     private TextView coverButton;
     private NexCoverView coverView;
+    private GradientDrawable avatarRing;
+    private final ArrayList<TextView> coverTexts = new ArrayList<>();
     private LinearLayout tabsView;
     private View topBarBackground;
     private TextView topBarTitle;
@@ -196,8 +198,9 @@ public class NexProfileActivity extends BaseFragment {
         if (layoutManager.findFirstVisibleItemPosition() == 0) {
             final View first = layoutManager.findViewByPosition(0);
             if (first != null) {
-                final float range = AndroidUtilities.dp(COVER_DP) - AndroidUtilities.statusBarHeight - AndroidUtilities.dp(56);
-                progress = Math.max(0f, Math.min(1f, -first.getTop() / Math.max(1f, range)));
+                // the background reaches below the buttons: the bar turns solid only as its end passes under it
+                final int fadeFrom = Math.max(0, first.getHeight() - AndroidUtilities.statusBarHeight - AndroidUtilities.dp(56 + 48));
+                progress = Math.max(0f, Math.min(1f, (-first.getTop() - fadeFrom) / (float) AndroidUtilities.dp(48)));
             }
         }
         topBarBackground.setAlpha(progress);
@@ -207,25 +210,28 @@ public class NexProfileActivity extends BaseFragment {
     // ---- header ----
 
     private View createHeader(Context context) {
+        // the user's cover (photo, muted video, color / emoji), else a soft band in the app colors, behind the
+        // whole header from the very top down below the buttons; in its own colors, no dark fade
+        final FrameLayout header = new FrameLayout(context);
+        coverView = new NexCoverView(context, false);
+        header.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
+        column.setPadding(0, AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56 + 8), 0, 0);
+        header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-        // the user's cover (photo, muted video, color / emoji), else a soft band in the app colors
-        coverView = new NexCoverView(context, true);
-        column.addView(coverView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, COVER_DP));
-
-        // name + @username (left), avatar (right) overlapping the band
+        // name + @username (left), avatar (right)
         final FrameLayout identity = new FrameLayout(context);
         final FrameLayout avatarFrame = new FrameLayout(context);
-        final GradientDrawable ring = new GradientDrawable();
-        ring.setShape(GradientDrawable.OVAL);
-        ring.setColor(NexLentaColors.BACKGROUND);
-        avatarFrame.setBackground(ring);
+        avatarRing = new GradientDrawable();
+        avatarRing.setShape(GradientDrawable.OVAL);
+        avatarRing.setColor(NexLentaColors.BACKGROUND);
+        avatarFrame.setBackground(avatarRing);
         avatarFrame.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
         avatarView = new BackupImageView(context);
         avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
         avatarFrame.addView(avatarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        identity.addView(avatarFrame, LayoutHelper.createFrame(AVATAR_DP, AVATAR_DP, Gravity.RIGHT | Gravity.TOP, 0, 0, 16, 0));
+        identity.addView(avatarFrame, LayoutHelper.createFrame(AVATAR_DP, AVATAR_DP, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 16, 0));
 
         final LinearLayout names = new LinearLayout(context);
         names.setOrientation(LinearLayout.VERTICAL);
@@ -242,8 +248,11 @@ public class NexProfileActivity extends BaseFragment {
         usernameView.setSingleLine(true);
         usernameView.setEllipsize(TextUtils.TruncateAt.END);
         names.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
-        identity.addView(names, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 16, AVATAR_DP / 2f + 6, AVATAR_DP + 28, 0));
-        column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, -AVATAR_DP / 2f, 0, 0));
+        identity.addView(names, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.CENTER_VERTICAL, 16, 0, AVATAR_DP + 28, 0));
+        identity.setMinimumHeight(AndroidUtilities.dp(AVATAR_DP));
+        column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        coverTexts.add(nameView);
+        coverTexts.add(usernameView);
 
         // following / followers / posts
         final LinearLayout stats = new LinearLayout(context);
@@ -301,8 +310,40 @@ public class NexProfileActivity extends BaseFragment {
         final ImageView shareButton = NexLentaUi.circleButton(context, R.drawable.msg_share, NexLentaUi.PILL_CARD, false);
         shareButton.setOnClickListener(v -> shareProfile());
         buttons.addView(shareButton, LayoutHelper.createLinear(46, 46, 10, 0, 0, 0));
-        column.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 18, 16, 16));
-        return column;
+        column.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 18, 16, 18));
+        coverTexts.add(bioView);
+        coverTexts.add(websiteView);
+        return header;
+    }
+
+    private void showCover(NexCover cover) {
+        coverView.setCover(cover);
+        applyCoverStyle(cover != null);
+    }
+
+    // Over a cover the texts are white with a soft shadow, so the cover keeps its own bright colors (no dark
+    // veil) and everything stays readable; over the default band, the page colors
+    private void applyCoverStyle(boolean cover) {
+        for (TextView text : coverTexts) {
+            if (!(text.getTag() instanceof Integer)) {
+                text.setTag(text.getCurrentTextColor()); // the page color, to go back to
+            }
+            final int pageColor = (Integer) text.getTag();
+            final boolean secondary = text != nameView && Color.alpha(pageColor) < 0xF0;
+            final int color = cover ? (secondary ? 0xE6FFFFFF : 0xFFFFFFFF) : pageColor;
+            text.setTextColor(color);
+            if (cover) {
+                text.setShadowLayer(AndroidUtilities.dp(6), 0, AndroidUtilities.dp(1), 0x99000000);
+            } else {
+                text.setShadowLayer(0, 0, 0, 0);
+            }
+            for (android.graphics.drawable.Drawable d : text.getCompoundDrawablesRelative()) {
+                if (d != null) {
+                    d.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+                }
+            }
+        }
+        avatarRing.setColor(cover ? 0xFFFFFFFF : NexLentaColors.BACKGROUND);
     }
 
     private TextView addStat(Context context, LinearLayout stats, int labelRes) {
@@ -320,6 +361,8 @@ public class NexProfileActivity extends BaseFragment {
         label.setText(LocaleController.getString(labelRes));
         box.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
         stats.addView(box, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 28, 0));
+        coverTexts.add(number);
+        coverTexts.add(label);
         return number;
     }
 
@@ -464,7 +507,7 @@ public class NexProfileActivity extends BaseFragment {
     private void loadCover() {
         final String username = account.username;
         if (NexCover.isCached(username)) {
-            coverView.setCover(NexCover.cached(username));
+            showCover(NexCover.cached(username));
         }
         final int gen = generation;
         CoreClient.EXECUTOR.execute(() -> {
@@ -477,7 +520,7 @@ public class NexProfileActivity extends BaseFragment {
             final NexCover result = cover;
             AndroidUtilities.runOnUIThread(() -> {
                 if (gen == generation && fragmentView != null) {
-                    coverView.setCover(result);
+                    showCover(result);
                 }
             });
         });
@@ -489,7 +532,7 @@ public class NexProfileActivity extends BaseFragment {
         }
         presentFragment(new NexCoverEditActivity(account, NexCover.cached(account.username), cover -> {
             if (fragmentView != null) {
-                coverView.setCover(cover);
+                showCover(cover);
             }
         }));
     }

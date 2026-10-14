@@ -528,6 +528,36 @@ public final class PixelfedClient {
         }
     }
 
+    // GET /api/v1/notifications: newest first, one page of 30; maxId = id of the last one shown (null = first page)
+    public static ArrayList<PixelfedNotification> notificationsBlocking(long tgUserId, String maxId) throws IOException, NotConnectedException {
+        String path = "/api/v1/notifications?limit=30";
+        if (maxId != null) {
+            path += "&max_id=" + encode(maxId);
+        }
+        final Response response = apiBlocking(tgUserId, "GET", path, null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedNotification.listFromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad notifications");
+        }
+    }
+
+    // GET /api/v1/statuses/:id
+    public static PixelfedStatus statusBlocking(long tgUserId, String statusId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1/statuses/" + encode(statusId), null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedStatus.oneFromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad status");
+        }
+    }
+
     // GET /api/v1/accounts/:id
     public static PixelfedAccount accountBlocking(long tgUserId, String accountId) throws IOException, NotConnectedException {
         final Response response = apiBlocking(tgUserId, "GET", "/api/v1/accounts/" + encode(accountId), null);

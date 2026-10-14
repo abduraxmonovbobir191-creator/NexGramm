@@ -165,7 +165,12 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         buttons.addView(composeButton, LayoutHelper.createLinear(44, 44));
         final ImageView heartButton = NexLentaUi.circleButton(context, R.drawable.media_like, NexLentaUi.PILL_CARD, false);
         heartButton.setContentDescription(LocaleController.getString(R.string.NexFeedNotifications));
-        heartButton.setOnClickListener(v -> NexPostActions.aiSoon(getContext()));
+        heartButton.setOnClickListener(v -> {
+            final BaseFragment fragment = delegate.getFragment();
+            if (fragment != null) {
+                fragment.presentFragment(new NexNotificationsActivity());
+            }
+        });
         buttons.addView(heartButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
         // own Lenta profile: my posts, liked and saved posts
         final ImageView meButton = NexLentaUi.circleButton(context, R.drawable.msg_openprofile, NexLentaUi.PILL_CARD, false);
