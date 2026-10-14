@@ -96,6 +96,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
     private final ArrayList<ImageView> barIcons = new ArrayList<>();
     private NexCoverView coverView;
     private View coverHolder;
+    private LinearLayout headerColumn;
     private BackupImageView avatarView;
     private ImageUpdater imageUpdater;
     private TLRPC.FileLocation uploadingSmall;
@@ -348,11 +349,13 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         holder.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         holder.setVisibility(View.GONE);
         coverHolder = holder;
-        header.addView(holder, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // a clear banner on top; the name and the rest sit below it, never over the picture
+        header.addView(holder, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, bannerHeight()));
 
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setPadding(AndroidUtilities.dp(16), AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 4), AndroidUtilities.dp(16), AndroidUtilities.dp(30));
+        headerColumn = column;
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         // name + @username (left), photo with + (right)
@@ -466,8 +469,15 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         }
         coverView.setCover(cover);
         coverHolder.setVisibility(cover == null ? View.GONE : View.VISIBLE);
+        headerColumn.setPadding(headerColumn.getPaddingLeft(),
+            cover == null ? AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 4) : bannerHeight() + AndroidUtilities.dp(16),
+            headerColumn.getPaddingRight(), headerColumn.getPaddingBottom());
         coverHolder.post(this::updateTopBar);
-        applyCoverStyle(cover != null);
+        applyCoverStyle(false); // the texts are on the page now; the bar icons follow updateTopBar
+    }
+
+    private static int bannerHeight() {
+        return AndroidUtilities.statusBarHeight + AndroidUtilities.dp(BAR_DP + 150);
     }
 
     // Over a background the texts and bar icons are white with a soft shadow, so the background keeps its

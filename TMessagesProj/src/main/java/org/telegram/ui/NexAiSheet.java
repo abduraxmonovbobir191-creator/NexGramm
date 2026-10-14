@@ -234,6 +234,10 @@ public class NexAiSheet extends BottomSheet {
     // suggestions = the answer is three replies shown as tappable pills; insertable = "Qo'yish" is offered
     private void run(String prompt, boolean suggestions, boolean insertable) {
         NexAiUi.withConsent(fragment, () -> {
+            if (!NexAiUi.takeFreeUse(fragment)) {
+                dismiss(); // the Premium screen opened instead
+                return;
+            }
             if (call != null) {
                 call.cancel();
             }

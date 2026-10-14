@@ -60,7 +60,7 @@ public final class NexPalette {
         "chat_inFileInfoSelectedText", "chat_inReplyMediaMessageSelectedText", "chat_inSentClockSelected",
         "chat_inTimeSelectedText", "chat_inVenueInfoSelectedText", "chat_inViewsSelected", "chat_inMenuSelected",
         "chat_topPanelTitle", "chat_searchPanelText", "chat_searchPanelIcons", "chat_replyPanelIcons",
-        "chat_fieldOverlayText", "chat_emojiPanelIconSelected", "chat_inlineResultIcon", "chat_unreadMessagesStartText",
+        "chat_fieldOverlayText", "chat_emojiPanelIconSelected", "chat_inlineResultIcon",
         "chats_name", "chats_nameMessage", "chats_nameMessageArchived_threeLines", "chats_nameMessage_threeLines",
         "chats_attachMessage", "dialogTextBlack", "windowBackgroundWhiteBlackText", "windowBackgroundWhiteValueText",
         "telegram_color", "telegram_color_text", "telegram_color_dialogsLogo"
@@ -94,7 +94,8 @@ public final class NexPalette {
         "checkboxCheck", "checkboxSquareCheck", "dialogCheckboxSquareCheck", "dialogRoundCheckBoxCheck",
         "chat_attachCheckBoxCheck", "dialogFloatingIcon", "profile_actionIcon", "chat_inMediaIcon",
         "chat_inMediaIconSelected", "passport_authorizeText", "location_sendLocationIcon", "windowBackgroundCheckText",
-        "glass_tabSelectedText", "chat_goDownButtonCounter", "topics_unreadCounterText", "chat_messagePanelVoicePressed"
+        "chat_goDownButtonCounter", "topics_unreadCounterText", "chat_messagePanelVoicePressed",
+        "chat_inReactionButtonTextSelected"
     };
 
     // Pastel avatars of the design (initials in dark text); muted dark versions with light text in dark mode.
@@ -120,6 +121,8 @@ public final class NexPalette {
 
     public final boolean dark;
     public final boolean standard;
+    public final String accentId;
+    public final int intensity;
     public final int accent;
     public final int onAccent;
     public final int accentPressed;
@@ -131,15 +134,20 @@ public final class NexPalette {
     public final int surface;
     public final int text;
 
-    private NexPalette(boolean dark, Accent a) {
+    // Accent strength in the Look screen: 0 = softest, 100 = the full color
+    public static final int DEFAULT_INTENSITY = 80;
+
+    private NexPalette(boolean dark, Accent a, int intensity) {
         this.dark = dark;
         this.standard = DEFAULT_ACCENT.equals(a.id);
-        accent = dark ? a.dark : a.light;
+        this.accentId = a.id;
+        this.intensity = intensity;
+        accent = standard ? (dark ? a.dark : a.light) : tone(dark ? a.dark : a.light, dark, intensity); // black / white stays as it is
         onAccent = onColor(accent);
         accentPressed = blend(accent, onAccent, 0.15f);
         bubble = standard && dark ? 0xFF2C2C33 : accent;
         onBubble = onColor(bubble);
-        bubbleSecondary = standard ? opaque(dark ? LILAC_DARK : LILAC) : blend(bubble, onBubble, 0.8f);
+        bubbleSecondary = standard ? opaque(dark ? LILAC_DARK : LILAC) : blend(bubble, onBubble, 0.55f);
         selection = standard ? opaque(dark ? LILAC_DARK : LILAC) : accent;
         background = opaque(dark ? D_BACKGROUND : L_BACKGROUND);
         surface = opaque(dark ? D_SURFACE : L_SURFACE);
@@ -147,7 +155,44 @@ public final class NexPalette {
     }
 
     public static NexPalette of(boolean dark, String accentId) {
-        return new NexPalette(dark, findAccent(accentId));
+        return of(dark, accentId, 100);
+    }
+
+    public static NexPalette of(boolean dark, String accentId, int intensity) {
+        return new NexPalette(dark, findAccent(accentId), intensity);
+    }
+
+    // Softens a color: less saturation (and a little less light in dark mode); 100 leaves it as it is
+    public static int tone(int color, boolean dark, int intensity) {
+        final float k = Math.max(0, Math.min(100, intensity)) / 100f;
+        if (k >= 1f) {
+            return color;
+        }
+        final float[] hsv = hsv(color);
+        final float s = hsv[1] * (0.35f + 0.65f * k);
+        final float v = dark ? hsv[2] * (0.82f + 0.18f * k) : hsv[2];
+        return (color & 0xFF000000) | hsvToRgb(hsv[0], s, v);
+    }
+
+    static int hsvToRgb(float h, float s, float v) {
+        final float c = v * s;
+        final float x = c * (1 - Math.abs((h / 60f) % 2 - 1));
+        final float m = v - c;
+        final float[] rgb;
+        if (h < 60) {
+            rgb = new float[]{c, x, 0};
+        } else if (h < 120) {
+            rgb = new float[]{x, c, 0};
+        } else if (h < 180) {
+            rgb = new float[]{0, c, x};
+        } else if (h < 240) {
+            rgb = new float[]{0, x, c};
+        } else if (h < 300) {
+            rgb = new float[]{x, 0, c};
+        } else {
+            rgb = new float[]{c, 0, x};
+        }
+        return (Math.round((rgb[0] + m) * 255) << 16) | (Math.round((rgb[1] + m) * 255) << 8) | Math.round((rgb[2] + m) * 255);
     }
 
     public static Accent findAccent(String id) {
@@ -166,6 +211,12 @@ public final class NexPalette {
         final boolean out = key.startsWith("chat_out") || key.contains("Out");
         switch (rgb) {
             case L_TEXT:
+                if ("dialogTextGray".equals(key)) {
+                    return withAlpha(dark ? D_TEXT2 : L_TEXT2, alpha); // grey subtitles, not the accent
+                }
+                if ("chat_unreadMessagesStartText".equals(key)) {
+                    return withAlpha(onAccent, alpha); // on the accent "unread messages" bar
+                }
                 if ("chat_serviceBackground".equals(key)) {
                     return dark ? withAlpha(0x2C2C33, alpha) : value;
                 }
@@ -241,9 +292,9 @@ public final class NexPalette {
         return (alpha << 24) | (grey << 16) | (grey << 8) | grey;
     }
 
-    // Text / icon color readable on the given color
+    // Text / icon color readable on the given color: white while it keeps a 3:1 contrast, else the dark text
     public static int onColor(int color) {
-        return luminance(color) > 0.45 ? 0xFF1F1F24 : 0xFFFFFFFF;
+        return 1.05 / (luminance(color) + 0.05) >= 3.0 ? 0xFFFFFFFF : 0xFF1F1F24;
     }
 
     static double luminance(int color) {

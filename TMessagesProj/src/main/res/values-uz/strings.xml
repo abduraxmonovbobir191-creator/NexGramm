@@ -67,6 +67,9 @@
     <string name="NexAppearanceModeLight">Yorug\'</string>
     <string name="NexAppearanceModeDark">Qorong\'i</string>
     <string name="NexAppearanceAccent">Asosiy rang</string>
+    <string name="NexAppearanceIntensity">Rang kuchi</string>
+    <string name="NexAppearanceSoft">Yumshoq</string>
+    <string name="NexAppearanceVivid">Yorqin</string>
     <string name="NexAppearanceHint">Rang va rejim butun ilovaga darhol qo\'llanadi: tugmalar, xabarlar, havolalar, lenta.</string>
     <string name="NexAppearancePreviewIn">Salom! Yangi rang qanday?</string>
     <string name="NexAppearancePreviewOut">Juda chiroyli chiqdi ✦</string>
@@ -187,6 +190,11 @@
     <string name="NexPremiumPerkRepeat">Rejalashtirilgan xabarlarni takrorlash</string>
     <string name="NexPremiumPerkSupport">Support sizga birinchi javob beradi</string>
     <string name="NexPremiumPerkMore">Yangi imkoniyatlar tez orada — avval Premium uchun</string>
+    <string name="NexPremiumBest">Eng foydali</string>
+    <string name="NexPremiumGives">Nimalar beriladi</string>
+    <string name="NexPremiumPerkNoAds">Hech qanday reklama yo\'q</string>
+    <string name="NexPremiumPerkAi">NEX AI cheklovsiz</string>
+    <string name="NexAiLimitReached">Bugungi %1$d ta bepul NEX AI so\'rovi tugadi. Premium bilan cheklov yo\'q.</string>
     <string name="NexPremiumRepeatHint">Xabarni takrorlash — **NexGramm Premium** bilan</string>
     <string name="NexAdLabel">Reklama</string>
     <string name="NexAdOpen">Ochish</string>

@@ -67,8 +67,9 @@ android {
 
     buildTypes {
         debug {
-            debuggable true
-            jniDebuggable true
+            // NexGramm: not debuggable, so Android compiles and runs it at full speed
+            debuggable false
+            jniDebuggable false
             signingConfig signingConfigs.debug
             minifyEnabled false
             multiDexEnabled true

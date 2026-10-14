@@ -648,6 +648,7 @@ public class NexStoryViewerActivity extends BaseFragment {
             }
         });
         player.setTextureView(textureView);
+        player.nexCached = true; // seen once = plays at once next time
         player.preparePlayer(Uri.parse(url), "other");
         player.setLooping(false);
         if (!paused && !held) {

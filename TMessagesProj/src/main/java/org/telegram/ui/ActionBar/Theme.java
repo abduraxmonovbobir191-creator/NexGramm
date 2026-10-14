@@ -6109,6 +6109,16 @@ public class Theme {
             .getString("accent", uz.nexgramm.core.NexPalette.DEFAULT_ACCENT);
     }
 
+    public static int getNexgrammIntensity() {
+        return ApplicationLoader.applicationContext.getSharedPreferences(NEXGRAMM_PREFS, Context.MODE_PRIVATE)
+            .getInt("intensity", uz.nexgramm.core.NexPalette.DEFAULT_INTENSITY);
+    }
+
+    public static void setNexgrammIntensity(int intensity) {
+        ApplicationLoader.applicationContext.getSharedPreferences(NEXGRAMM_PREFS, Context.MODE_PRIVATE)
+            .edit().putInt("intensity", intensity).apply();
+    }
+
     public static void setNexgrammAccent(String accentId) {
         ApplicationLoader.applicationContext.getSharedPreferences(NEXGRAMM_PREFS, Context.MODE_PRIVATE)
             .edit().putString("accent", accentId).apply();
@@ -6146,7 +6156,7 @@ public class Theme {
             colors.delete(key_wallpaperFileOffset);
             nexgrammTemplate = colors;
         }
-        final uz.nexgramm.core.NexPalette palette = uz.nexgramm.core.NexPalette.of(currentTheme.isDark(), getNexgrammAccent());
+        final uz.nexgramm.core.NexPalette palette = uz.nexgramm.core.NexPalette.of(currentTheme.isDark(), getNexgrammAccent(), getNexgrammIntensity());
         final SparseIntArray out = new SparseIntArray();
         // Telegram blue outside the template: blue -> accent, blue greys -> neutral greys
         for (int key = 0; key < colorsCount; key++) {

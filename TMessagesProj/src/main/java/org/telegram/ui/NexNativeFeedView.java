@@ -73,7 +73,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private static final int TYPE_FOOTER = 3;
     private static final int TYPE_HEADER = 4;
     private static final int TYPE_AD = 5;
-    private static final int AD_EVERY = 8; // NexGramm: an ad after every 8 posts (no Premium)
+    private static final int AD_EVERY = 4; // NexGramm: an ad after every 4 posts (no Premium)
     private static final int SKELETON_COUNT = 2;
     private static final String PREFS = "nexgramm_lenta";
 
@@ -834,7 +834,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     // video is buffered (paused); every other cell releases its player
     private void updateActiveVideo() {
         NexPostCell best = null;
-        float bestFraction = 0.6f;
+        float bestFraction = 0.45f; // starts a little earlier while scrolling
         if (!paused && getVisibility() == View.VISIBLE) {
             for (int i = 0; i < listView.getChildCount(); i++) {
                 final View child = listView.getChildAt(i);

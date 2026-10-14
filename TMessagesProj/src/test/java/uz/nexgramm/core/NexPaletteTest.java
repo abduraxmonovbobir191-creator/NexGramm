@@ -83,4 +83,23 @@ public class NexPaletteTest {
         assertEquals("standard", NexPalette.findAccent("no-such-color").id);
         assertEquals(9, NexPalette.ACCENTS.length);
     }
+
+    @Test
+    public void colorStrengthSoftensOnlyBelowFull() {
+        final int green = NexPalette.findAccent("green").light;
+        assertEquals(green, NexPalette.tone(green, false, 100));
+        final int soft = NexPalette.tone(green, false, 0);
+        assertTrue(NexPalette.hsv(soft)[1] < NexPalette.hsv(green)[1]);
+        assertEquals(NexPalette.of(false, "green", 40).accent, NexPalette.tone(green, false, 40));
+        // the black / white standard accent has no color to soften
+        assertEquals(0xFF1F1F24, NexPalette.of(false, "standard", 0).accent);
+    }
+
+    @Test
+    public void lightAccentsGetDarkTextOnThem() {
+        assertEquals(0xFF1F1F24, NexPalette.onColor(0xFF34C46E)); // dark-mode green
+        assertEquals(0xFF1F1F24, NexPalette.onColor(0xFFB48CF5)); // lavender
+        assertEquals(0xFFFFFFFF, NexPalette.onColor(0xFF7C3AED)); // purple
+        assertEquals(0xFF8A8A93, NexPalette.of(false, "green").mapTemplate("dialogTextGray", 0xFF1F1F24));
+    }
 }

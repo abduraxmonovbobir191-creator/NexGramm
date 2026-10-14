@@ -273,7 +273,6 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     private void showNativeFeed() {
         ++lentaGeneration;
         lentaView.clear();
-        lentaView.setDebugReason(null);
         lentaView.setVisibility(View.GONE);
         nativeView.setVisibility(View.VISIBLE);
         if (!nativeView.isLoaded()) {
@@ -294,7 +293,6 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         PixelfedClient.clearTokens(tgUserId());
         if (++notConnectedCount > 1) {
             oauthFailed = true;
-            lentaView.setDebugReason("api_rejected");
         }
         openLenta();
     }
@@ -402,13 +400,11 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
                 } else if (finalWrongAccount) {
                     // token already thrown away; the Pixelfed session in the WebView is not this user's either
                     NexLentaView.clearFeedCookies();
-                    lentaView.setDebugReason("username_mismatch");
                     lentaView.showError(LocaleController.getString(R.string.NexFeedWrongAccount));
                 } else if (retryWithNewClient && !retriedWithNewClient) {
                     // The client was dropped (its id may equal the user's id, see PixelfedClient): once more with a
                     // new client; Pixelfed asks "Authorize" again for it
                     retriedWithNewClient = true;
-                    lentaView.setDebugReason(finalReason + " → retry"); // DEBUG(oauth-reason)
                     startOAuth();
                 } else {
                     oauthFailedFallback(finalReason);
@@ -419,7 +415,6 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
 
     private void oauthFailedFallback(String reason) {
         oauthFailed = true;
-        lentaView.setDebugReason(reason == null ? "unknown" : reason); // DEBUG(oauth-reason)
         openWebLenta();
     }
 

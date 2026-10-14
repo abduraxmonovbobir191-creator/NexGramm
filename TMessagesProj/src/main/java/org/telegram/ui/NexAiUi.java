@@ -39,6 +39,30 @@ final class NexAiUi {
         return ApplicationLoader.applicationContext.getSharedPreferences(Theme.NEXGRAMM_PREFS, Context.MODE_PRIVATE);
     }
 
+    static final int FREE_PER_DAY = 5; // NEX AI requests a day without NexGramm Premium
+
+    // Counts one request for today; false (and the Premium screen) when the free ones are used up
+    static boolean takeFreeUse(BaseFragment fragment) {
+        final long userId = fragment.getUserConfig().getClientUserId();
+        if (uz.nexgramm.core.NexPremium.isActive(userId)) {
+            return true;
+        }
+        final String today = new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(new java.util.Date());
+        final SharedPreferences p = prefs();
+        final int used = today.equals(p.getString("ai_day_" + userId, "")) ? p.getInt("ai_used_" + userId, 0) : 0;
+        if (used >= FREE_PER_DAY) {
+            uz.nexgramm.core.NexPremium.refresh(userId);
+            if (fragment.getParentActivity() != null) {
+                android.widget.Toast.makeText(fragment.getParentActivity(),
+                    LocaleController.formatString(R.string.NexAiLimitReached, FREE_PER_DAY), android.widget.Toast.LENGTH_LONG).show();
+            }
+            fragment.presentFragment(new NexPremiumActivity());
+            return false;
+        }
+        p.edit().putString("ai_day_" + userId, today).putInt("ai_used_" + userId, used + 1).apply();
+        return true;
+    }
+
     // Asks once what NEX AI receives; runs onAgree right away when already agreed
     static void withConsent(BaseFragment fragment, Runnable onAgree) {
         if (prefs().getBoolean(PREF_CONSENT, false)) {
