@@ -1249,6 +1249,8 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
     public final static int OPTION_NEX_ASK = 900; // NexGramm: NEX AI about this message
+    public final static int OPTION_NEX_TIME = 901; // NexGramm: exact send time (tap = copy)
+    public final static int OPTION_NEX_EDIT_TIME = 902; // NexGramm: exact edit time (tap = copy)
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -1690,6 +1692,10 @@ public class ChatActivity extends BaseFragment implements
     private final static int chat_menu_topic_create = 73;
     private final static int nex_ai = 90; // NexGramm: ✦ NEX AI for this chat
     private final static int nex_saved = 91; // NexGramm: messages others deleted / edited here (when kept)
+    private final static int nex_lock = 92; // NexGramm: lock / unlock this chat (fingerprint or screen PIN)
+    private android.widget.FrameLayout nexLockCover;
+    private boolean nexLockOpened;
+    private boolean nexLockPrompted;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -3967,6 +3973,8 @@ public class ChatActivity extends BaseFragment implements
                     openNexAiForChat();
                 } else if (id == nex_saved) {
                     presentFragment(new NexSavedActivity(dialog_id));
+                } else if (id == nex_lock) {
+                    nexToggleLock();
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4408,6 +4416,9 @@ public class ChatActivity extends BaseFragment implements
             headerItem.lazilyAddSubItem(nex_ai, R.drawable.nex_ic_sparkle, LocaleController.getString(R.string.NexAiChatTitle));
             if (uz.nexgramm.core.NexSaved.keepDeleted() || uz.nexgramm.core.NexSaved.keepEdits()) {
                 headerItem.lazilyAddSubItem(nex_saved, R.drawable.msg_delete, LocaleController.getString(R.string.NexSavedTitle));
+            }
+            if (chatMode == 0 && dialog_id != getUserConfig().getClientUserId()) {
+                headerItem.lazilyAddSubItem(nex_lock, R.drawable.msg_secret, LocaleController.getString(R.string.NexLockMenu));
             }
             if (currentUser != null && chatMode != MODE_SAVED) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
@@ -8986,7 +8997,55 @@ public class ChatActivity extends BaseFragment implements
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         Timer.finish(t);
 
+        nexApplyLock();
         return fragmentView;
+    }
+
+    // ---- NexGramm: chat lock ----
+
+    // A locked chat is covered (below the header) until the phone's own unlock succeeds
+    private void nexApplyLock() {
+        if (nexLockOpened || nexLockCover != null || chatMode != 0 || !(fragmentView instanceof ViewGroup)
+            || !NexChatLock.isLocked(currentAccount, dialog_id)) {
+            return;
+        }
+        nexLockCover = NexChatLock.createCover(fragmentView.getContext(), this::nexUnlock);
+        final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.TOP | Gravity.LEFT);
+        lp.topMargin = ActionBar.getCurrentActionBarHeight() + (actionBar != null && actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0);
+        ((ViewGroup) fragmentView).addView(nexLockCover, lp);
+    }
+
+    private void nexUnlock() {
+        if (!(getParentActivity() instanceof androidx.fragment.app.FragmentActivity)) {
+            return;
+        }
+        NexChatLock.authenticate((androidx.fragment.app.FragmentActivity) getParentActivity(), () -> {
+            nexLockOpened = true;
+            if (nexLockCover != null) {
+                final View cover = nexLockCover;
+                nexLockCover = null;
+                cover.animate().alpha(0f).setDuration(180).withEndAction(() -> AndroidUtilities.removeFromParent(cover)).start();
+            }
+        });
+    }
+
+    private void nexToggleLock() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        if (NexChatLock.isLocked(currentAccount, dialog_id)) {
+            // removing a lock also needs the owner
+            NexChatLock.authenticate((androidx.fragment.app.FragmentActivity) getParentActivity(), () -> {
+                NexChatLock.setLocked(currentAccount, dialog_id, false);
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOff)).show();
+            });
+        } else if (!NexChatLock.canLock(getParentActivity())) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockNoScreenLock)).show();
+        } else {
+            NexChatLock.setLocked(currentAccount, dialog_id, true);
+            nexLockOpened = true; // it is open now; the next opening asks
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOn)).show();
+        }
     }
 
     private void createSearchHashtagViewsIfNeeded() {
@@ -29786,6 +29845,15 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onResume() {
         super.onResume();
+        nexApplyLock();
+        if (nexLockCover != null && !nexLockPrompted) {
+            nexLockPrompted = true;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (nexLockCover != null && fragmentView != null) {
+                    nexUnlock();
+                }
+            }, 350);
+        }
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
@@ -31010,6 +31078,19 @@ public class ChatActivity extends BaseFragment implements
                 items.add(LocaleController.getString(R.string.EditOfferTime));
                 options.add(OPTION_SUGGESTION_EDIT_TIME);
                 icons.add(R.drawable.msg_calendar2);
+            }
+
+            // NexGramm: the exact date and time to the second (and of the last edit); a tap copies it
+            if (!suggestEdit && !options.isEmpty() && selectedObject != null && selectedObject.messageOwner != null
+                && selectedObject.messageOwner.date > 0 && selectedObject.getId() > 0 && !selectedObject.isSponsored()) {
+                items.add(nexExactTime(selectedObject.messageOwner.date));
+                options.add(OPTION_NEX_TIME);
+                icons.add(R.drawable.msg_calendar2);
+                if (selectedObject.messageOwner.edit_date > 0 && !selectedObject.messageOwner.edit_hide) {
+                    items.add("✏️ " + nexExactTime(selectedObject.messageOwner.edit_date));
+                    options.add(OPTION_NEX_EDIT_TIME);
+                    icons.add(R.drawable.msg_edit);
+                }
             }
 
             if (options.isEmpty() && optionsView == null) {
@@ -33326,6 +33407,11 @@ public class ChatActivity extends BaseFragment implements
     }
 
     // NexGramm: text NEX AI gets for a message (text or media caption)
+    // NexGramm: "14.10.2026 09:34:12" in the phone's time zone
+    private static String nexExactTime(int unixTime) {
+        return new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date(unixTime * 1000L));
+    }
+
     private CharSequence nexMessageText(MessageObject message) {
         if (message == null) {
             return null;
@@ -33447,6 +33533,13 @@ public class ChatActivity extends BaseFragment implements
             }
             case OPTION_NEX_ASK: {
                 NexAiSheet.forMessage(this, nexMessageText(selectedObject), this::nexInsert);
+                break;
+            }
+            case OPTION_NEX_TIME:
+            case OPTION_NEX_EDIT_TIME: {
+                final int when = option == OPTION_NEX_TIME ? selectedObject.messageOwner.date : selectedObject.messageOwner.edit_date;
+                AndroidUtilities.addToClipboard(nexExactTime(when));
+                BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.NexTimeCopied)).show();
                 break;
             }
             case OPTION_COPY: {

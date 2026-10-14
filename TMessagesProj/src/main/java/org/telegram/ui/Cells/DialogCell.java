@@ -2059,7 +2059,16 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
             }
 
-            if (!drawForwardIcon && !isFolderCell() && !isForumCell() && !isDialogFolder() && draftMessage == null && message != null && message.messageOwner != null && message.messageOwner.action instanceof TLRPC.TL_messageActionStarGift) {
+            // NexGramm: a locked chat shows no preview
+            final boolean nexLocked = currentDialogFolderId == 0 && currentDialogCommunityId == 0 && org.telegram.ui.NexChatLock.isLocked(currentAccount, currentDialogId);
+            if (nexLocked) {
+                messageString = "🔒 " + getString(R.string.NexLockPreview);
+                messageNameString = null;
+                thumbsCount = 0;
+                drawForwardIcon = false;
+                currentMessagePaint = Theme.dialogs_messagePaint[paintIndex];
+            }
+            if (!nexLocked && !drawForwardIcon && !isFolderCell() && !isForumCell() && !isDialogFolder() && draftMessage == null && message != null && message.messageOwner != null && message.messageOwner.action instanceof TLRPC.TL_messageActionStarGift) {
                 drawGiftIcon = true;
                 SpannableStringBuilder builder = new SpannableStringBuilder(messageString);
                 builder.insert(0, "d ");

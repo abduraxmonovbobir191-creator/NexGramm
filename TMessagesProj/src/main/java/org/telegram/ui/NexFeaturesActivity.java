@@ -87,6 +87,23 @@ public class NexFeaturesActivity extends BaseFragment {
         info.setText(LocaleController.getString(R.string.NexFeaturesMessagesNote));
         column.addView(info, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
+        final HeaderCell comfort = new HeaderCell(context);
+        comfort.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        comfort.setText(LocaleController.getString(R.string.NexFeaturesComfort));
+        column.addView(comfort, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextCheckCell callsCell = new TextCheckCell(context);
+        callsCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        callsCell.setTextAndValueAndCheck(LocaleController.getString(R.string.NexFeaturesConfirmCalls),
+            LocaleController.getString(R.string.NexFeaturesConfirmCallsInfo), uz.nexgramm.core.NexExtras.confirmCalls(), true, false);
+        callsCell.setOnClickListener(v -> {
+            uz.nexgramm.core.NexExtras.setConfirmCalls(!uz.nexgramm.core.NexExtras.confirmCalls());
+            callsCell.setChecked(uz.nexgramm.core.NexExtras.confirmCalls());
+        });
+        column.addView(callsCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextInfoPrivacyCell comfortInfo = new TextInfoPrivacyCell(context);
+        comfortInfo.setText(LocaleController.getString(R.string.NexFeaturesComfortNote));
+        column.addView(comfortInfo, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
         fragmentView = scrollView;
         return fragmentView;
     }
