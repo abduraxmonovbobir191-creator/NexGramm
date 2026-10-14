@@ -336,7 +336,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         // NexGramm: "NexGramm" text instead of the Telegram logo
         telegramLogoView = new TextView(context);
         telegramLogoView.setText(getString(R.string.NexAppTitle));
-        telegramLogoView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+        telegramLogoView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 30); // the NexGramm wordmark, as big as the Lenta's
         telegramLogoView.setTypeface(org.telegram.ui.NexLentaUi.serif());
         telegramLogoView.setTextColor(getTextLogoColor());
         telegramLogoView.setIncludeFontPadding(false);
@@ -344,7 +344,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         telegramLogoView.setGravity(Gravity.CENTER_VERTICAL);
         telegramLogoView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         telegramLogoView.setFocusableInTouchMode(true);
-        addView(telegramLogoView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 22));
+        addView(telegramLogoView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 36));
 
         statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
         statusDrawable.center = true;
@@ -970,7 +970,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             }
 
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
-            telegramLogoView.setTranslationY(bottomY + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
+            telegramLogoView.setTranslationY(bottomY + dp(14 + FAKE_TOP_PADDING + 4.333f - 7) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
 
             emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
             emojiStatusView.setTranslationY(bottomY + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);

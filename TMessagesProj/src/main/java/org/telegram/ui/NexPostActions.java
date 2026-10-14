@@ -182,10 +182,4 @@ final class NexPostActions {
         }
         NexAiUi.withConsent(fragment, () -> NexAiSheet.forMessage(fragment, caption, null));
     }
-
-    static void aiSoon(Context context) {
-        if (context != null) {
-            Toast.makeText(context, LocaleController.getString(R.string.NexSoon), Toast.LENGTH_SHORT).show();
-        }
-    }
 }

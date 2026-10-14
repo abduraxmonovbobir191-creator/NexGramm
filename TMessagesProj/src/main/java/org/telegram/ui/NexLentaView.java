@@ -78,8 +78,6 @@ public class NexLentaView extends FrameLayout {
     private boolean consentShown;
     private static final long LOGIN_TIMEOUT_MS = 45_000;
     private static final long AUTHORIZE_TIMEOUT_MS = 30_000;
-    // DEBUG(oauth-reason): why the WebView fallback is shown; remove with setDebugReason()
-    private TextView debugReasonView;
 
     public NexLentaView(Context context, Theme.ResourcesProvider resourcesProvider, Runnable onRetry) {
         super(context);
@@ -513,21 +511,6 @@ public class NexLentaView extends FrameLayout {
     public static void clearFeedCookies() {
         clearFeedCookies(() -> {
         });
-    }
-
-    // DEBUG(oauth-reason): small grey "OAuth: <code>" line above the fallback feed; null hides it
-    public void setDebugReason(String reason) {
-        if (debugReasonView == null) {
-            debugReasonView = new TextView(getContext());
-            debugReasonView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
-            debugReasonView.setTextColor(0xFF8A8A93);
-            debugReasonView.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(2), AndroidUtilities.dp(8), AndroidUtilities.dp(2));
-            debugReasonView.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(8), 0xCCF4F4F7));
-            addView(debugReasonView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 2, 0, 0));
-        }
-        debugReasonView.setText(reason == null ? null : "OAuth: " + reason);
-        debugReasonView.setVisibility(reason == null ? View.GONE : View.VISIBLE);
-        debugReasonView.bringToFront();
     }
 
     private void failPage(String reason) {

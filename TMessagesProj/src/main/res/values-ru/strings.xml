@@ -331,6 +331,9 @@
     <string name="NexAppearanceModeLight">Светлый</string>
     <string name="NexAppearanceModeDark">Тёмный</string>
     <string name="NexAppearanceAccent">Основной цвет</string>
+    <string name="NexAppearanceIntensity">Насыщенность цвета</string>
+    <string name="NexAppearanceSoft">Мягче</string>
+    <string name="NexAppearanceVivid">Ярче</string>
     <string name="NexAppearanceHint">Цвет и режим сразу применяются ко всему приложению: кнопки, сообщения, ссылки, лента.</string>
     <string name="NexAppearancePreviewIn">Привет! Как тебе новый цвет?</string>
     <string name="NexAppearancePreviewOut">Очень красиво ✦</string>
@@ -451,6 +454,11 @@
     <string name="NexPremiumPerkRepeat">Повторять запланированные сообщения</string>
     <string name="NexPremiumPerkSupport">Поддержка отвечает вам первыми</string>
     <string name="NexPremiumPerkMore">Новые функции скоро — сначала для Premium</string>
+    <string name="NexPremiumBest">Выгоднее всего</string>
+    <string name="NexPremiumGives">Что вы получаете</string>
+    <string name="NexPremiumPerkNoAds">Никакой рекламы</string>
+    <string name="NexPremiumPerkAi">NEX AI без ограничений</string>
+    <string name="NexAiLimitReached">Бесплатные запросы NEX AI на сегодня (%1$d) закончились. С Premium — без ограничений.</string>
     <string name="NexPremiumRepeatHint">Повтор сообщений — в **NexGramm Premium**</string>
     <string name="NexAdLabel">Реклама</string>
     <string name="NexAdOpen">Открыть</string>

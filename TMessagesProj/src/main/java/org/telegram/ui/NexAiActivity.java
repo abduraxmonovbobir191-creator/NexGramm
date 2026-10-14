@@ -176,7 +176,6 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
         final LinearLayout quick = new LinearLayout(context);
         quick.setOrientation(LinearLayout.HORIZONTAL);
         addQuick(context, quick, R.drawable.msg_list, R.string.NexAiQuickSummary, () -> toast(R.string.NexAiSummaryHint));
-        addQuick(context, quick, R.drawable.msg_photos, R.string.NexAiQuickImage, () -> toast(R.string.NexSoon));
         addQuick(context, quick, R.drawable.input_mic, R.string.NexAiQuickVoice, this::startVoice);
         addQuick(context, quick, R.drawable.msg_edit, R.string.NexAiQuickCaption, () -> {
             inputView.setText(LocaleController.getString(R.string.NexAiCaptionPrompt));
@@ -282,6 +281,9 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
             return;
         }
         NexAiUi.withConsent(this, () -> {
+            if (!NexAiUi.takeFreeUse(this)) {
+                return; // today's free requests are used up: the Premium screen opened
+            }
             inputView.setText("");
             heroView.setVisibility(View.GONE);
             chatScroll.setVisibility(View.VISIBLE);

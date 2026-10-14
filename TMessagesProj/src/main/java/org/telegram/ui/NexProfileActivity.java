@@ -215,10 +215,12 @@ public class NexProfileActivity extends BaseFragment {
         // whole header from the very top down below the buttons; in its own colors, no dark fade
         final FrameLayout header = new FrameLayout(context);
         coverView = new NexCoverView(context, false);
-        header.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        // a clear banner on top; the name and the rest sit below it, never over the picture
+        final int banner = AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56 + 150);
+        header.addView(coverView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, banner));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(0, AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56 + 8), 0, 0);
+        column.setPadding(0, banner + AndroidUtilities.dp(16), 0, 0);
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         // name + @username (left), avatar (right)
@@ -319,7 +321,7 @@ public class NexProfileActivity extends BaseFragment {
 
     private void showCover(NexCover cover) {
         coverView.setCover(cover);
-        applyCoverStyle(cover != null);
+        applyCoverStyle(false); // the texts are below the banner, on the page
     }
 
     // Over a cover the texts are white with a soft shadow, so the cover keeps its own bright colors (no dark

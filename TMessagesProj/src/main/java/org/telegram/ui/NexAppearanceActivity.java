@@ -131,6 +131,9 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
         content.addView(header(context, R.string.NexAppearanceAccent), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 6, 24, 6, 10));
         content.addView(createAccentGrid(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
+        content.addView(header(context, R.string.NexAppearanceIntensity), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 6, 24, 6, 10));
+        content.addView(createIntensity(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
         final TextView hint = new TextView(context);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         hint.setTextColor(NexLentaColors.SECONDARY_TEXT);
@@ -263,7 +266,9 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
     }
 
     private void setAccent(String accentId, View from) {
-        if (accentId.equals(Theme.getNexgrammAccent())) {
+        // compared with what is on screen, not the saved choice: a tap during the reveal may have been dropped
+        final NexPalette applied = Theme.getNexgrammPalette();
+        if (accentId.equals(Theme.getNexgrammAccent()) && applied != null && accentId.equals(applied.accentId)) {
             return;
         }
         Theme.setNexgrammAccent(accentId);
@@ -273,6 +278,56 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
             // a custom theme is active: the accent shows once a built-in theme is used again
             build();
         }
+    }
+
+    // Color strength: from soft to the full color; applied when the finger lets go
+    private View createIntensity(Context context) {
+        final LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 22));
+        card.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(10), AndroidUtilities.dp(12), AndroidUtilities.dp(12));
+        final android.widget.SeekBar bar = new android.widget.SeekBar(context);
+        bar.setMax(100);
+        bar.setProgress(Theme.getNexgrammIntensity());
+        final android.content.res.ColorStateList tint = android.content.res.ColorStateList.valueOf(NexLentaColors.ACCENT);
+        bar.setProgressTintList(tint);
+        bar.setThumbTintList(tint);
+        bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Theme.multAlpha(NexLentaColors.TEXT, 0.2f)));
+        bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
+                final int value = seekBar.getProgress();
+                if (value == Theme.getNexgrammIntensity()) {
+                    return;
+                }
+                Theme.setNexgrammIntensity(value);
+                if (Theme.isNexgrammTheme(Theme.getActiveTheme())) {
+                    switchTheme(Theme.getActiveTheme(), Theme.isCurrentThemeNight(), false, seekBar);
+                }
+            }
+        });
+        card.addView(bar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 40));
+        final android.widget.FrameLayout labels = new android.widget.FrameLayout(context);
+        final TextView soft = new TextView(context);
+        soft.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        soft.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        soft.setText(LocaleController.getString(R.string.NexAppearanceSoft));
+        labels.addView(soft, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT));
+        final TextView vivid = new TextView(context);
+        vivid.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        vivid.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        vivid.setText(LocaleController.getString(R.string.NexAppearanceVivid));
+        labels.addView(vivid, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT));
+        card.addView(labels, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 8, 0, 8, 0));
+        return card;
     }
 
     private void setMode(int mode, View from) {
@@ -342,7 +397,8 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
                 canvas.drawCircle(cx, cy, outer - AndroidUtilities.dp(1), paint);
             }
             paint.setStyle(Paint.Style.FILL);
-            final int color = NexLentaColors.dark ? accent.dark : accent.light;
+            // as it is applied: softened by the color strength
+            final int color = NexPalette.tone(NexLentaColors.dark ? accent.dark : accent.light, NexLentaColors.dark, Theme.getNexgrammIntensity());
             if (NexPalette.DEFAULT_ACCENT.equals(accent.id)) {
                 rect.set(cx - r, cy - r, cx + r, cy + r);
                 paint.setColor(accent.light);

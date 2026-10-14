@@ -11304,6 +11304,9 @@
     <string name="NexAppearanceModeLight">Light</string>
     <string name="NexAppearanceModeDark">Dark</string>
     <string name="NexAppearanceAccent">Accent color</string>
+    <string name="NexAppearanceIntensity">Color strength</string>
+    <string name="NexAppearanceSoft">Soft</string>
+    <string name="NexAppearanceVivid">Vivid</string>
     <string name="NexAppearanceHint">Color and mode apply to the whole app at once: buttons, messages, links, feed.</string>
     <string name="NexAppearancePreviewIn">Hi! How\'s the new color?</string>
     <string name="NexAppearancePreviewOut">Looks great ✦</string>
@@ -11511,6 +11514,11 @@
     <string name="NexPremiumPerkRepeat">Repeat scheduled messages</string>
     <string name="NexPremiumPerkSupport">Support answers you first</string>
     <string name="NexPremiumPerkMore">More features are coming — for Premium first</string>
+    <string name="NexPremiumBest">Best value</string>
+    <string name="NexPremiumGives">What you get</string>
+    <string name="NexPremiumPerkNoAds">No ads anywhere</string>
+    <string name="NexPremiumPerkAi">NEX AI without limits</string>
+    <string name="NexAiLimitReached">Today\'s %1$d free NEX AI requests are used up. With Premium there is no limit.</string>
     <string name="NexPremiumRepeatHint">Repeating messages comes with **NexGramm Premium**</string>
     <string name="NexAdLabel">Ad</string>
     <string name="NexAdOpen">Open</string>
