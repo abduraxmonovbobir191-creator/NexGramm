@@ -40,7 +40,7 @@ public class NexGhostActivity extends BaseFragment {
             }
         });
 
-        final ScrollView scrollView = new ScrollView(context);
+        final ScrollView scrollView = new NexMotion.BounceScrollView(context);
         scrollView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);

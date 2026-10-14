@@ -9054,9 +9054,9 @@ public class ChatActivity extends BaseFragment implements
             if (nexLockCover != null) {
                 final View cover = nexLockCover;
                 nexLockCover = null;
-                cover.animate().alpha(0f).setDuration(180).withEndAction(() -> AndroidUtilities.removeFromParent(cover)).start();
+                NexChatLock.reveal(cover);
             }
-        });
+        }, () -> NexChatLock.shake(nexLockCover));
     }
 
     private void nexToggleLock() {

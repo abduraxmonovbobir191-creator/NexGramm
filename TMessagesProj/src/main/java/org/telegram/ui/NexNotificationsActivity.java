@@ -76,6 +76,7 @@ public class NexNotificationsActivity extends BaseFragment {
         listView.setClipToPadding(false);
         listView.setPadding(0, AndroidUtilities.dp(4), 0, AndroidUtilities.dp(12));
         listView.setAdapter(adapter);
+        NexMotion.bounce(listView);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {

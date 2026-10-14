@@ -243,9 +243,12 @@ public class NexPostCell extends FrameLayout {
         likeGroup.addView(likeCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
         likeGroup.setOnClickListener(v -> {
             if (status != null) {
+                final boolean pending = status.likePending;
+                final boolean liking = !status.favourited;
                 delegate.onLikeClick(this, status);
-                likeIcon.animate().scaleX(1.25f).scaleY(1.25f).setDuration(110).withEndAction(() ->
-                    likeIcon.animate().scaleX(1f).scaleY(1f).setDuration(160).start()).start();
+                if (!pending) {
+                    NexMotion.likeBounce(likeIcon, liking);
+                }
             }
         });
         actions.addView(likeGroup, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46));
@@ -510,14 +513,10 @@ public class NexPostCell extends FrameLayout {
         if (status == null) {
             return;
         }
-        heartPop.animate().cancel();
-        heartPop.setScaleX(0.6f);
-        heartPop.setScaleY(0.6f);
-        heartPop.setAlpha(1f);
-        heartPop.animate().scaleX(1.1f).scaleY(1.1f).setDuration(180).withEndAction(() ->
-            heartPop.animate().alpha(0f).setStartDelay(250).setDuration(220).start()).start();
+        NexMotion.heartPop(heartPop);
         if (!status.favourited) {
             delegate.onLikeClick(this, status);
+            NexMotion.likeBounce(likeIcon, true);
         }
     }
 

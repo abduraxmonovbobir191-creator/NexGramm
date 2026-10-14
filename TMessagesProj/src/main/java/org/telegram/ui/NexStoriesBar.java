@@ -35,7 +35,7 @@ import uz.nexgramm.core.PixelfedStories;
 final class NexStoriesBar extends HorizontalScrollView {
 
     interface Delegate {
-        void onOpenStories(ArrayList<PixelfedStories.Group> groups, int index);
+        void onOpenStories(ArrayList<PixelfedStories.Group> groups, int index, View from);
 
         void onAddStory();
     }
@@ -132,7 +132,7 @@ final class NexStoriesBar extends HorizontalScrollView {
         own.set(ownAvatarUrl, ownName, LocaleController.getString(R.string.NexStoryYours), hasSelf ? (stories.self.allSeen() ? 1 : 2) : 0, true);
         own.setOnClickListener(v -> {
             if (hasSelf) {
-                delegate.onOpenStories(groups, 0);
+                delegate.onOpenStories(groups, 0, own.avatar);
             } else {
                 delegate.onAddStory();
             }
@@ -144,7 +144,7 @@ final class NexStoriesBar extends HorizontalScrollView {
             final int index = i;
             final StoryCell cell = new StoryCell(getContext());
             cell.set(g.avatarUrl, g.username, g.username, g.allSeen() ? 1 : 2, false);
-            cell.setOnClickListener(v -> delegate.onOpenStories(groups, index));
+            cell.setOnClickListener(v -> delegate.onOpenStories(groups, index, cell.avatar));
             row.addView(cell, LayoutHelper.createLinear(78, LayoutHelper.WRAP_CONTENT));
         }
     }

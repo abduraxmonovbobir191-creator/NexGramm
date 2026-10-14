@@ -80,7 +80,7 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
     @Override
     public View createView(Context context) {
         NexLentaUi.setupActionBar(this, actionBar, null);
-        final ScrollView scrollView = new ScrollView(context);
+        final ScrollView scrollView = new NexMotion.BounceScrollView(context);
         content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), AndroidUtilities.dp(32));
@@ -215,6 +215,7 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
                 option.setTextColor(NexLentaColors.TEXT);
                 option.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.08f), Theme.RIPPLE_MASK_ROUNDRECT_6DP));
                 option.setOnClickListener(v -> setMode(mode, v));
+                org.telegram.ui.Components.ScaleStateListAnimator.apply(option, 0.05f, 1.6f);
             }
             group.addView(option, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f));
         }
@@ -250,6 +251,7 @@ public class NexAppearanceActivity extends BaseFragment implements NotificationC
             label.setText(LocaleController.getString(ACCENT_NAMES[i]));
             item.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 2, 6, 2, 0));
             item.setOnClickListener(v -> setAccent(accent.id, swatch));
+            org.telegram.ui.Components.ScaleStateListAnimator.apply(item, 0.06f, 1.6f);
             row.addView(item, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
         }
         if (row != null) {

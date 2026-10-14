@@ -97,6 +97,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     private final ArrayList<PixelfedStatus> items = new ArrayList<>();
     private boolean adsOn; // set right before the list is redrawn, so counts never change under it
+    private int enteredUpTo; // rows up to here have had their entrance
     private boolean followingMode; // false = "Siz uchun" (public local), true = "Kuzatayotganlar" (home)
     private boolean firstLoaded;
     private boolean firstFailed;
@@ -146,6 +147,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         listView.setItemViewCacheSize(4);
         listView.setClipToPadding(false);
         listView.setAdapter(adapter);
+        NexMotion.bounce(listView);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -204,10 +206,12 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         headerColumn.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         storiesBar = new NexStoriesBar(context, tgUserId, new NexStoriesBar.Delegate() {
             @Override
-            public void onOpenStories(ArrayList<PixelfedStories.Group> groups, int index) {
+            public void onOpenStories(ArrayList<PixelfedStories.Group> groups, int index, View from) {
                 final BaseFragment fragment = delegate.getFragment();
                 if (fragment != null) {
-                    fragment.presentFragment(new NexStoryViewerActivity(groups, index));
+                    final NexStoryViewerActivity viewer = new NexStoryViewerActivity(groups, index);
+                    viewer.setOrigin(from); // grows out of the tapped circle
+                    fragment.presentFragment(viewer);
                 }
             }
 
@@ -272,6 +276,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         loadMoreFailed = false;
         maxId = null;
         adsOn = NexAds.enabled(tgUserId);
+        enteredUpTo = 0;
         adapter.notifyDataSetChanged();
         loadPage(false, null);
     }
@@ -635,11 +640,13 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 refreshIndicator.setTranslationY(topInset - AndroidUtilities.dp(48) + pullDistance);
                 refreshIndicator.setAlpha(Math.min(1f, pullDistance / threshold));
                 refreshIndicator.setRotation(pullDistance * 2);
+                listView.setTranslationY(pullDistance); // the posts follow the finger
                 return true;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 pulling = false;
                 refreshIndicator.setRotation(0);
+                listView.animate().translationY(0).setStartDelay(0).setDuration(480).setInterpolator(NexMotion.EASE).start();
                 if (pullDistance >= threshold && ev.getActionMasked() == MotionEvent.ACTION_UP) {
                     refresh();
                 } else {
@@ -923,6 +930,8 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         maxId = null;
         refreshing = false;
         pulling = false;
+        enteredUpTo = 0;
+        listView.setTranslationY(0);
         refreshIndicator.setVisibility(View.GONE);
         adapter.notifyDataSetChanged();
     }
@@ -1017,6 +1026,15 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         @Override
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             final View view = holder.itemView;
+            if (view instanceof NexPostCell || view instanceof NexAds.Slot) {
+                // a post seen for the first time rises in (the first ones one after another)
+                if (position > enteredUpTo) {
+                    enteredUpTo = position;
+                    NexMotion.enter(view, position <= 3 ? position - 1 : 0);
+                } else {
+                    NexMotion.settle(view);
+                }
+            }
             if (view instanceof NexPostCell) {
                 ((NexPostCell) view).setStatus(items.get(postIndex(position - 1)));
             } else if (view instanceof NexAds.Slot) {

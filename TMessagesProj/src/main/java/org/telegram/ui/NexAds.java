@@ -123,6 +123,7 @@ final class NexAds {
                 Browser.openUrl(getContext(), ad.url);
             };
             card.setOnClickListener(click);
+            org.telegram.ui.Components.ScaleStateListAnimator.apply(card, 0.02f, 1.5f);
             open.setOnClickListener(click);
             addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             synchronized (viewed) {

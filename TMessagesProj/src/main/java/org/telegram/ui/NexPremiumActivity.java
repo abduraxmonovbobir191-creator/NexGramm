@@ -31,6 +31,9 @@ public class NexPremiumActivity extends BaseFragment {
     private LinearLayout plansColumn;
     private TextView statusView;
     private NexPremium.Status status;
+    private android.animation.ValueAnimator glowLoop;
+    private android.animation.ValueAnimator starLoop;
+    private boolean plansShown; // the plans rise in once
 
     private long tgUserId() {
         return getUserConfig().getClientUserId();
@@ -50,14 +53,20 @@ public class NexPremiumActivity extends BaseFragment {
             }
         });
 
-        final ScrollView scroll = new ScrollView(context);
+        final ScrollView scroll = new NexMotion.BounceScrollView(context);
         scroll.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(20), AndroidUtilities.dp(16), AndroidUtilities.dp(32));
         scroll.addView(column, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
-        // hero: ⭐ on a soft gradient
+        // hero: ⭐ on a soft gradient, with a slow glow behind it
+        final android.widget.FrameLayout hero = new android.widget.FrameLayout(context);
+        final View glow = new View(context);
+        final GradientDrawable glowShape = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0x66B48CF5, 0x66FFB86B});
+        glowShape.setShape(GradientDrawable.OVAL);
+        glow.setBackground(glowShape);
+        hero.addView(glow, LayoutHelper.createFrame(96, 96, Gravity.CENTER));
         final TextView star = new TextView(context);
         star.setText("⭐");
         star.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 44);
@@ -65,7 +74,14 @@ public class NexPremiumActivity extends BaseFragment {
         final GradientDrawable halo = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFB48CF5, 0xFFFFB86B});
         halo.setShape(GradientDrawable.OVAL);
         star.setBackground(halo);
-        column.addView(star, LayoutHelper.createLinear(96, 96, Gravity.CENTER_HORIZONTAL));
+        hero.addView(star, LayoutHelper.createFrame(96, 96, Gravity.CENTER));
+        column.addView(hero, LayoutHelper.createLinear(132, 132, Gravity.CENTER_HORIZONTAL));
+        hero.setScaleX(0.5f);
+        hero.setScaleY(0.5f);
+        hero.setAlpha(0f);
+        hero.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(620).setInterpolator(new android.view.animation.OvershootInterpolator(1.8f)).start();
+        glowLoop = NexMotion.breathe(glow, 1.35f, 0.35f, 0.9f);
+        starLoop = NexMotion.breathe(star, 1.05f, 0f, 0f);
         final TextView title = new TextView(context);
         title.setText(LocaleController.getString(R.string.NexPremiumTitle));
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
@@ -88,6 +104,9 @@ public class NexPremiumActivity extends BaseFragment {
         perk(context, perks, "💬", R.string.NexPremiumPerkSupport);
         perk(context, perks, "✨", R.string.NexPremiumPerkMore);
         column.addView(perks, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 20, 0, 0));
+        NexMotion.enter(title, 1);
+        NexMotion.enter(statusView, 2);
+        NexMotion.enter(perks, 3);
 
         // periods
         final TextView choose = new TextView(context);
@@ -110,6 +129,17 @@ public class NexPremiumActivity extends BaseFragment {
         status = NexPremium.cached(tgUserId());
         bind();
         return fragmentView;
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        if (glowLoop != null) {
+            glowLoop.cancel();
+        }
+        if (starLoop != null) {
+            starLoop.cancel();
+        }
+        super.onFragmentDestroy();
     }
 
     @Override
@@ -157,14 +187,21 @@ public class NexPremiumActivity extends BaseFragment {
                 row.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
                 row.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(14),
                     Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
-                row.setOnClickListener(v -> buy(s, plan.code));
+                row.setOnClickListener(v -> {
+                    NexMotion.pulse(v); // a heartbeat, then the bot
+                    AndroidUtilities.runOnUIThread(() -> buy(s, plan.code), 180);
+                });
             } else {
                 row.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
                 row.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(14), Theme.getColor(Theme.key_windowBackgroundWhite)));
                 row.setText(row.getText() + "  ·  " + LocaleController.getString(R.string.NexPremiumSoon));
             }
             plansColumn.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 54, 0, 0, 0, 10));
+            if (!plansShown) {
+                NexMotion.enter(row, 4 + plansColumn.getChildCount());
+            }
         }
+        plansShown = true;
     }
 
     private String periodName(String code) {
