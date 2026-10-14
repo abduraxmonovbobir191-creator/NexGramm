@@ -617,6 +617,18 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
     public float innerTranslationX;
 
+    // NexGramm: iOS-style push / pop — the new screen slides in over the whole width, the one below moves a
+    // third to the left and dims; 280 ms, ease-out
+    private static final float NEX_PARALLAX = 0.3f;
+    private static final float NEX_DURATION = 280.0f;
+    private View nexLowerView;
+    private float nexScrim;
+
+    private float nexWidth() {
+        final int w = getMeasuredWidth() - getPaddingLeft() - getPaddingRight();
+        return w > 0 ? w : AndroidUtilities.displaySize.x;
+    }
+
     private boolean maybeStartTracking;
     protected boolean startedTracking;
     private int startedTrackingX;
@@ -1210,6 +1222,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     canvas.drawRect(clipLeft, 0, clipRight, getHeight() * 1.5f, scrimPaint);
                 }
             }
+        } else if (child == nexLowerView && nexScrim > 0 && transitionAnimationInProgress) {
+            scrimPaint.setColor(Color.argb((int) (70 * nexScrim), 0x00, 0x00, 0x00));
+            canvas.drawRect(0, 0, getWidth(), getHeight() * 1.5f, scrimPaint);
         }
         canvas.restoreToCount(restoreCount2);
 
@@ -1716,6 +1731,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             animationRunnable = null;
         }
         setAlpha(1.0f);
+        nexLowerView = null;
+        nexScrim = 0;
         containerView.setAlpha(1.0f);
         containerView.setScaleX(1.0f);
         containerView.setScaleY(1.0f);
@@ -1827,7 +1844,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     dt = 18;
                 }
                 lastFrameTime = newTime;
-                float duration = preview && open ? 190.0f : 150.0f;
+                float duration = preview ? (open ? 190.0f : 150.0f) : NEX_DURATION;
                 animationProgress += dt / duration;
                 if (animationProgress > 1.0f) {
                     animationProgress = 1.0f;
@@ -1870,11 +1887,11 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         interpolated = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(animationProgress);
                     }
                 } else {
-                    interpolated = decelerateInterpolator.getInterpolation(animationProgress);
+                    interpolated = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(animationProgress);
                 }
                 if (open) {
                     float clampedInterpolated = MathUtils.clamp(interpolated, 0, 1);
-                    containerView.setAlpha(clampedInterpolated);
+                    containerView.setAlpha(preview ? clampedInterpolated : 1f);
                     if (preview) {
                         containerView.setScaleX(0.7f + 0.3f * interpolated);
                         containerView.setScaleY(0.7f + 0.3f * interpolated);
@@ -1889,11 +1906,16 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         containerView.invalidate();
                         invalidate();
                     } else {
-                        containerView.setTranslationX(dp(48) * (1.0f - interpolated));
+                        final float w = nexWidth();
+                        containerView.setTranslationX(w * (1.0f - interpolated));
+                        containerViewBack.setTranslationX(-w * NEX_PARALLAX * clampedInterpolated);
+                        nexLowerView = containerViewBack;
+                        nexScrim = clampedInterpolated;
+                        invalidate();
                     }
                 } else {
                     float clampedReverseInterpolated = MathUtils.clamp(1f - interpolated, 0, 1);
-                    containerViewBack.setAlpha(clampedReverseInterpolated);
+                    containerViewBack.setAlpha(preview ? clampedReverseInterpolated : 1f);
                     if (preview) {
                         containerViewBack.setScaleX(0.9f + 0.1f * (1.0f - interpolated));
                         containerViewBack.setScaleY(0.9f + 0.1f * (1.0f - interpolated));
@@ -1904,7 +1926,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         containerView.invalidate();
                         invalidate();
                     } else {
-                        containerViewBack.setTranslationX(dp(48) * interpolated);
+                        final float w = nexWidth();
+                        containerViewBack.setTranslationX(w * interpolated);
+                        containerView.setTranslationX(-w * NEX_PARALLAX * clampedReverseInterpolated);
+                        nexLowerView = containerView;
+                        nexScrim = clampedReverseInterpolated;
+                        invalidate();
                     }
                 }
                 if (animationProgress < 1) {
@@ -2190,6 +2217,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     } else {
                         presentFragmentInternalRemoveOld(removeLast, currentFragment);
                         containerView.setTranslationX(0);
+                        containerViewBack.setTranslationX(0);
                     }
                     if (currentFragment != null) {
                         currentFragment.onTransitionAnimationEnd(false, false);
@@ -2219,7 +2247,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         containerView.setScaleX(0.9f);
                         containerView.setScaleY(0.9f);
                     } else {
-                        containerView.setTranslationX(48.0f);
+                        // NexGramm: waits off screen on the right (a delayed open shows nothing early)
+                        containerView.setAlpha(1.0f);
+                        containerView.setTranslationX(nexWidth());
                         containerView.setScaleX(1.0f);
                         containerView.setScaleY(1.0f);
                     }
@@ -2650,6 +2680,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         transitionAnimationPreviewMode = false;
                     } else {
                         containerViewBack.setTranslationX(0);
+                        containerView.setTranslationX(0);
                     }
                     closeLastFragmentInternalRemoveOld(currentFragment);
                     currentFragment.setRemovingFromStack(false);
@@ -2662,6 +2693,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     animation = currentFragment.onCustomTransitionAnimation(false, () -> onAnimationEndCheck(false));
                 }
                 if (animation == null) {
+                    if (!inPreviewMode && !transitionAnimationPreviewMode) {
+                        // NexGramm: the screen below starts shifted and dimmed, so the first frame does not jump
+                        containerView.setTranslationX(-nexWidth() * NEX_PARALLAX);
+                        nexLowerView = containerView;
+                        nexScrim = 1f;
+                    }
                     if (!inPreviewMode && (containerView.isKeyboardVisible || containerViewBack.isKeyboardVisible)) {
                         waitingForKeyboardCloseRunnable = new Runnable() {
                             @Override
