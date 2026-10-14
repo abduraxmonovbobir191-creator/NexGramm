@@ -10524,7 +10524,8 @@ public class MessagesController extends BaseController implements NotificationCe
         checkReadTasks();
 
         if (getUserConfig().isClientActivated()) {
-            if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
+            // NexGramm ghost mode: never "online" (the offline status below is sent instead)
+            if (!ignoreSetOnline && !uz.nexgramm.core.NexGhost.hideOnline() && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
                     if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
                         statusSettingState = 1;
@@ -11383,7 +11384,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
-        if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
+        if (action < 0 || action >= sendingTypings.length || dialogId == 0 || uz.nexgramm.core.NexGhost.hideTyping()) {
             return false;
         }
         final long selfId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
@@ -14405,6 +14406,9 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
+        if (uz.nexgramm.core.NexGhost.hideListened()) {
+            return; // NexGramm ghost mode: heard here, the sender is not told
+        }
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
         } else {
@@ -14556,7 +14560,41 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    // NexGramm ghost mode: read receipts that someone could see (users, groups, secret chats; not channels)
+    private boolean nexGhostBypass;
+
+    private boolean nexReadIsVisible(long dialogId) {
+        if (dialogId >= 0 || DialogObject.isEncryptedDialog(dialogId)) {
+            return true;
+        }
+        final TLRPC.Chat chat = getChat(-dialogId);
+        return chat == null || !ChatObject.isChannelAndNotMegaGroup(chat);
+    }
+
+    // The user replied in this chat: mark it read for real, as a normal client would
+    public void nexReadOnReply(long dialogId) {
+        if (dialogId == 0 || DialogObject.isEncryptedDialog(dialogId)) {
+            return;
+        }
+        final TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+        if (dialog == null || dialog.top_message <= 0) {
+            return;
+        }
+        final ReadTask task = new ReadTask();
+        task.dialogId = dialogId;
+        task.maxId = dialog.top_message;
+        nexGhostBypass = true;
+        try {
+            completeReadTask(task);
+        } finally {
+            nexGhostBypass = false;
+        }
+    }
+
     private void completeReadTask(ReadTask task) {
+        if (!nexGhostBypass && uz.nexgramm.core.NexGhost.hideRead() && nexReadIsVisible(task.dialogId)) {
+            return; // marked read on this phone only
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;

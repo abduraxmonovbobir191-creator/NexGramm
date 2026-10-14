@@ -504,6 +504,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private boolean downloadsItemVisible;
     public ActionBarMenuItem searchItem;
     private ActionBarMenuItem optionsItem;
+    private ActionBarMenuItem nexGhostItem; // NexGramm: ghost mode, on / off (long press: its settings)
     private ActionBarMenuItem speedItem;
     private View nexAiSearchButton;
     public static boolean switchingTheme;
@@ -3450,6 +3451,21 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         });
         fragmentSearchFieldWatcher.setDoNotCloseAfterFieldEmpty();
 
+        if (initialDialogsType == DIALOGS_TYPE_DEFAULT && folderId == 0 && communityId == 0) {
+            nexGhostItem = menu.addItem(5, R.drawable.ghost);
+            nexGhostItem.setContentDescription(getString(R.string.NexGhostTitle));
+            nexGhostItem.setOnClickListener(v -> {
+                uz.nexgramm.core.NexGhost.setEnabled(!uz.nexgramm.core.NexGhost.isEnabled());
+                nexUpdateGhostItem();
+                BulletinFactory.of(this).createSimpleBulletin(getContext().getResources().getDrawable(R.drawable.ghost).mutate(),
+                    getString(uz.nexgramm.core.NexGhost.isEnabled() ? R.string.NexGhostOn : R.string.NexGhostOff)).show();
+            });
+            nexGhostItem.setOnLongClickListener(v -> {
+                presentFragment(new NexGhostActivity());
+                return true;
+            });
+            nexUpdateGhostItem();
+        }
         if (initialDialogsType == DIALOGS_TYPE_DEFAULT) {
             optionsItem = menu.addItem(4, R.drawable.ic_ab_other);
             optionsItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
@@ -7027,6 +7043,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        nexUpdateGhostItem();
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -13638,6 +13655,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    // NexGramm: the 👻 is bright while ghost mode is on, faded while it is off
+    private void nexUpdateGhostItem() {
+        if (nexGhostItem != null && nexGhostItem.getIconView() != null) {
+            nexGhostItem.getIconView().setAlpha(uz.nexgramm.core.NexGhost.isEnabled() ? 1f : 0.4f);
+        }
+    }
+
     private void showItemOptions() {
         ItemOptions io = ItemOptions.makeOptions(this, optionsItem);
         io.setColors(getThemedColor(Theme.key_actionBarDefaultTitle), getThemedColor(Theme.key_actionBarDefaultTitle));
@@ -13690,6 +13714,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
+        io.add(R.drawable.ghost, getString(R.string.NexGhostTitle), () -> presentFragment(new NexGhostActivity()));
         final boolean isCurrentThemeDark;
         if (resourceProvider != null) {
             isCurrentThemeDark = resourceProvider.isDark();
@@ -14114,6 +14139,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         final float factor3 = 1f - animatorDoneButtonVisible.getFloatValue();
         final float factor = factor1 * factor2 * factor3;
         FragmentFloatingButton.setAnimatedVisibility(optionsItem, factor);
+        FragmentFloatingButton.setAnimatedVisibility(nexGhostItem, factor);
     }
 
     private void checkUi_itemPasscodeVisibility() {
