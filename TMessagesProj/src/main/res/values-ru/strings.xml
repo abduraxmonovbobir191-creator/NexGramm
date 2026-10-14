@@ -355,6 +355,17 @@
     <string name="NexNotifFollowed">подписался(-ась) на вас</string>
     <string name="NexNotifShared">поделился(-ась) вашим постом</string>
     <string name="NexNotifEmpty">Уведомлений пока нет. Здесь появятся лайки, комментарии и новые подписчики.</string>
+    <string name="NexStoryYours">Ваша история</string>
+    <string name="NexStoryDeleteTitle">Удалить историю?</string>
+    <string name="NexStoryDeleteText">Она исчезнет у всех.</string>
+    <string name="NexStoryHint">История видна подписчикам 24 часа.</string>
+    <string name="NexStoryVideoHint">Видео: в историю попадут первые 30 секунд.</string>
+    <string name="NexStoryChange">Изменить</string>
+    <string name="NexStoryShare">Поделиться в истории</string>
+    <string name="NexStoryPosting">Публикуем…</string>
+    <string name="NexStoryOff">Истории пока выключены на сервере.</string>
+    <string name="NexStoryLimit">Дневной лимит историй исчерпан. Попробуйте завтра.</string>
+    <string name="NexStoryPosted">История опубликована</string>
     <string name="NexFeedOfflineTitle">Нет интернета</string>
     <string name="NexFeedOffline">Проверьте подключение и попробуйте снова.</string>
     <string name="NexFeedEmptyFollowingTitle">Пока никого</string>

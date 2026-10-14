@@ -456,6 +456,21 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
 
     }
 
+    // NexGramm: in the chats list the collapsed stories go to the right (left of search and ⋮), the
+    // "NexGramm" title keeps the left; the archive keeps Telegram's layout (back button on the left)
+    private boolean nexStoriesOnRight() {
+        return type == TYPE_DIALOGS && actionBar != null && actionBar.menu != null && getMeasuredWidth() > 0;
+    }
+
+    private float nexCollapsedStoriesX() {
+        if (!nexStoriesOnRight()) {
+            return menuItemsOffset;
+        }
+        final int k = Math.max(1, miniItems.size());
+        final float group = dp(COLLAPSED_SIZE) + dp(COLLAPSED_DIS) * (k - 1);
+        return Math.max(menuItemsOffset, getMeasuredWidth() - actionBar.menu.getVisibleItemsMeasuredWidth() - group - dp(10));
+    }
+
     public void setMenuItemsOffset(float menuItemsOffset) {
         this.menuItemsOffset = menuItemsOffset;
     }
@@ -693,7 +708,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         float bottomY = AndroidUtilities.lerp(0, maxY, collapsedProgress1);
         recyclerListView.setTranslationY(bottomY);
         listViewMini.setTranslationY(bottomY);
-        listViewMini.setTranslationX(menuItemsOffset);
+        final float storiesX = nexCollapsedStoriesX();
+        listViewMini.setTranslationX(storiesX);
 
         for (int i = 0; i < viewsDrawInParent.size(); i++) {
             viewsDrawInParent.get(i).drawInParent = false;
@@ -823,7 +839,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                 } else {
                     toX = dp(COLLAPSED_DIS) + dp(COLLAPSED_DIS) * cellCollapsedProgress - AndroidUtilities.dpf2(0.5f) + AndroidUtilities.lerp(dp(COLLAPSED_DIS + COLLAPSED_DIS), 0f, collapsedProgress);
                 }
-                toX += menuItemsOffset;
+                toX += storiesX;
                 if (!collapsed) {
                     float dstCellX = 0;
                     if (overscrollProgress > 0) {
@@ -943,8 +959,15 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setTranslationY(bottomY + dp(14) - offset + dp(FAKE_TOP_PADDING) - dp(6) * subtitleOverlayContainer.getTotalVisibility());
             int cellWidth = dp(72);
             lastViewRight += -cellWidth + getAvatarRight(cellWidth, collapsedProgress) + dp(12);
-            titleView.setTranslationX(lastViewRight);
-            titleView.getDrawable().setRightPadding(lastViewRight - dp(12) + actionBar.menu.getVisibleItemsMeasuredWidthWithAlpha() * progress);
+            if (nexStoriesOnRight()) {
+                // NexGramm: the title stays on the left, the stories sit on the right next to the search button
+                lastViewRight = menuItemsOffset + dp(2);
+                titleView.setTranslationX(lastViewRight);
+                titleView.getDrawable().setRightPadding(getMeasuredWidth() + lastViewRight - storiesX + dp(8));
+            } else {
+                titleView.setTranslationX(lastViewRight);
+                titleView.getDrawable().setRightPadding(lastViewRight - dp(12) + actionBar.menu.getVisibleItemsMeasuredWidthWithAlpha() * progress);
+            }
 
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
             telegramLogoView.setTranslationY(bottomY + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);

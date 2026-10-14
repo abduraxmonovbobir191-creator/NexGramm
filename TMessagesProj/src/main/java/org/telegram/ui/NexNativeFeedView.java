@@ -38,8 +38,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import uz.nexgramm.core.CoreClient;
+import uz.nexgramm.core.NexForYou;
 import uz.nexgramm.core.PixelfedClient;
 import uz.nexgramm.core.PixelfedStatus;
+import uz.nexgramm.core.PixelfedStories;
 
 // NexGramm: the native Lenta (design screenshot "Lenta"): header with "Siz uchun" / "Kuzatayotganlar"
 // (public local vs home timeline), serif "Lenta", "+" (new post) and ♡; then the posts (NexPostCell),
@@ -81,6 +83,14 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private final Adapter adapter = new Adapter();
     private final FrameLayout refreshIndicator;
     private final View headerView;
+    private final NexStoriesBar storiesBar;
+
+    // "For you": the on-device interest model (NexForYou), one per account, and when each post came into view
+    private static final long SESSION_SEED = System.nanoTime();
+    private static final HashMap<Long, NexForYou> forYouModels = new HashMap<>();
+    private final HashMap<PixelfedStatus, Long> visibleSince = new HashMap<>();
+    private final Runnable saveForYou = this::saveForYouNow;
+    private long storiesLoadedAt;
     private final TextView modeView;
 
     private final ArrayList<PixelfedStatus> items = new ArrayList<>();
@@ -138,6 +148,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 checkLoadMore();
                 updateActiveVideo();
+                trackDwell(false);
             }
         });
         addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -183,8 +194,30 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         });
         buttons.addView(meButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
         header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 10, 0, 0));
-        header.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(6), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
-        headerView = header;
+        header.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(6), AndroidUtilities.dp(16), AndroidUtilities.dp(8));
+        // stories under the title, as in Instagram
+        final LinearLayout headerColumn = new LinearLayout(context);
+        headerColumn.setOrientation(LinearLayout.VERTICAL);
+        headerColumn.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        storiesBar = new NexStoriesBar(context, tgUserId, new NexStoriesBar.Delegate() {
+            @Override
+            public void onOpenStories(ArrayList<PixelfedStories.Group> groups, int index) {
+                final BaseFragment fragment = delegate.getFragment();
+                if (fragment != null) {
+                    fragment.presentFragment(new NexStoryViewerActivity(groups, index));
+                }
+            }
+
+            @Override
+            public void onAddStory() {
+                final BaseFragment fragment = delegate.getFragment();
+                if (fragment != null) {
+                    fragment.presentFragment(new NexStoryComposeActivity(() -> loadStories(true)));
+                }
+            }
+        });
+        headerColumn.addView(storiesBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
+        headerView = headerColumn;
         updateModeText();
 
         // Pull-to-refresh spinner: a card circle that follows the finger
@@ -248,6 +281,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         generation++;
         loading = false;
         showRefreshing();
+        loadStories(true);
         loadPage(true, null);
     }
 
@@ -298,13 +332,27 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         loadMoreFailed = false;
         final int gen = generation;
         final boolean isPublic = !followingMode;
+        // "For you" ranks against what is already on screen and who is followed
+        final HashSet<String> shown = new HashSet<>();
+        if (!replace) {
+            for (PixelfedStatus s : items) {
+                shown.add(s.statusId);
+            }
+        }
+        final HashMap<String, Boolean> followed = new HashMap<>(follows);
+        final NexForYou model = forYou();
         CoreClient.EXECUTOR.execute(() -> {
             ArrayList<PixelfedStatus> page = null;
+            String nextMaxId = null;
             String error = null;
             boolean notConnected = false;
             boolean noNetwork = false;
             try {
                 page = PixelfedClient.timelineBlocking(tgUserId, isPublic, fromId);
+                nextMaxId = page.isEmpty() ? null : page.get(page.size() - 1).id;
+                if (isPublic) {
+                    page = rankForYou(model, page, fromId == null, shown, followed);
+                }
             } catch (PixelfedClient.NotConnectedException e) {
                 notConnected = true;
             } catch (PixelfedClient.HttpException e) {
@@ -316,14 +364,122 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 error = e.getClass().getSimpleName();
             }
             final ArrayList<PixelfedStatus> result = page;
+            final String nextMax = nextMaxId;
             final String reason = error;
             final boolean finalNotConnected = notConnected;
             final boolean finalOffline = noNetwork;
-            AndroidUtilities.runOnUIThread(() -> onPageLoaded(gen, replace, fromId, result, reason, finalNotConnected, finalOffline));
+            AndroidUtilities.runOnUIThread(() -> onPageLoaded(gen, replace, fromId, result, nextMax, reason, finalNotConnected, finalOffline));
         });
     }
 
-    private void onPageLoaded(int gen, boolean replace, String fromId, ArrayList<PixelfedStatus> page, String reason, boolean notConnected, boolean noNetwork) {
+    // "For you" page (worker thread): this page of the local public timeline, plus on the first page the home
+    // timeline and the month's most liked posts; without duplicates or posts already shown, ranked by NexForYou
+    private ArrayList<PixelfedStatus> rankForYou(NexForYou model, ArrayList<PixelfedStatus> page, boolean first,
+                                                 HashSet<String> shown, HashMap<String, Boolean> followed) {
+        final ArrayList<PixelfedStatus> pool = new ArrayList<>(page);
+        if (first) {
+            try {
+                pool.addAll(PixelfedClient.timelineBlocking(tgUserId, false, null));
+            } catch (Exception ignore) {
+            }
+            try {
+                pool.addAll(PixelfedClient.trendingBlocking(tgUserId));
+            } catch (Exception ignore) {
+            }
+        }
+        final HashMap<String, PixelfedStatus> byId = new HashMap<>();
+        final ArrayList<NexForYou.Candidate> candidates = new ArrayList<>();
+        for (PixelfedStatus s : pool) {
+            if (shown.contains(s.statusId) || byId.containsKey(s.statusId)) {
+                continue; // the timeline copy (with this user's like / save state) comes first
+            }
+            byId.put(s.statusId, s);
+            candidates.add(new NexForYou.Candidate(s.statusId, s.authorId, NexForYou.hashtags(s.contentHtml), s.hasVideo(),
+                s.favouritesCount, s.repliesCount, s.createdAt, Boolean.TRUE.equals(followed.get(s.authorId)),
+                NexPostActions.isOwn(tgUserId, s)));
+        }
+        final ArrayList<PixelfedStatus> ranked = new ArrayList<>(candidates.size());
+        for (NexForYou.Candidate c : model.rank(candidates, System.currentTimeMillis(), SESSION_SEED)) {
+            ranked.add(byId.get(c.id));
+        }
+        return ranked;
+    }
+
+    private NexForYou forYou() {
+        NexForYou model = forYouModels.get(tgUserId);
+        if (model == null) {
+            model = NexForYou.fromJson(prefs().getString("foryou_" + tgUserId, null));
+            forYouModels.put(tgUserId, model);
+        }
+        return model;
+    }
+
+    // A signal for the "For you" model; saved a few seconds later
+    private void learn(PixelfedStatus status, float[] weights) {
+        if (status == null) {
+            return;
+        }
+        forYou().record(status.authorId, NexForYou.hashtags(status.contentHtml), status.hasVideo(), weights, System.currentTimeMillis());
+        AndroidUtilities.cancelRunOnUIThread(saveForYou);
+        AndroidUtilities.runOnUIThread(saveForYou, 3000);
+    }
+
+    private void saveForYouNow() {
+        AndroidUtilities.cancelRunOnUIThread(saveForYou);
+        final NexForYou model = forYouModels.get(tgUserId);
+        if (model == null) {
+            return;
+        }
+        final String key = "foryou_" + tgUserId;
+        CoreClient.EXECUTOR.execute(() -> prefs().edit().putString(key, model.toJson()).apply());
+    }
+
+    // How long each post stayed on screen (≥ half of it visible): long looks teach the model, very quick
+    // skips count a little against; looked-at posts go down in "For you" next time
+    private void trackDwell(boolean leaveAll) {
+        final long now = android.os.SystemClock.elapsedRealtime();
+        final HashSet<PixelfedStatus> visible = new HashSet<>();
+        if (!leaveAll && !paused && getVisibility() == View.VISIBLE) {
+            final int top = listView.getPaddingTop();
+            final int bottom = listView.getHeight() - listView.getPaddingBottom();
+            for (int i = 0; i < listView.getChildCount(); i++) {
+                final View child = listView.getChildAt(i);
+                if (!(child instanceof NexPostCell) || child.getHeight() <= 0) {
+                    continue;
+                }
+                final int shownPx = Math.min(bottom, child.getBottom()) - Math.max(top, child.getTop());
+                final PixelfedStatus status = ((NexPostCell) child).getStatus();
+                if (status != null && shownPx >= Math.min(child.getHeight(), bottom - top) / 2) {
+                    visible.add(status);
+                    if (!visibleSince.containsKey(status)) {
+                        visibleSince.put(status, now);
+                    }
+                }
+            }
+        }
+        final java.util.Iterator<java.util.Map.Entry<PixelfedStatus, Long>> it = visibleSince.entrySet().iterator();
+        while (it.hasNext()) {
+            final java.util.Map.Entry<PixelfedStatus, Long> e = it.next();
+            if (visible.contains(e.getKey())) {
+                continue;
+            }
+            final long dwell = now - e.getValue();
+            it.remove();
+            final PixelfedStatus status = e.getKey();
+            if (dwell >= 8000) {
+                learn(status, NexForYou.VERY_LONG_LOOK);
+            } else if (dwell >= 3000) {
+                learn(status, NexForYou.LONG_LOOK);
+            } else if (dwell < 700 && !leaveAll) {
+                learn(status, NexForYou.QUICK_SKIP);
+            }
+            if (dwell >= 1000) {
+                forYou().markSeen(status.statusId, System.currentTimeMillis());
+            }
+        }
+    }
+
+    private void onPageLoaded(int gen, boolean replace, String fromId, ArrayList<PixelfedStatus> page, String nextMaxId, String reason, boolean notConnected, boolean noNetwork) {
         if (gen != generation) {
             return;
         }
@@ -354,11 +510,11 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         firstLoaded = true;
         firstFailed = false;
         offline = false;
-        hasMore = !page.isEmpty();
-        if (!page.isEmpty()) {
-            maxId = page.get(page.size() - 1).id;
-            items.addAll(page);
+        hasMore = nextMaxId != null;
+        if (nextMaxId != null) {
+            maxId = nextMaxId;
         }
+        items.addAll(page);
         if (pendingTop != null) {
             boolean found = false;
             for (PixelfedStatus s : items) {
@@ -514,22 +670,28 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         if (fragment != null) {
             fragment.presentFragment(new NexVideoViewerActivity(status, page));
         }
+        learn(status, NexForYou.VIDEO_OPEN);
     }
 
     @Override
     public void onCommentsClick(NexPostCell cell, PixelfedStatus status) {
+        learn(status, NexForYou.COMMENTS);
         delegate.onOpenComments(status);
     }
 
     @Override
     public void onAuthorClick(PixelfedStatus status) {
         if (status.authorId != null && !status.authorId.isEmpty()) {
+            learn(status, NexForYou.PROFILE_OPEN);
             delegate.onOpenProfile(status.authorId);
         }
     }
 
     @Override
     public void onLikeClick(NexPostCell cell, PixelfedStatus status) {
+        if (!status.likePending) {
+            learn(status, status.favourited ? NexForYou.UNLIKE : NexForYou.LIKE);
+        }
         toggleLike(getContext(), tgUserId, status, () -> updateCellsOf(status), delegate::onFeedNotConnected);
     }
 
@@ -539,10 +701,14 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         if (fragment != null) {
             NexPostActions.share(fragment, status);
         }
+        learn(status, NexForYou.SHARE);
     }
 
     @Override
     public void onBookmarkClick(NexPostCell cell, PixelfedStatus status) {
+        if (!status.bookmarked && !status.bookmarkPending) {
+            learn(status, NexForYou.SAVE);
+        }
         NexPostActions.toggleBookmark(getContext(), tgUserId, status, postListener);
     }
 
@@ -571,6 +737,9 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     @Override
     public void onFollowClick(NexPostCell cell, PixelfedStatus status) {
         final String authorId = status.authorId;
+        if (!authorId.isEmpty() && !followPending.contains(authorId) && !Boolean.TRUE.equals(follows.get(authorId))) {
+            learn(status, NexForYou.FOLLOW);
+        }
         if (authorId.isEmpty() || !followPending.add(authorId)) {
             return;
         }
@@ -686,14 +855,28 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         }
     }
 
+    // Stories again when coming back (seen rings, new stories), at most every 30 s unless forced
+    private void loadStories(boolean force) {
+        final long now = android.os.SystemClock.elapsedRealtime();
+        if (force || storiesLoadedAt == 0 || now - storiesLoadedAt > 30_000) {
+            storiesLoadedAt = now;
+            storiesBar.load();
+        } else {
+            storiesBar.refreshRings();
+        }
+    }
+
     public void onResume() {
         paused = false;
+        loadStories(false);
         updateVisibleCounts();
         listView.post(this::updateActiveVideo);
     }
 
     public void onPause() {
         paused = true;
+        trackDwell(true);
+        saveForYouNow();
         updateActiveVideo();
     }
 
