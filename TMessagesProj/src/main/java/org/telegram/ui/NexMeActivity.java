@@ -387,6 +387,13 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         ring.setShape(GradientDrawable.OVAL);
         ring.setColor(NexLentaColors.BACKGROUND);
         avatarFrame.setBackground(ring);
+        // the photo on the right over the banner's edge, in an accent ring with a soft glow of the accent
+        ring.setStroke(AndroidUtilities.dp(2.5f), NexLentaColors.ACCENT);
+        avatarFrame.setElevation(AndroidUtilities.dp(12));
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            avatarFrame.setOutlineSpotShadowColor(NexLentaColors.ACCENT);
+            avatarFrame.setOutlineAmbientShadowColor(NexLentaColors.ACCENT);
+        }
         avatarFrame.setPadding(AndroidUtilities.dp(3), AndroidUtilities.dp(3), AndroidUtilities.dp(3), AndroidUtilities.dp(3));
         avatarView = new BackupImageView(context);
         avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
@@ -411,8 +418,8 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         plus.setOnClickListener(v -> openPhotoMenu());
         ScaleStateListAnimator.apply(plus, 0.1f, 1.6f);
         avatarHolder.addView(plus, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.BOTTOM));
-        final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.LEFT | Gravity.TOP);
-        avatarParams.leftMargin = AndroidUtilities.dp(14);
+        final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.RIGHT | Gravity.TOP);
+        avatarParams.rightMargin = AndroidUtilities.dp(16);
         avatarParams.topMargin = bannerHeight() - AndroidUtilities.dp(AVATAR_DP / 2f);
         header.addView(avatarHolder, avatarParams);
         column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -461,6 +468,8 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         background.setOnClickListener(v -> openCoverEditor());
         buttons.addView(background, LayoutHelper.createLinear(0, 46, 1f, 10, 0, 0, 0));
         column.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 16, 0, 0));
+        // highlights: Telegram story albums, as on Instagram
+        column.addView(new NexHighlightsRow(context, this, tgUserId(), true), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, -16, 22, -16, 0));
         coverTexts.add(nameView);
         coverTexts.add(usernameView);
         coverTexts.add(bioView);

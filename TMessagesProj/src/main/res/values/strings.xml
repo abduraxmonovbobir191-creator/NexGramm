@@ -11593,4 +11593,8 @@
     <string name="NexStoryMusic">Music</string>
     <string name="NexStoryMusicFrom">Starts at %1$s</string>
     <string name="NexStoryMusicBad">This file can\'t be used as music</string>
+    <string name="NexHighlights">Highlights</string>
+    <string name="NexHighlightAdd">New</string>
+    <string name="NexHighlightName">Album name</string>
+    <string name="NexHighlightCreate">Create</string>
 </resources>

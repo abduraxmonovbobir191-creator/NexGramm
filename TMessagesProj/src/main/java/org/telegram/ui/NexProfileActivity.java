@@ -229,12 +229,19 @@ public class NexProfileActivity extends BaseFragment {
         avatarRing.setShape(GradientDrawable.OVAL);
         avatarRing.setColor(NexLentaColors.BACKGROUND);
         avatarFrame.setBackground(avatarRing);
+        // the photo on the right over the banner's edge, in an accent ring with a soft glow of the accent
+        avatarRing.setStroke(AndroidUtilities.dp(2.5f), NexLentaColors.ACCENT);
+        avatarFrame.setElevation(AndroidUtilities.dp(12));
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            avatarFrame.setOutlineSpotShadowColor(NexLentaColors.ACCENT);
+            avatarFrame.setOutlineAmbientShadowColor(NexLentaColors.ACCENT);
+        }
         avatarFrame.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
         avatarView = new BackupImageView(context);
         avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
         avatarFrame.addView(avatarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.LEFT | Gravity.TOP);
-        avatarParams.leftMargin = AndroidUtilities.dp(14);
+        final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.RIGHT | Gravity.TOP);
+        avatarParams.rightMargin = AndroidUtilities.dp(16);
         avatarParams.topMargin = banner - AndroidUtilities.dp(AVATAR_DP / 2f);
         header.addView(avatarFrame, avatarParams);
 
