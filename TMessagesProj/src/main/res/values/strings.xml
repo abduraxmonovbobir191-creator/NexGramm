@@ -11585,4 +11585,7 @@
     <string name="NexPeerAllMedia">All media and files</string>
     <string name="NexPeerNoMedia">No photos or videos yet</string>
     <string name="NexPeerFullProfile">Full profile</string>
+    <string name="NexLentaSearchHint">Search people</string>
+    <string name="NexLentaSearchEmpty">Type a Lenta username</string>
+    <string name="NexLentaSearchNothing">Nobody found</string>
 </resources>

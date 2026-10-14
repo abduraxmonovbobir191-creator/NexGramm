@@ -348,4 +348,7 @@
     <string name="NexPeerAllMedia">Barcha media va fayllar</string>
     <string name="NexPeerNoMedia">Hali rasm yoki video yo\'q</string>
     <string name="NexPeerFullProfile">To\'liq profil</string>
+    <string name="NexLentaSearchHint">Odamlarni qidirish</string>
+    <string name="NexLentaSearchEmpty">Lenta username\'ini yozing</string>
+    <string name="NexLentaSearchNothing">Hech kim topilmadi</string>
 </resources>

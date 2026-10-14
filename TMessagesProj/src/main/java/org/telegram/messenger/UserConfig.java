@@ -24,8 +24,9 @@ import java.util.Arrays;
 public class UserConfig extends BaseController {
 
     public static int selectedAccount;
-    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 3;
-    public final static int MAX_ACCOUNT_COUNT = 4;
+    // NexGramm: 5 accounts, 10 with NexGramm Premium (the native side, jni/tgnet, has 10 slots too)
+    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 5;
+    public final static int MAX_ACCOUNT_COUNT = 10;
 
     private final Object sync = new Object();
     private volatile boolean configLoaded;
@@ -122,7 +123,18 @@ public class UserConfig extends BaseController {
     }
 
     public static int getMaxAccountCount() {
-        return hasPremiumOnAccounts() ? 5 : 3;
+        return hasNexPremiumOnAccounts() ? MAX_ACCOUNT_COUNT : MAX_ACCOUNT_DEFAULT_COUNT;
+    }
+
+    // NexGramm Premium on any signed-in account (more accounts)
+    public static boolean hasNexPremiumOnAccounts() {
+        for (int a = 0; a < MAX_ACCOUNT_COUNT; a++) {
+            final UserConfig config = getInstance(a);
+            if (config.isClientActivated() && uz.nexgramm.core.NexPremium.isActive(config.getClientUserId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int getNewMessageId() {

@@ -612,4 +612,7 @@
     <string name="NexPeerAllMedia">Все медиа и файлы</string>
     <string name="NexPeerNoMedia">Пока нет фото и видео</string>
     <string name="NexPeerFullProfile">Полный профиль</string>
+    <string name="NexLentaSearchHint">Поиск людей</string>
+    <string name="NexLentaSearchEmpty">Введите имя пользователя в Lenta</string>
+    <string name="NexLentaSearchNothing">Никого не нашли</string>
 </resources>

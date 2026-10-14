@@ -71,9 +71,9 @@ public final class NexPremium {
     // The plans shown before the server answered (prices as on the server by default)
     public static Status fallback() {
         final ArrayList<Plan> plans = new ArrayList<>();
-        plans.add(new Plan("2w", 14, "1 $", true));
-        plans.add(new Plan("1m", 30, "4 $", true));
-        plans.add(new Plan("3m", 91, "11 $", true));
+        plans.add(new Plan("2w", 14, "12 000 so'm", true));
+        plans.add(new Plan("1m", 30, "49 000 so'm", true));
+        plans.add(new Plan("3m", 91, "139 000 so'm", true));
         return new Status(false, 0, "", plans);
     }
 
