@@ -1693,6 +1693,8 @@ public class ChatActivity extends BaseFragment implements
     private final static int nex_ai = 90; // NexGramm: ✦ NEX AI for this chat
     private final static int nex_saved = 91; // NexGramm: messages others deleted / edited here (when kept)
     private final static int nex_lock = 92; // NexGramm: lock / unlock this chat (fingerprint or screen PIN)
+    private final static int nex_save_all = 93; // NexGramm: selected photos / videos → gallery in one go
+    private int nexSaveMediaCount;
     private android.widget.FrameLayout nexLockCover;
     private boolean nexLockOpened;
     private boolean nexLockPrompted;
@@ -3670,6 +3672,7 @@ public class ChatActivity extends BaseFragment implements
         cantSaveMessagesCount = 0;
         canSaveMusicCount = 0;
         canSaveDocumentsCount = 0;
+        nexSaveMediaCount = 0;
 
         hasOwnBackground = true;
         if (chatAttachAlert != null) {
@@ -3803,6 +3806,30 @@ public class ChatActivity extends BaseFragment implements
                     } else {
                         hideTagSelector();
                     }
+                } else if (id == nex_save_all) {
+                    if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && getParentActivity() != null
+                        && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
+                        return;
+                    }
+                    final ArrayList<MessageObject> nexMedia = new ArrayList<>();
+                    for (int a = 1; a >= 0; a--) {
+                        for (int b = 0; b < selectedMessagesIds[a].size(); b++) {
+                            nexMedia.add(selectedMessagesIds[a].valueAt(b));
+                        }
+                        selectedMessagesIds[a].clear();
+                        selectedMessagesCanCopyIds[a].clear();
+                        selectedMessagesCanStarIds[a].clear();
+                    }
+                    hideActionMode();
+                    updatePinnedMessageView(true);
+                    updateVisibleRows();
+                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.ic_download, LocaleController.getString(R.string.NexSaveAllStarted)).show();
+                    new NexBulkSave(currentAccount, ChatActivity.this::saveMessageToGallery, (savedCount, failedCount) -> {
+                        if (getParentActivity() != null && savedCount > 0) {
+                            BulletinFactory.of(ChatActivity.this).createDownloadBulletin(BulletinFactory.FileType.MEDIA, savedCount, themeDelegate).show();
+                        }
+                    }).start(nexMedia);
                 } else if (id == save_to) {
                     ArrayList<MessageObject> messageObjects = new ArrayList<>();
                     for (int a = 1; a >= 0; a--) {
@@ -10383,6 +10410,7 @@ public class ChatActivity extends BaseFragment implements
         if (currentEncryptedChat == null) {
             final boolean isSavedMessages = getDialogId() == getUserConfig().getClientUserId() && (chatMode == 0 || chatMode == MODE_SAVED);
             actionModeViews.add(actionMode.addItemWithWidth(save_to, R.drawable.msg_download, dp(48), LocaleController.getString(R.string.SaveToMusic)));
+            actionModeViews.add(actionMode.addItemWithWidth(nex_save_all, R.drawable.msg_gallery, dp(48), LocaleController.getString(R.string.NexSaveAll)));
             actionModeViews.add(actionMode.addItemWithWidth(edit, R.drawable.msg_edit, dp(48), LocaleController.getString(R.string.Edit)));
             if (isSavedMessages) {
                 actionModeViews.add(actionMode.addItemWithWidth(tag_message, R.drawable.menu_tag_edit, dp(48), LocaleController.getString(R.string.AccDescrTagMessage)));
@@ -19194,6 +19222,9 @@ public class ChatActivity extends BaseFragment implements
                     } else {
                         canForwardMessagesCount--;
                     }
+                    if (!noforwards && NexBulkSave.canSave(messageObject)) {
+                        nexSaveMediaCount--;
+                    }
                     if (messageObject.isMusic() && !noforwards) {
                         canSaveMusicCount--;
                     } else if (messageObject.isDocument() && !noforwards) {
@@ -19230,6 +19261,9 @@ public class ChatActivity extends BaseFragment implements
                         cantForwardMessagesCount++;
                     } else {
                         canForwardMessagesCount++;
+                    }
+                    if (!noforwards && NexBulkSave.canSave(messageObject)) {
+                        nexSaveMediaCount++;
                     }
                     if (messageObject.isMusic() && !noforwards) {
                         canSaveMusicCount++;
@@ -19298,6 +19332,11 @@ public class ChatActivity extends BaseFragment implements
                     if (actionsButtonsLayout != null) {
                         actionsButtonsLayout.setForwardButtonEnabled(cantForwardMessagesCount == 0 || noforwards, false);
                     }
+                }
+                final ActionBarMenuItem nexSaveItem = actionBar.createActionMode().getItem(nex_save_all);
+                if (nexSaveItem != null) {
+                    // NexGramm: only when every selected message is a photo or a video that may be saved
+                    nexSaveItem.setVisibility(nexSaveMediaCount > 0 && nexSaveMediaCount == selectedCount ? View.VISIBLE : View.GONE);
                 }
                 if (saveItem != null) {
                     saveItem.setVisibility(((canSaveMusicCount > 0 && canSaveDocumentsCount == 0) || (canSaveMusicCount == 0 && canSaveDocumentsCount > 0)) && cantSaveMessagesCount == 0 ? View.VISIBLE : View.GONE);
@@ -30695,6 +30734,7 @@ public class ChatActivity extends BaseFragment implements
         cantForwardMessagesCount = 0;
         canSaveMusicCount = 0;
         canSaveDocumentsCount = 0;
+        nexSaveMediaCount = 0;
         cantSaveMessagesCount = 0;
         if (chatActivityEnterView != null) {
             EditTextCaption editTextCaption = chatActivityEnterView.getEditField();

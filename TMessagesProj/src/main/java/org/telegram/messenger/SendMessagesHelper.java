@@ -4256,6 +4256,22 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         });
     }
 
+    // NexGramm: how many copies ahead (Telegram keeps up to 100 scheduled messages per chat)
+    private static int nexRepeatCopies(int period) {
+        if (period <= 86400) {
+            return period < 3600 ? 10 : 30;      // daily: a month
+        } else if (period <= 14 * 86400) {
+            return period <= 7 * 86400 ? 12 : 8; // weekly: 3 months, every 2 weeks: 4 months
+        } else if (period <= 31 * 86400) {
+            return 12;                           // monthly: a year
+        } else if (period <= 92 * 86400) {
+            return 4;
+        } else if (period <= 183 * 86400) {
+            return 2;
+        }
+        return 1;
+    }
+
     public void sendMessage(SendMessageParams sendMessageParams) {
         final SendMessageChatArguments sendMessageChatArguments = sendMessageParams.sendMessageChatArguments != null ?
                 sendMessageParams.sendMessageChatArguments : SendMessageChatArguments.EMPTY;
@@ -4286,6 +4302,25 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         int scheduleRepeatPeriod = sendMessageParams.scheduleRepeatPeriod;
         if (scheduleDate == 0 && retryMessageObject == null && peer != 0 && uz.nexgramm.core.NexGhost.readOnReply()) {
             getMessagesController().nexReadOnReply(peer); // NexGramm ghost mode: replying marks the chat read
+        }
+        // NexGramm: repeating scheduled messages without Telegram Premium (the server allows repeats to Premium
+        // only): a text message gets its next copies scheduled now (a month of days, a year of weeks …);
+        // other kinds are sent once
+        if (scheduleRepeatPeriod != 0 && scheduleDate != 0 && retryMessageObject == null && !getUserConfig().isPremium()) {
+            final int nexPeriod = scheduleRepeatPeriod;
+            scheduleRepeatPeriod = 0;
+            sendMessageParams.scheduleRepeatPeriod = 0;
+            if (message != null && photo == null && document == null && location == null && game == null && poll == null
+                && todo == null && invoice == null && user == null && path == null) {
+                final int copies = nexRepeatCopies(nexPeriod);
+                for (int k = 1; k <= copies; k++) {
+                    final SendMessageParams copy = SendMessageParams.of(message, peer, replyToMsg, replyToTopMsg, webPage, searchLinks,
+                        entities, replyMarkup, params, notify, scheduleDate + k * nexPeriod, 0, null, false);
+                    copy.sendMessageChatArguments = sendMessageParams.sendMessageChatArguments;
+                    copy.monoForumPeer = sendMessageParams.monoForumPeer;
+                    sendMessage(copy);
+                }
+            }
         }
         int ttl = sendMessageParams.ttl;
         Object parentObject = sendMessageParams.parentObject;

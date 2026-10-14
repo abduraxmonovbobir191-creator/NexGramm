@@ -4660,7 +4660,7 @@ public class AlertsCreator {
                     }
                 }
                 sb.append(" v");
-                if (UserConfig.getInstance(UserConfig.selectedAccount).isPremium()) {
+                if (true) { // NexGramm: repeats for everyone (without Premium the next copies are scheduled ahead)
                     final ColoredImageSpan imageSpan = new ColoredImageSpan(R.drawable.arrows_select);
                     imageSpan.spaceScaleX = 0.7f;
                     imageSpan.translate(dp(-1.33f), dp(0));
@@ -4719,7 +4719,7 @@ public class AlertsCreator {
 
         if (repeatTextView != null) {
             repeatTextView.setOnClickListener(v -> {
-                if (!UserConfig.getInstance(UserConfig.selectedAccount).isPremium()) {
+                if (false) { // NexGramm: repeats for everyone
                     BulletinFactory.of(bulletinContainer, resourcesProvider)
                         .createSimpleBulletin(R.raw.star_premium_2, AndroidUtilities.premiumText(LocaleController.getString(R.string.MessageScheduledRepeatPremium), () -> {
                             final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();

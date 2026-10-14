@@ -1799,6 +1799,12 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     public String getShortStringForMessage(MessageObject messageObject, String[] userName, boolean[] preview) {
+        if (messageObject != null && org.telegram.ui.NexChatLock.isLocked(currentAccount, messageObject.getDialogId())) {
+            if (preview != null && preview.length > 0) {
+                preview[0] = false; // NexGramm: a locked chat never shows its text in a notification
+            }
+            return LocaleController.getString(R.string.NexLockNewMessage);
+        }
         if (AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter) {
             return LocaleController.getString(R.string.NotificationHiddenMessage);
         }
@@ -2485,6 +2491,15 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     private String getStringForMessage(MessageObject messageObject, boolean shortMessage, boolean[] text, boolean[] preview) {
+        if (messageObject != null && org.telegram.ui.NexChatLock.isLocked(currentAccount, messageObject.getDialogId())) {
+            if (text != null && text.length > 0) {
+                text[0] = false;
+            }
+            if (preview != null && preview.length > 0) {
+                preview[0] = false; // NexGramm: a locked chat never shows its text in a notification
+            }
+            return LocaleController.getString(R.string.NexLockNewMessage);
+        }
         if (AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter) {
             return LocaleController.getString(R.string.YouHaveNewMessage);
         }
