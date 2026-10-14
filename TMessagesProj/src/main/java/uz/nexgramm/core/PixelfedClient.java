@@ -478,6 +478,19 @@ public final class PixelfedClient {
         }
     }
 
+    // GET /api/v1.1/discover/posts/trending?range=monthly: this server's most liked public posts of the month (≤ 30)
+    public static ArrayList<PixelfedStatus> trendingBlocking(long tgUserId) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1.1/discover/posts/trending?range=monthly", null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            return PixelfedStatus.listFromJson(response.body);
+        } catch (JSONException e) {
+            throw new IOException("bad trending");
+        }
+    }
+
     // POST /api/v1/statuses/:id/favourite or /unfavourite
     public static void setFavouriteBlocking(long tgUserId, String statusId, boolean favourite) throws IOException, NotConnectedException {
         final Response response = apiBlocking(tgUserId, "POST",
