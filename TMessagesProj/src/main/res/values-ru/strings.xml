@@ -349,6 +349,12 @@
     <string name="NexFeedModeForYou">Для вас</string>
     <string name="NexFeedModeFollowing">Подписки</string>
     <string name="NexFeedNotifications">Уведомления</string>
+    <string name="NexNotifLiked">понравился ваш пост</string>
+    <string name="NexNotifCommented">прокомментировал(а)</string>
+    <string name="NexNotifMentioned">упомянул(а) вас</string>
+    <string name="NexNotifFollowed">подписался(-ась) на вас</string>
+    <string name="NexNotifShared">поделился(-ась) вашим постом</string>
+    <string name="NexNotifEmpty">Уведомлений пока нет. Здесь появятся лайки, комментарии и новые подписчики.</string>
     <string name="NexFeedOfflineTitle">Нет интернета</string>
     <string name="NexFeedOffline">Проверьте подключение и попробуйте снова.</string>
     <string name="NexFeedEmptyFollowingTitle">Пока никого</string>
