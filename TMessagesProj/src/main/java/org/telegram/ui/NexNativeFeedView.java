@@ -152,7 +152,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         modeView.setPadding(0, AndroidUtilities.dp(4), AndroidUtilities.dp(12), AndroidUtilities.dp(2));
         modeView.setOnClickListener(v -> switchMode());
         titles.addView(modeView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
-        final TextView title = NexLentaUi.serifTitle(context, 50);
+        final TextView title = NexLentaUi.serifTitle(context, 40);
         title.setText(LocaleController.getString(R.string.NexFeedTitle));
         title.setOnClickListener(v -> switchMode());
         titles.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
@@ -162,11 +162,11 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         final ImageView composeButton = NexLentaUi.circleButton(context, R.drawable.msg_add, NexLentaUi.PILL_PRIMARY, false);
         composeButton.setContentDescription(LocaleController.getString(R.string.NexComposeTitle));
         composeButton.setOnClickListener(v -> delegate.onComposeClick());
-        buttons.addView(composeButton, LayoutHelper.createLinear(56, 56));
+        buttons.addView(composeButton, LayoutHelper.createLinear(44, 44));
         final ImageView heartButton = NexLentaUi.circleButton(context, R.drawable.media_like, NexLentaUi.PILL_CARD, false);
         heartButton.setContentDescription(LocaleController.getString(R.string.NexFeedNotifications));
         heartButton.setOnClickListener(v -> NexPostActions.aiSoon(getContext()));
-        buttons.addView(heartButton, LayoutHelper.createLinear(56, 56, 12, 0, 0, 0));
+        buttons.addView(heartButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
         // own Lenta profile: my posts, liked and saved posts
         final ImageView meButton = NexLentaUi.circleButton(context, R.drawable.msg_openprofile, NexLentaUi.PILL_CARD, false);
         meButton.setContentDescription(LocaleController.getString(R.string.NexFeedMyProfile));
@@ -176,9 +176,9 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 fragment.presentFragment(new NexProfileActivity(null));
             }
         });
-        buttons.addView(meButton, LayoutHelper.createLinear(56, 56, 12, 0, 0, 0));
+        buttons.addView(meButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
         header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 10, 0, 0));
-        header.setPadding(AndroidUtilities.dp(22), AndroidUtilities.dp(6), AndroidUtilities.dp(22), AndroidUtilities.dp(18));
+        header.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(6), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
         headerView = header;
         updateModeText();
 
@@ -502,6 +502,14 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             updateCellsOf(status);
         }
     };
+
+    @Override
+    public void onVideoClick(NexPostCell cell, PixelfedStatus status, int page) {
+        final BaseFragment fragment = delegate.getFragment();
+        if (fragment != null) {
+            fragment.presentFragment(new NexVideoViewerActivity(status, page));
+        }
+    }
 
     @Override
     public void onCommentsClick(NexPostCell cell, PixelfedStatus status) {

@@ -361,6 +361,7 @@
     <string name="NexPostSave">Сохранить</string>
     <string name="NexPostSaved">Добавлено в сохранённые</string>
     <string name="NexPostMore">ещё…</string>
+    <string name="NexPostViewComments">Все комментарии: %1$s</string>
     <string name="NexPostCopyLink">Копировать ссылку</string>
     <string name="NexPostLinkCopied">Ссылка скопирована</string>
     <string name="NexPostDelete">Удалить</string>
