@@ -687,6 +687,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         // NexGramm: its own card first — features (ghost mode, deleted / edited messages, chat lock …) and the
         // look (light / dark mode and the accent color, shown under the title like the other rows)
+        items.add(SettingCell.Factory.of(35, 0xFFFFB86B, 0xFFB48CF5, R.drawable.settings_premium, getString(R.string.NexPremiumTitle), null,
+            uz.nexgramm.core.NexPremium.isActive(getUserConfig().getClientUserId()) ? getString(R.string.NexPremiumActive) : ""));
         items.add(SettingCell.Factory.of(31, 0xFF8E8E93, 0xFF5B5B63, R.drawable.ghost, getString(R.string.NexFeaturesTitle), getString(R.string.NexFeaturesInfo)));
         items.add(SettingCell.Factory.of(30, 0xFFB48CF5, 0xFF7C3AED, R.drawable.msg_palette, getString(R.string.NexAppearanceSettingsRow),
             NexAppearanceActivity.modeName(NexAppearanceActivity.currentMode()) + " · " + NexAppearanceActivity.accentName(Theme.getNexgrammAccent())));
@@ -847,6 +849,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
             case 34:
                 presentSettingFragment(new NexFeedbackActivity(NexFeedbackActivity.SUPPORT));
+                break;
+            case 35:
+                presentSettingFragment(new NexPremiumActivity());
                 break;
             case 3:
                 presentSettingFragment(new PrivacySettingsActivity());

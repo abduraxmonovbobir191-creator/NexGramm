@@ -61,6 +61,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-datatransport:18.1.0'
     implementation 'com.google.firebase:firebase-appindexing:20.0.0'
     implementation 'com.google.android.gms:play-services-maps:18.1.0'
+    // NexGramm: AdMob (ads for users without NexGramm Premium)
+    implementation 'com.google.android.gms:play-services-ads:23.6.0'
     implementation 'com.google.android.gms:play-services-auth:20.4.0'
     implementation 'com.google.android.gms:play-services-vision:20.1.3'
     implementation 'com.google.android.gms:play-services-wearable:18.0.0'
@@ -169,6 +171,13 @@ android {
             throw new GradleException("NEX_API_URL must be empty or https://host[:port] without a path, got: " + nexApiUrl)
         }
         buildConfigField "String", "NEX_API_URL", "\"" + nexApiUrl + "\""
+        // NexGramm: AdMob ad unit for the Lenta slots (not a secret): -PADMOB_BANNER_ID=ca-app-pub-<n>/<n> or env;
+        // empty = no AdMob ads (own ads from the core still show). The app id goes into the app module's manifest.
+        def admobBanner = (project.findProperty('ADMOB_BANNER_ID') ?: System.getenv('ADMOB_BANNER_ID') ?: '').toString().trim()
+        if (!(admobBanner ==~ /(ca-app-pub-[0-9]+\/[0-9]+)?/)) {
+            throw new GradleException("ADMOB_BANNER_ID must be empty or ca-app-pub-<n>/<n>, got: " + admobBanner)
+        }
+        buildConfigField "String", "ADMOB_BANNER_ID", "\"" + admobBanner + "\""
 
         externalNativeBuild {
             cmake {

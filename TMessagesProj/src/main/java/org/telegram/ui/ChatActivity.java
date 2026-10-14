@@ -3807,6 +3807,9 @@ public class ChatActivity extends BaseFragment implements
                         hideTagSelector();
                     }
                 } else if (id == nex_save_all) {
+                    if (!NexPremiumActivity.check(ChatActivity.this)) {
+                        return; // NexGramm Premium
+                    }
                     if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && getParentActivity() != null
                         && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                         getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
@@ -9066,6 +9069,8 @@ public class ChatActivity extends BaseFragment implements
                 NexChatLock.setLocked(currentAccount, dialog_id, false);
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOff)).show();
             });
+        } else if (!NexPremiumActivity.check(this)) {
+            // locking a chat is NexGramm Premium (locks already set keep working)
         } else if (!NexChatLock.canLock(getParentActivity())) {
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockNoScreenLock)).show();
         } else {

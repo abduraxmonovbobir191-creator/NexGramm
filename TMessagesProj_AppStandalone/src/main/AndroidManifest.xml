@@ -4,6 +4,10 @@
     android:installLocation="auto">
 
     <application android:name="org.telegram.messenger.ApplicationLoaderImpl" tools:replace="name">
+        <!-- NexGramm: AdMob app id (build property ADMOB_APP_ID) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
         <service
             android:name="org.telegram.messenger.GoogleVoiceClientService"
             android:exported="true"

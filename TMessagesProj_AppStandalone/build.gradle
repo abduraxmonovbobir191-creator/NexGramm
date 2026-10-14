@@ -131,6 +131,17 @@ android {
         minSdkVersion 21
         targetSdkVersion 36
         versionName APP_VERSION_NAME
+
+        // NexGramm: AdMob app id (-PADMOB_APP_ID or env). The SDK needs one at start, so without it Google's
+        // sample id is used; no ads load then unless ADMOB_BANNER_ID is set too.
+        def admobAppId = (project.findProperty('ADMOB_APP_ID') ?: System.getenv('ADMOB_APP_ID') ?: '').toString().trim()
+        if (admobAppId.isEmpty()) {
+            admobAppId = 'ca-app-pub-3940256099942544~3347511713'
+        }
+        if (!(admobAppId ==~ /ca-app-pub-[0-9]+~[0-9]+/)) {
+            throw new GradleException("ADMOB_APP_ID must be ca-app-pub-<n>~<n>, got: " + admobAppId)
+        }
+        manifestPlaceholders["admobAppId"] = admobAppId
         ndkVersion "27.2.12479018"
 
         multiDexEnabled true

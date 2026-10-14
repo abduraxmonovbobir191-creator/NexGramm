@@ -7044,6 +7044,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     public void onResume() {
         super.onResume();
         nexUpdateGhostItem();
+        uz.nexgramm.core.NexPremium.refresh(getUserConfig().getClientUserId()); // NexGramm Premium status (≤ every 10 min)
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }

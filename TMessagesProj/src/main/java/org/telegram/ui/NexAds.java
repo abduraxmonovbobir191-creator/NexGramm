@@ -1,0 +1,176 @@
+package org.telegram.ui;
+
+import android.content.Context;
+import android.text.TextUtils;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import com.google.android.gms.ads.AdListener;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdSize;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.LoadAdError;
+import com.google.android.gms.ads.MobileAds;
+
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.R;
+import org.telegram.messenger.browser.Browser;
+import org.telegram.ui.Components.BackupImageView;
+import org.telegram.ui.Components.LayoutHelper;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Random;
+
+import uz.nexgramm.core.NexOwnAds;
+import uz.nexgramm.core.NexPremium;
+
+// NexGramm: ads for users without NexGramm Premium. Mostly AdMob (ADMOB_BANNER_ID at build time; empty =
+// none), sometimes one of our own ads (GET /v1/ads, added by the owner in the bot). A slot is a card in
+// the Lenta, labelled "Ad". Own ads report a view (once per app run) and clicks (POST /v1/ads/{id}/…).
+final class NexAds {
+
+    private static final float OWN_SHARE = 0.3f; // own ads get about a third of the slots when there are some
+
+    private static boolean mobileAdsStarted;
+    private static final HashSet<String> viewed = new HashSet<>();
+    private static final Random random = new Random();
+
+    private NexAds() {
+    }
+
+    static boolean admobConfigured() {
+        return !TextUtils.isEmpty(BuildConfig.ADMOB_BANNER_ID);
+    }
+
+    // Ads at all for this account (no Premium, and something to show)
+    static boolean enabled(long tgUserId) {
+        NexOwnAds.refresh();
+        return !NexPremium.isActive(tgUserId) && (admobConfigured() || !NexOwnAds.current().isEmpty());
+    }
+
+    // A slot in a list: fills itself once (own ad or AdMob); stays empty (0 height) when nothing comes
+    static final class Slot extends FrameLayout {
+        private boolean filled;
+        private AdView adView;
+
+        Slot(Context context) {
+            super(context);
+            setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(10), AndroidUtilities.dp(16), AndroidUtilities.dp(14));
+        }
+
+        void fill() {
+            if (filled) {
+                return;
+            }
+            filled = true;
+            final ArrayList<NexOwnAds.Ad> list = NexOwnAds.current();
+            final boolean useOwn = !list.isEmpty() && (!admobConfigured() || random.nextFloat() < OWN_SHARE);
+            if (useOwn) {
+                showOwn(list.get(random.nextInt(list.size())));
+            } else if (admobConfigured()) {
+                showAdMob();
+            } else {
+                setVisibility(GONE);
+            }
+        }
+
+        private TextView label(Context context) {
+            final TextView label = new TextView(context);
+            label.setText(LocaleController.getString(R.string.NexAdLabel));
+            label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+            label.setTextColor(NexLentaColors.SECONDARY_TEXT);
+            return label;
+        }
+
+        private void showOwn(NexOwnAds.Ad ad) {
+            final Context context = getContext();
+            final LinearLayout card = new LinearLayout(context);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 18));
+            card.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(12), AndroidUtilities.dp(14), AndroidUtilities.dp(14));
+            card.addView(label(context), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+            if (ad.imageUrl != null) {
+                final BackupImageView image = new BackupImageView(context);
+                image.setRoundRadius(AndroidUtilities.dp(12));
+                image.setImage(ad.imageUrl, null, null);
+                card.addView(image, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 180, 0, 8, 0, 0));
+            }
+            final TextView title = new TextView(context);
+            title.setText(ad.title);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+            title.setTypeface(AndroidUtilities.bold());
+            title.setTextColor(NexLentaColors.TEXT);
+            card.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 10, 0, 0));
+            if (!TextUtils.isEmpty(ad.text)) {
+                final TextView text = new TextView(context);
+                text.setText(ad.text);
+                text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                text.setTextColor(NexLentaColors.SECONDARY_TEXT);
+                card.addView(text, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
+            }
+            final TextView open = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexAdOpen), NexLentaUi.PILL_PRIMARY);
+            card.addView(open, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44, 0, 12, 0, 0));
+            final View.OnClickListener click = v -> {
+                NexOwnAds.report(ad.id, "click");
+                Browser.openUrl(getContext(), ad.url);
+            };
+            card.setOnClickListener(click);
+            open.setOnClickListener(click);
+            addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            synchronized (viewed) {
+                if (viewed.add(ad.id)) {
+                    NexOwnAds.report(ad.id, "view");
+                }
+            }
+        }
+
+        private void showAdMob() {
+            final Context context = getContext();
+            if (!mobileAdsStarted) {
+                mobileAdsStarted = true;
+                try {
+                    MobileAds.initialize(ApplicationLoader.applicationContext, status -> {
+                    });
+                } catch (Throwable e) {
+                    setVisibility(GONE);
+                    return;
+                }
+            }
+            final LinearLayout column = new LinearLayout(context);
+            column.setOrientation(LinearLayout.VERTICAL);
+            column.setGravity(Gravity.CENTER_HORIZONTAL);
+            column.addView(label(context), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT));
+            adView = new AdView(context);
+            adView.setAdSize(AdSize.MEDIUM_RECTANGLE);
+            adView.setAdUnitId(BuildConfig.ADMOB_BANNER_ID);
+            adView.setAdListener(new AdListener() {
+                @Override
+                public void onAdFailedToLoad(LoadAdError error) {
+                    setVisibility(GONE); // nothing to show: the slot takes no room
+                }
+            });
+            column.addView(adView, LayoutHelper.createLinear(300, 250, Gravity.CENTER_HORIZONTAL, 0, 6, 0, 0));
+            addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            try {
+                adView.loadAd(new AdRequest.Builder().build());
+            } catch (Throwable e) {
+                setVisibility(GONE);
+            }
+        }
+
+        void destroy() {
+            if (adView != null) {
+                adView.destroy();
+                adView = null;
+            }
+        }
+    }
+}
