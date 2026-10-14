@@ -11421,6 +11421,7 @@
     <string name="NexPostSave">Save</string>
     <string name="NexPostSaved">Added to saved</string>
     <string name="NexPostMore">more…</string>
+    <string name="NexPostViewComments">View all %1$s comments</string>
     <string name="NexPostCopyLink">Copy link</string>
     <string name="NexPostLinkCopied">Link copied</string>
     <string name="NexPostDelete">Delete</string>

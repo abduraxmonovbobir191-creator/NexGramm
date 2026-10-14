@@ -38,6 +38,7 @@ import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.VideoPlayer;
 
 import java.util.ArrayList;
@@ -79,6 +80,11 @@ public class NexPostCell extends FrameLayout {
         default void onAiClick(PixelfedStatus status) {
         }
 
+        // A video tapped: the full-screen player (X style); without one, the comments
+        default void onVideoClick(NexPostCell cell, PixelfedStatus status, int page) {
+            onCommentsClick(cell, status);
+        }
+
         // Is the author followed? null = unknown or own post (no "Obuna" button)
         default Boolean isFollowing(PixelfedStatus status) {
             return null;
@@ -110,6 +116,7 @@ public class NexPostCell extends FrameLayout {
     private final ImageView bookmarkButton;
     private final TextView captionView;
     private final TextView moreView;
+    private final TextView commentsLink;
     private float mediaRatio = MAX_RATIO;
     private boolean noMedia;
     private PixelfedStatus status;
@@ -121,26 +128,74 @@ public class NexPostCell extends FrameLayout {
         this.delegate = delegate;
         final LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 4, 16, 26));
+        addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, 0, 0, 22));
 
-        // ---- media ----
+        // ---- header (Instagram): photo, name + place · time, Follow, ⋯ ----
+        final LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(AndroidUtilities.dp(14), 0, AndroidUtilities.dp(4), 0);
+        avatarView = new BackupImageView(context);
+        avatarView.setRoundRadius(AndroidUtilities.dp(18));
+        header.addView(avatarView, LayoutHelper.createLinear(36, 36));
+        final LinearLayout names = new LinearLayout(context);
+        names.setOrientation(LinearLayout.VERTICAL);
+        nameView = new TextView(context);
+        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        nameView.setTypeface(AndroidUtilities.bold());
+        nameView.setTextColor(NexLentaColors.TEXT);
+        nameView.setSingleLine(true);
+        nameView.setEllipsize(TextUtils.TruncateAt.END);
+        names.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        subtitleView = new TextView(context);
+        subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        subtitleView.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        subtitleView.setSingleLine(true);
+        subtitleView.setEllipsize(TextUtils.TruncateAt.END);
+        names.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        header.addView(names, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 10, 0, 6, 0));
+        followButton = new TextView(context);
+        followButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        followButton.setTypeface(AndroidUtilities.bold());
+        followButton.setTextColor(NexLentaColors.ACCENT);
+        followButton.setGravity(Gravity.CENTER);
+        followButton.setPadding(AndroidUtilities.dp(10), 0, AndroidUtilities.dp(10), 0);
+        followButton.setText(LocaleController.getString(R.string.NexPostFollow));
+        followButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.08f), Theme.RIPPLE_MASK_ALL));
+        followButton.setOnClickListener(v -> {
+            if (status != null) {
+                delegate.onFollowClick(this, status);
+            }
+        });
+        header.addView(followButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36));
+        menuButton = plainIcon(context, R.drawable.ic_ab_other, NexLentaColors.TEXT);
+        menuButton.setRotation(90);
+        menuButton.setContentDescription(LocaleController.getString(R.string.NexPostMenu));
+        menuButton.setOnClickListener(v -> {
+            if (status != null) {
+                delegate.onMenuClick(this, status);
+            }
+        });
+        header.addView(menuButton, LayoutHelper.createLinear(40, 40));
+        final OnClickListener openAuthor = v -> {
+            if (status != null) {
+                delegate.onAuthorClick(status);
+            }
+        };
+        avatarView.setOnClickListener(openAuthor);
+        names.setOnClickListener(openAuthor);
+        root.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 58));
+
+        // ---- media: edge to edge ----
         mediaFrame = new FrameLayout(context) {
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
                 final int width = MeasureSpec.getSize(widthMeasureSpec);
-                final int height = noMedia ? AndroidUtilities.dp(96) : (int) (width * mediaRatio);
+                final int height = noMedia ? 0 : (int) (width * mediaRatio);
                 super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
             }
         };
         mediaFrame.setBackgroundColor(NexLentaColors.PLACEHOLDER);
-        final int radius = AndroidUtilities.dp(28);
-        mediaFrame.setOutlineProvider(new ViewOutlineProvider() {
-            @Override
-            public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
-            }
-        });
-        mediaFrame.setClipToOutline(true);
         pagerView = new RecyclerView(context);
         pagerLayout = new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false);
         pagerView.setLayoutManager(pagerLayout);
@@ -164,17 +219,7 @@ public class NexPostCell extends FrameLayout {
         mediaFrame.addView(pagerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         pageIndicator = glassPill(context);
-        mediaFrame.addView(pageIndicator, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.TOP | Gravity.RIGHT, 0, 16, 16, 0));
-
-        menuButton = NexLentaUi.circleButton(context, R.drawable.ic_ab_other, NexLentaUi.PILL_CARD, true);
-        menuButton.setRotation(90);
-        menuButton.setContentDescription(LocaleController.getString(R.string.NexPostMenu));
-        menuButton.setOnClickListener(v -> {
-            if (status != null) {
-                delegate.onMenuClick(this, status);
-            }
-        });
-        mediaFrame.addView(menuButton, LayoutHelper.createFrame(34, 34, Gravity.TOP | Gravity.LEFT, 16, 14, 0, 0));
+        mediaFrame.addView(pageIndicator, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 28, Gravity.TOP | Gravity.RIGHT, 0, 12, 12, 0));
 
         heartPop = new ImageView(context);
         heartPop.setImageResource(R.drawable.media_like_active);
@@ -182,150 +227,124 @@ public class NexPostCell extends FrameLayout {
         heartPop.setScaleType(ImageView.ScaleType.FIT_CENTER);
         heartPop.setAlpha(0f);
         mediaFrame.addView(heartPop, LayoutHelper.createFrame(96, 96, Gravity.CENTER));
-
-        // frosted author panel over the photo
-        final LinearLayout panel = new LinearLayout(context);
-        panel.setOrientation(LinearLayout.HORIZONTAL);
-        panel.setGravity(Gravity.CENTER_VERTICAL);
-        panel.setBackground(NexLentaUi.glass(24));
-        panel.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(10), AndroidUtilities.dp(10), AndroidUtilities.dp(10));
-        avatarView = new BackupImageView(context);
-        avatarView.setRoundRadius(AndroidUtilities.dp(23));
-        final GradientDrawable avatarRing = new GradientDrawable();
-        avatarRing.setShape(GradientDrawable.OVAL);
-        avatarRing.setColor(NexLentaColors.CARD);
-        avatarView.setBackground(avatarRing);
-        avatarView.setPadding(AndroidUtilities.dp(2), AndroidUtilities.dp(2), AndroidUtilities.dp(2), AndroidUtilities.dp(2));
-        panel.addView(avatarView, LayoutHelper.createLinear(50, 50));
-        final LinearLayout names = new LinearLayout(context);
-        names.setOrientation(LinearLayout.VERTICAL);
-        nameView = new TextView(context);
-        nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
-        nameView.setTypeface(AndroidUtilities.bold());
-        nameView.setTextColor(NexLentaColors.TEXT);
-        nameView.setSingleLine(true);
-        nameView.setEllipsize(TextUtils.TruncateAt.END);
-        names.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        subtitleView = new TextView(context);
-        subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        subtitleView.setTextColor(NexLentaColors.SECONDARY_TEXT);
-        subtitleView.setSingleLine(true);
-        subtitleView.setEllipsize(TextUtils.TruncateAt.END);
-        names.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
-        panel.addView(names, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 12, 0, 8, 0));
-        followButton = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexPostFollow), NexLentaUi.PILL_PRIMARY);
-        followButton.setOnClickListener(v -> {
-            if (status != null) {
-                delegate.onFollowClick(this, status);
-            }
-        });
-        panel.addView(followButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46));
-        final OnClickListener openAuthor = v -> {
-            if (status != null) {
-                delegate.onAuthorClick(status);
-            }
-        };
-        avatarView.setOnClickListener(openAuthor);
-        names.setOnClickListener(openAuthor);
-        mediaFrame.addView(panel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 14, 0, 14, 14));
         root.addView(mediaFrame, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-        // ---- actions ----
+        // ---- actions (X): ♥ count, 💬 count, share, ✦ ... bookmark ----
         final LinearLayout actions = new LinearLayout(context);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6), 0);
 
-        final LinearLayout likePill = actionPill(context);
+        final LinearLayout likeGroup = iconCount(context);
         likeIcon = new ImageView(context);
         likeIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        likePill.addView(likeIcon, LayoutHelper.createLinear(22, 22));
+        likeGroup.addView(likeIcon, LayoutHelper.createLinear(26, 26));
         likeCount = countText(context);
-        likePill.addView(likeCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 8, 0, 0, 0));
-        likePill.setOnClickListener(v -> {
+        likeGroup.addView(likeCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+        likeGroup.setOnClickListener(v -> {
             if (status != null) {
                 delegate.onLikeClick(this, status);
+                likeIcon.animate().scaleX(1.25f).scaleY(1.25f).setDuration(110).withEndAction(() ->
+                    likeIcon.animate().scaleX(1f).scaleY(1f).setDuration(160).start()).start();
             }
         });
-        actions.addView(likePill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 52));
+        actions.addView(likeGroup, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46));
 
-        final LinearLayout commentPill = actionPill(context);
+        final LinearLayout commentGroup = iconCount(context);
         final ImageView commentIcon = new ImageView(context);
         commentIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         commentIcon.setImageResource(R.drawable.msg_msgbubble3);
         commentIcon.setColorFilter(new PorterDuffColorFilter(NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
-        commentPill.addView(commentIcon, LayoutHelper.createLinear(22, 22));
+        commentGroup.addView(commentIcon, LayoutHelper.createLinear(24, 24));
         commentCount = countText(context);
-        commentPill.addView(commentCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 8, 0, 0, 0));
-        commentPill.setOnClickListener(v -> openComments());
-        actions.addView(commentPill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 52, 10, 0, 0, 0));
+        commentGroup.addView(commentCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+        commentGroup.setOnClickListener(v -> openComments());
+        actions.addView(commentGroup, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46, 4, 0, 0, 0));
 
-        final ImageView sendButton = NexLentaUi.circleButton(context, R.drawable.msg_send, NexLentaUi.PILL_PRIMARY, false);
+        final ImageView sendButton = plainIcon(context, R.drawable.msg_send, NexLentaColors.TEXT);
         sendButton.setContentDescription(LocaleController.getString(R.string.NexPostShare));
         sendButton.setOnClickListener(v -> {
             if (status != null) {
                 delegate.onShareClick(status);
             }
         });
-        actions.addView(sendButton, LayoutHelper.createLinear(52, 52, 10, 0, 0, 0));
+        actions.addView(sendButton, LayoutHelper.createLinear(44, 44, 4, 0, 0, 0));
 
         actions.addView(new View(context), LayoutHelper.createLinear(0, 1, 1f));
 
         final TextView aiButton = new TextView(context);
         aiButton.setGravity(Gravity.CENTER);
         aiButton.setText("✦");
-        aiButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
+        aiButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         aiButton.setTextColor(0xFF1F1F24);
         final GradientDrawable aiBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFC9D8F4, 0xFFE4D3F6, 0xFFF6E3D8});
         aiBg.setShape(GradientDrawable.OVAL);
-        aiBg.setStroke(Math.max(1, AndroidUtilities.dp(1)), 0x99FFFFFF);
         aiButton.setBackground(aiBg);
         aiButton.setOnClickListener(v -> {
             if (status != null) {
                 delegate.onAiClick(status);
             }
         });
-        actions.addView(aiButton, LayoutHelper.createLinear(52, 52));
+        ScaleStateListAnimator.apply(aiButton, 0.1f, 1.6f);
+        actions.addView(aiButton, LayoutHelper.createLinear(32, 32, 0, 0, 6, 0));
 
-        bookmarkButton = NexLentaUi.circleButton(context, R.drawable.msg_saved, NexLentaUi.PILL_CARD, false);
+        bookmarkButton = plainIcon(context, R.drawable.msg_saved, NexLentaColors.TEXT);
         bookmarkButton.setContentDescription(LocaleController.getString(R.string.NexPostSave));
         bookmarkButton.setOnClickListener(v -> {
             if (status != null) {
                 delegate.onBookmarkClick(this, status);
             }
         });
-        actions.addView(bookmarkButton, LayoutHelper.createLinear(52, 52, 10, 0, 0, 0));
-        root.addView(actions, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 14, 0, 0));
+        actions.addView(bookmarkButton, LayoutHelper.createLinear(44, 44));
+        root.addView(actions, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50, 0, 2, 0, 0));
 
-        // ---- caption ----
+        // ---- caption: "name text", more…, then "View all N comments" ----
         captionView = new TextView(context);
-        captionView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
-        captionView.setLineSpacing(AndroidUtilities.dp(3), 1f);
+        captionView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        captionView.setLineSpacing(AndroidUtilities.dp(2), 1f);
         captionView.setTextColor(NexLentaColors.TEXT);
         captionView.setMaxLines(2);
         captionView.setEllipsize(TextUtils.TruncateAt.END);
         captionView.setOnClickListener(v -> expandCaption());
-        root.addView(captionView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 4, 12, 4, 0));
+        root.addView(captionView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 14, 0, 14, 0));
         moreView = new TextView(context);
-        moreView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        moreView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         moreView.setTextColor(NexLentaColors.SECONDARY_TEXT);
         moreView.setText(LocaleController.getString(R.string.NexPostMore));
         moreView.setVisibility(View.GONE);
         moreView.setOnClickListener(v -> expandCaption());
-        root.addView(moreView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 4, 2, 4, 0));
+        root.addView(moreView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 14, 2, 14, 0));
+        commentsLink = new TextView(context);
+        commentsLink.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        commentsLink.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        commentsLink.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(2));
+        commentsLink.setOnClickListener(v -> openComments());
+        root.addView(commentsLink, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 14, 0, 14, 0));
     }
 
-    private static LinearLayout actionPill(Context context) {
-        final LinearLayout pill = new LinearLayout(context);
-        pill.setOrientation(LinearLayout.HORIZONTAL);
-        pill.setGravity(Gravity.CENTER_VERTICAL);
-        pill.setPadding(AndroidUtilities.dp(18), 0, AndroidUtilities.dp(20), 0);
-        pill.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(26), NexLentaColors.CARD, Theme.multAlpha(NexLentaColors.CARD, 0.8f)));
-        return pill;
+    // Icon without a background (Instagram / X), soft press
+    private static ImageView plainIcon(Context context, int icon, int color) {
+        final ImageView view = new ImageView(context);
+        view.setScaleType(ImageView.ScaleType.CENTER);
+        view.setImageResource(icon);
+        view.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+        view.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.08f), Theme.RIPPLE_MASK_CIRCLE_20DP));
+        ScaleStateListAnimator.apply(view, 0.1f, 1.6f);
+        return view;
+    }
+
+    private static LinearLayout iconCount(Context context) {
+        final LinearLayout group = new LinearLayout(context);
+        group.setOrientation(LinearLayout.HORIZONTAL);
+        group.setGravity(Gravity.CENTER_VERTICAL);
+        group.setPadding(AndroidUtilities.dp(8), 0, AndroidUtilities.dp(10), 0);
+        group.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.08f), Theme.RIPPLE_MASK_ALL));
+        return group;
     }
 
     private static TextView countText(Context context) {
         final TextView view = new TextView(context);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         view.setTypeface(AndroidUtilities.bold());
         view.setTextColor(NexLentaColors.TEXT);
         return view;
@@ -365,7 +384,7 @@ public class NexPostCell extends FrameLayout {
         nameView.setText(status.authorUsername.isEmpty() ? status.authorName : status.authorUsername);
         final String time = NexLentaUi.timeAgo(status.createdAt);
         subtitleView.setText(status.placeName != null ? status.placeName + " · " + time : time);
-        setAvatar(avatarView, status.avatarUrl, status.authorName, "46_46");
+        setAvatar(avatarView, status.avatarUrl, status.authorName, "36_36");
 
         noMedia = status.media.isEmpty();
         if (noMedia) {
@@ -378,8 +397,7 @@ public class NexPostCell extends FrameLayout {
             pagerView.scrollToPosition(0);
         }
         pagerView.setVisibility(noMedia ? View.GONE : View.VISIBLE);
-        mediaFrame.setBackgroundColor(noMedia ? NexLentaColors.CARD : NexLentaColors.PLACEHOLDER);
-        menuButton.setVisibility(noMedia ? View.GONE : View.VISIBLE);
+        mediaFrame.setVisibility(noMedia ? View.GONE : View.VISIBLE);
         updatePageIndicator();
         mediaFrame.requestLayout();
 
@@ -450,9 +468,7 @@ public class NexPostCell extends FrameLayout {
         if (status == null) {
             return;
         }
-        final int bg = status.bookmarked ? NexLentaColors.ACCENT : NexLentaColors.CARD;
-        bookmarkButton.setBackground(Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(52), bg, Theme.multAlpha(bg, 0.8f)));
-        bookmarkButton.setColorFilter(new PorterDuffColorFilter(status.bookmarked ? NexLentaColors.ON_ACCENT : NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
+        bookmarkButton.setColorFilter(new PorterDuffColorFilter(status.bookmarked ? NexLentaColors.ACCENT : NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
     }
 
     public void updateFollow() {
@@ -464,6 +480,8 @@ public class NexPostCell extends FrameLayout {
     public void updateCounts() {
         if (status != null) {
             commentCount.setText(PixelfedFormat.count(Math.max(0, status.repliesCount)));
+            commentsLink.setVisibility(status.repliesCount > 0 ? View.VISIBLE : View.GONE);
+            commentsLink.setText(LocaleController.formatString(R.string.NexPostViewComments, PixelfedFormat.count(status.repliesCount)));
             updateLike();
             updateBookmark();
         }
@@ -478,6 +496,13 @@ public class NexPostCell extends FrameLayout {
     private void openComments() {
         if (status != null) {
             delegate.onCommentsClick(this, status);
+        }
+    }
+
+    private void openVideo() {
+        if (status != null) {
+            releaseVideo();
+            delegate.onVideoClick(this, status, currentPage);
         }
     }
 
@@ -560,7 +585,7 @@ public class NexPostCell extends FrameLayout {
         @NonNull
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            final MediaPageView page = new MediaPageView(parent.getContext(), NexPostCell.this::openComments, NexPostCell.this::onDoubleTapLike);
+            final MediaPageView page = new MediaPageView(parent.getContext(), NexPostCell.this::openComments, NexPostCell.this::openVideo, NexPostCell.this::onDoubleTapLike);
             page.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             return new RecyclerView.ViewHolder(page) {
             };
@@ -596,12 +621,13 @@ public class NexPostCell extends FrameLayout {
         private PixelfedStatus.Media media;
         private boolean muted = true;
 
-        MediaPageView(Context context, Runnable onTap, Runnable onDoubleTap) {
+        MediaPageView(Context context, Runnable onTap, Runnable onVideoTap, Runnable onDoubleTap) {
             super(context);
             imageView = new BackupImageView(context);
             addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             muteView = glassPill(context);
-            addView(muteView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.TOP | Gravity.RIGHT, 0, 54, 16, 0));
+            muteView.setOnClickListener(v -> toggleMute());
+            addView(muteView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 12, 12));
             gestures = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
                 @Override
                 public boolean onDown(MotionEvent e) {
@@ -610,8 +636,8 @@ public class NexPostCell extends FrameLayout {
 
                 @Override
                 public boolean onSingleTapConfirmed(MotionEvent e) {
-                    if (media != null && media.video && player != null) {
-                        toggleMute();
+                    if (media != null && media.video) {
+                        onVideoTap.run();
                     } else {
                         onTap.run();
                     }

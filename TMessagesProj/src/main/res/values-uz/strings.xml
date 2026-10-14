@@ -97,6 +97,7 @@
     <string name="NexPostSave">Saqlash</string>
     <string name="NexPostSaved">Saqlanganlarga qo\'shildi</string>
     <string name="NexPostMore">ko\'proq…</string>
+    <string name="NexPostViewComments">Barcha izohlar: %1$s</string>
     <string name="NexPostCopyLink">Havolani nusxalash</string>
     <string name="NexPostLinkCopied">Havola nusxalandi</string>
     <string name="NexPostDelete">O\'chirish</string>

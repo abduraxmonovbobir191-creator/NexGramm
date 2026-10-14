@@ -2,11 +2,16 @@ package org.telegram.ui;
 
 import android.content.Context;
 import android.graphics.PorterDuff;
+import android.graphics.Typeface;
 import android.graphics.PorterDuffColorFilter;
 import android.os.Build;
 import android.text.Html;
 import android.text.InputFilter;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -35,6 +40,7 @@ import java.util.ArrayList;
 
 import uz.nexgramm.core.CoreClient;
 import uz.nexgramm.core.PixelfedClient;
+import uz.nexgramm.core.PixelfedFormat;
 import uz.nexgramm.core.PixelfedStatus;
 
 // NexGramm: comments of a Lenta post. The post on top, then GET /api/v1/statuses/:id/context
@@ -198,6 +204,11 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
     public void onMediaPageChanged(NexPostCell cell) {
     }
 
+    @Override
+    public void onVideoClick(NexPostCell cell, PixelfedStatus status, int page) {
+        presentFragment(new NexVideoViewerActivity(status, page));
+    }
+
     private final NexPostActions.Listener postListener = new NexPostActions.Listener() {
         @Override
         public void onDeleted(PixelfedStatus status) {
@@ -311,33 +322,34 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
         }
     }
 
-    // One comment: avatar, name, text
+    // One comment, as in X: photo, "Name @user · 2h", text, then reply and ♥ with the count; hairline below
     private class CommentCell extends LinearLayout {
         private final BackupImageView avatarView;
         private final TextView nameView;
         private final TextView textView;
+        private final ImageView likeIcon;
+        private final TextView likeCount;
         private PixelfedStatus comment;
 
         CommentCell(Context context) {
             super(context);
-            setOrientation(HORIZONTAL);
-            setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(10), AndroidUtilities.dp(14), AndroidUtilities.dp(10));
+            setOrientation(VERTICAL);
+            final LinearLayout row = new LinearLayout(context);
+            row.setOrientation(HORIZONTAL);
+            row.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(4));
             avatarView = new BackupImageView(context);
-            avatarView.setRoundRadius(AndroidUtilities.dp(16));
+            avatarView.setRoundRadius(AndroidUtilities.dp(20));
             avatarView.setOnClickListener(v -> {
                 if (comment != null) {
                     openProfile(comment.authorId);
                 }
             });
-            addView(avatarView, LayoutHelper.createLinear(32, 32));
-            final LinearLayout bubble = new LinearLayout(context);
-            bubble.setOrientation(VERTICAL);
-            bubble.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(8), AndroidUtilities.dp(12), AndroidUtilities.dp(10));
-            bubble.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(16), NexLentaColors.CARD));
+            row.addView(avatarView, LayoutHelper.createLinear(40, 40));
+            final LinearLayout column = new LinearLayout(context);
+            column.setOrientation(VERTICAL);
             nameView = new TextView(context);
-            nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            nameView.setTypeface(AndroidUtilities.bold());
-            nameView.setTextColor(NexLentaColors.TEXT);
+            nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            nameView.setTextColor(NexLentaColors.SECONDARY_TEXT);
             nameView.setSingleLine(true);
             nameView.setEllipsize(TextUtils.TruncateAt.END);
             nameView.setOnClickListener(v -> {
@@ -345,21 +357,91 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
                     openProfile(comment.authorId);
                 }
             });
-            bubble.addView(nameView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+            column.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             textView = new TextView(context);
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
             textView.setLineSpacing(AndroidUtilities.dp(2), 1f);
             textView.setTextColor(NexLentaColors.TEXT);
-            bubble.addView(textView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
-            addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 8, 0, 0, 0));
+            column.addView(textView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
+
+            final LinearLayout actions = new LinearLayout(context);
+            actions.setOrientation(HORIZONTAL);
+            actions.setGravity(Gravity.CENTER_VERTICAL);
+            final ImageView reply = new ImageView(context);
+            reply.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            reply.setImageResource(R.drawable.msg_msgbubble3);
+            reply.setColorFilter(new PorterDuffColorFilter(NexLentaColors.SECONDARY_TEXT, PorterDuff.Mode.SRC_IN));
+            reply.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8));
+            reply.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.08f), Theme.RIPPLE_MASK_CIRCLE_20DP));
+            reply.setOnClickListener(v -> replyTo(comment));
+            actions.addView(reply, LayoutHelper.createLinear(36, 36, -8, 0, 0, 0));
+            final LinearLayout like = new LinearLayout(context);
+            like.setOrientation(HORIZONTAL);
+            like.setGravity(Gravity.CENTER_VERTICAL);
+            like.setPadding(AndroidUtilities.dp(8), 0, AndroidUtilities.dp(8), 0);
+            like.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(NexLentaColors.TEXT, 0.08f), Theme.RIPPLE_MASK_ALL));
+            likeIcon = new ImageView(context);
+            likeIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            like.addView(likeIcon, LayoutHelper.createLinear(18, 18));
+            likeCount = new TextView(context);
+            likeCount.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            likeCount.setTextColor(NexLentaColors.SECONDARY_TEXT);
+            like.addView(likeCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+            like.setOnClickListener(v -> {
+                if (comment != null) {
+                    NexNativeFeedView.toggleLike(getParentActivity(), tgUserId(), comment, this::updateLike, () -> {
+                    });
+                }
+            });
+            actions.addView(like, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36, 24, 0, 0, 0));
+            column.addView(actions, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
+            row.addView(column, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 12, 0, 0, 0));
+            addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            final View divider = new View(context);
+            divider.setBackgroundColor(NexLentaColors.DIVIDER);
+            addView(divider, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 1));
         }
 
         void set(PixelfedStatus comment) {
             this.comment = comment;
-            NexPostCell.setAvatar(avatarView, comment.avatarUrl, comment.authorName, "32_32");
-            nameView.setText(comment.authorName);
+            NexPostCell.setAvatar(avatarView, comment.avatarUrl, comment.authorName, "40_40");
+            final SpannableStringBuilder header = new SpannableStringBuilder();
+            header.append(comment.authorName);
+            header.setSpan(new StyleSpan(Typeface.BOLD), 0, header.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            header.setSpan(new ForegroundColorSpan(NexLentaColors.TEXT), 0, header.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (!comment.authorUsername.isEmpty()) {
+                header.append("  @").append(comment.authorUsername);
+            }
+            header.append(" · ").append(NexLentaUi.timeAgo(comment.createdAt));
+            nameView.setText(header);
             textView.setText(htmlToText(comment.contentHtml));
+            updateLike();
         }
+
+        void updateLike() {
+            if (comment == null) {
+                return;
+            }
+            likeIcon.setImageResource(comment.favourited ? R.drawable.media_like_active : R.drawable.media_like);
+            likeIcon.setColorFilter(new PorterDuffColorFilter(comment.favourited ? NexLentaColors.LIKED : NexLentaColors.SECONDARY_TEXT, PorterDuff.Mode.SRC_IN));
+            likeCount.setText(comment.favouritesCount > 0 ? PixelfedFormat.count(comment.favouritesCount) : "");
+        }
+    }
+
+    // Reply: the field gets "@username " and the keyboard
+    private void replyTo(PixelfedStatus comment) {
+        if (comment == null || inputView == null) {
+            return;
+        }
+        if (!comment.authorUsername.isEmpty()) {
+            final String mention = "@" + comment.authorUsername + " ";
+            if (!inputView.getText().toString().startsWith(mention)) {
+                inputView.setText(mention);
+            }
+            inputView.setSelection(inputView.length());
+        }
+        inputView.requestFocus();
+        AndroidUtilities.showKeyboard(inputView);
     }
 
     // Loading spinner, "no comments yet", or the load error with "Qayta urinish"
