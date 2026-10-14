@@ -87,11 +87,14 @@ jobs:
           CORE_API_URL: ${{ vars.CORE_API_URL }}
           NEXGRAMM_BOT_USERNAME: ${{ inputs.bot_username || vars.NEXGRAMM_BOT_USERNAME }}
           NEX_API_URL: ${{ inputs.nex_api_url || vars.NEX_API_URL }}
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+          ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID }}
         run: |
           chmod +x gradlew
           echo "CORE_API_URL=${CORE_API_URL:-https://ng.nexecos.com (default)} NEXGRAMM_BOT_USERNAME=${NEXGRAMM_BOT_USERNAME:-<empty>} NEX_API_URL=${NEX_API_URL:-<empty>}"
           ./gradlew :TMessagesProj_AppStandalone:assembleAfatDebug \
             -PCORE_API_URL="$CORE_API_URL" -PNEXGRAMM_BOT_USERNAME="$NEXGRAMM_BOT_USERNAME" -PNEX_API_URL="$NEX_API_URL" \
+            -PADMOB_APP_ID="$ADMOB_APP_ID" -PADMOB_BANNER_ID="$ADMOB_BANNER_ID" \
             -Pandroid.injected.build.abi=arm64-v8a -Pandroid.injected.testOnly=false --stacktrace
 
       # Lists every APK so the real output path is visible in the log

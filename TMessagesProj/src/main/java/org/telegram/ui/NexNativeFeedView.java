@@ -72,6 +72,8 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private static final int TYPE_SKELETON = 2;
     private static final int TYPE_FOOTER = 3;
     private static final int TYPE_HEADER = 4;
+    private static final int TYPE_AD = 5;
+    private static final int AD_EVERY = 8; // NexGramm: an ad after every 8 posts (no Premium)
     private static final int SKELETON_COUNT = 2;
     private static final String PREFS = "nexgramm_lenta";
 
@@ -94,6 +96,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private final TextView modeView;
 
     private final ArrayList<PixelfedStatus> items = new ArrayList<>();
+    private boolean adsOn; // set right before the list is redrawn, so counts never change under it
     private boolean followingMode; // false = "Siz uchun" (public local), true = "Kuzatayotganlar" (home)
     private boolean firstLoaded;
     private boolean firstFailed;
@@ -268,6 +271,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         hasMore = true;
         loadMoreFailed = false;
         maxId = null;
+        adsOn = NexAds.enabled(tgUserId);
         adapter.notifyDataSetChanged();
         loadPage(false, null);
     }
@@ -530,6 +534,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 items.add(0, pendingTop);
             }
         }
+        adsOn = NexAds.enabled(tgUserId);
         adapter.notifyDataSetChanged();
         if (wasFirst || replace) {
             listView.scrollToPosition(0);
@@ -942,7 +947,20 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             if (showEmpty()) {
                 return 2;
             }
-            return 1 + items.size() + (showFooter() ? 1 : 0);
+            return 1 + rows() + (showFooter() ? 1 : 0);
+        }
+
+        // posts plus, without Premium, an ad slot after every AD_EVERY posts
+        private int rows() {
+            return items.size() + (adsOn ? items.size() / AD_EVERY : 0);
+        }
+
+        private boolean isAd(int row) {
+            return adsOn && row % (AD_EVERY + 1) == AD_EVERY;
+        }
+
+        private int postIndex(int row) {
+            return adsOn ? row / (AD_EVERY + 1) * AD_EVERY + row % (AD_EVERY + 1) : row;
         }
 
         @Override
@@ -956,7 +974,10 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             if (showEmpty()) {
                 return TYPE_EMPTY;
             }
-            return position - 1 < items.size() ? TYPE_POST : TYPE_FOOTER;
+            if (position - 1 < rows()) {
+                return isAd(position - 1) ? TYPE_AD : TYPE_POST;
+            }
+            return TYPE_FOOTER;
         }
 
         @NonNull
@@ -973,6 +994,9 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                     break;
                 case TYPE_POST:
                     view = new NexPostCell(context, resourcesProvider, NexNativeFeedView.this);
+                    break;
+                case TYPE_AD:
+                    view = new NexAds.Slot(context);
                     break;
                 case TYPE_EMPTY:
                     view = new StateCard(context);
@@ -994,7 +1018,9 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             final View view = holder.itemView;
             if (view instanceof NexPostCell) {
-                ((NexPostCell) view).setStatus(items.get(position - 1));
+                ((NexPostCell) view).setStatus(items.get(postIndex(position - 1)));
+            } else if (view instanceof NexAds.Slot) {
+                ((NexAds.Slot) view).fill();
             } else if (view instanceof FooterCell) {
                 ((FooterCell) view).setFailed(loadMoreFailed);
             } else if (view instanceof StateCard) {

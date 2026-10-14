@@ -188,6 +188,8 @@
     <string name="NexPremiumPerkSupport">Support sizga birinchi javob beradi</string>
     <string name="NexPremiumPerkMore">Yangi imkoniyatlar tez orada — avval Premium uchun</string>
     <string name="NexPremiumRepeatHint">Xabarni takrorlash — **NexGramm Premium** bilan</string>
+    <string name="NexAdLabel">Reklama</string>
+    <string name="NexAdOpen">Ochish</string>
     <string name="NexFeedOfflineTitle">Internet yo\'q</string>
     <string name="NexFeedOffline">Ulanishni tekshirib, qayta urinib ko\'ring.</string>
     <string name="NexFeedEmptyFollowingTitle">Hali hech kim yo\'q</string>

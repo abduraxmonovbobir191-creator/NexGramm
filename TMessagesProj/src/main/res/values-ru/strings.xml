@@ -452,6 +452,8 @@
     <string name="NexPremiumPerkSupport">Поддержка отвечает вам первыми</string>
     <string name="NexPremiumPerkMore">Новые функции скоро — сначала для Premium</string>
     <string name="NexPremiumRepeatHint">Повтор сообщений — в **NexGramm Premium**</string>
+    <string name="NexAdLabel">Реклама</string>
+    <string name="NexAdOpen">Открыть</string>
     <string name="NexFeedOfflineTitle">Нет интернета</string>
     <string name="NexFeedOffline">Проверьте подключение и попробуйте снова.</string>
     <string name="NexFeedEmptyFollowingTitle">Пока никого</string>
