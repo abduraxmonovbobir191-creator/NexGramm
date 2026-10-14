@@ -1465,14 +1465,14 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 TextView pickerTextView = new TextView(context);
                 pickerTextView.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2, dp(22)));
                 pickerTextView.setTextColor(getThemedColor(darkTheme ? Theme.key_voipgroup_listeningText : Theme.key_dialogTextBlue2));
-                pickerTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                pickerTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15); // NexGramm: sentence case, a bit larger
                 pickerTextView.setPadding(dp(18), 0, dp(18), 0);
                 pickerTextView.setTypeface(AndroidUtilities.bold());
                 pickerTextView.setGravity(Gravity.CENTER);
                 if (darkTheme && linkToCopy[1] != null) {
                     pickerTextView.setText(LocaleController.getString(R.string.VoipGroupCopySpeakerLinkNoCaps).toUpperCase());
                 } else {
-                    pickerTextView.setText(LocaleController.getString(R.string.CopyLink).toUpperCase());
+                    pickerTextView.setText(LocaleController.getString(R.string.CopyLink));
                 }
                 // ScaleStateListAnimator.apply(pickerTextView, 0.015f, 1.2f);
                 pickerTextView.setOnClickListener(v -> {

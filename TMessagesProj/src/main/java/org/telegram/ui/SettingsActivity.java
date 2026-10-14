@@ -685,8 +685,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        // NexGramm: light / dark mode and the app accent color
-        items.add(SettingCell.Factory.of(30, 0xFFB48CF5, 0xFF7C3AED, R.drawable.msg_palette, getString(R.string.NexAppearanceSettingsRow), null,
+        // NexGramm: light / dark mode and the app accent color (shown under the title, like the other rows)
+        items.add(SettingCell.Factory.of(30, 0xFFB48CF5, 0xFF7C3AED, R.drawable.msg_palette, getString(R.string.NexAppearanceSettingsRow),
             NexAppearanceActivity.modeName(NexAppearanceActivity.currentMode()) + " · " + NexAppearanceActivity.accentName(Theme.getNexgrammAccent())));
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
@@ -742,13 +742,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         items.add(SettingCell.Factory.of(23, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_features, getString(R.string.TelegramFeatures)));
         items.add(SettingCell.Factory.of(19, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_policy, getString(R.string.PrivacyPolicy)));
 
-        if (SharedSettings.experimentalSettingsAllowed.get()) {
+        // NexGramm: no developer sections (Experimental, Debug logs) in Settings; the debug menu stays on a
+        // few taps on the version
+        if (false && SharedSettings.experimentalSettingsAllowed.get()) {
             items.add(UItem.asShadow(null));
             items.add(UItem.asHeader("Experimental"));
             items.add(SettingCell.Factory.of(24, 0xFFF45255, 0xFFDF3955, 0, getString(R.string.RoundVideoSettings)));
         }
 
-        if (BuildVars.LOGS_ENABLED || BuildVars.DEBUG_PRIVATE_VERSION) {
+        if (false && (BuildVars.LOGS_ENABLED || BuildVars.DEBUG_PRIVATE_VERSION)) {
             items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.SettingsDebug)));
             items.add(SettingCell.Factory.of(20, 0xFF55CA47, 0xFF27B434, 0, getString(R.string.DebugSendLogs)));
