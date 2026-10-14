@@ -344,15 +344,22 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
         ring.setShape(GradientDrawable.OVAL);
         ring.setColor(NexLentaColors.BACKGROUND);
         avatarFrame.setBackground(ring);
+        // the photo on the right over the banner's edge, in an accent ring with a soft glow of the accent
+        ring.setStroke(AndroidUtilities.dp(2.5f), NexLentaColors.ACCENT);
+        avatarFrame.setElevation(AndroidUtilities.dp(12));
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            avatarFrame.setOutlineSpotShadowColor(NexLentaColors.ACCENT);
+            avatarFrame.setOutlineAmbientShadowColor(NexLentaColors.ACCENT);
+        }
         avatarFrame.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
         avatarView = new BackupImageView(context);
         avatarView.setRoundRadius(AndroidUtilities.dp(AVATAR_DP / 2f));
         avatarView.setOnClickListener(v -> openPhoto());
         avatarFrame.addView(avatarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        // the photo on the left, over the banner's lower edge (as on X and in the other NexGramm profiles)
+        // the photo on the right, over the banner's lower edge (as in the other NexGramm profiles)
         final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP),
-            Gravity.LEFT | Gravity.TOP);
-        avatarParams.leftMargin = AndroidUtilities.dp(14);
+            Gravity.RIGHT | Gravity.TOP);
+        avatarParams.rightMargin = AndroidUtilities.dp(16);
         avatarParams.topMargin = bannerHeight - AndroidUtilities.dp(AVATAR_DP / 2f);
         top.addView(avatarFrame, avatarParams);
         column.addView(top, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -379,6 +386,10 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
         infoCard.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 22));
         infoCard.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(4), AndroidUtilities.dp(16), AndroidUtilities.dp(4));
         column.addView(infoCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 16, 16, 0));
+        // highlights: the person's / channel's Telegram story albums, as on Instagram (hidden when none)
+        if (dialogId > 0 || isChannel()) {
+            column.addView(new NexHighlightsRow(context, this, dialogId, false), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 22, 0, 0));
+        }
 
         // "Media" and "All media and files" (Telegram's shared media screen: files, links, voice, music…)
         final FrameLayout mediaHeader = new FrameLayout(context);

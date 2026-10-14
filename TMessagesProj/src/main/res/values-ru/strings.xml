@@ -620,4 +620,8 @@
     <string name="NexStoryMusic">Музыка</string>
     <string name="NexStoryMusicFrom">Начало: %1$s</string>
     <string name="NexStoryMusicBad">Этот файл нельзя использовать как музыку</string>
+    <string name="NexHighlights">Актуальное</string>
+    <string name="NexHighlightAdd">Добавить</string>
+    <string name="NexHighlightName">Название альбома</string>
+    <string name="NexHighlightCreate">Создать</string>
 </resources>

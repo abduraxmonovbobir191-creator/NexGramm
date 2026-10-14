@@ -356,4 +356,8 @@
     <string name="NexStoryMusic">Musiqa</string>
     <string name="NexStoryMusicFrom">Boshlanishi: %1$s</string>
     <string name="NexStoryMusicBad">Bu faylni musiqa sifatida qo\'yib bo\'lmaydi</string>
+    <string name="NexHighlights">Saralangan</string>
+    <string name="NexHighlightAdd">Qo\'shish</string>
+    <string name="NexHighlightName">Albom nomi</string>
+    <string name="NexHighlightCreate">Yaratish</string>
 </resources>
