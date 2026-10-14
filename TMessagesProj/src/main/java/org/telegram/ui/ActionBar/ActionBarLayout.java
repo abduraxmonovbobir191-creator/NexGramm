@@ -1969,6 +1969,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
     @Override
     public boolean presentFragment(NavigationParams params) {
+        // NexGramm: other people's, groups' and channels' profiles open in the NexGramm style
+        params.fragment = org.telegram.ui.NexPeerProfileActivity.replace(params.fragment);
         BaseFragment fragment = params.fragment;
         boolean removeLast = params.removeLast;
         boolean forceWithoutAnimation = params.noAnimation;

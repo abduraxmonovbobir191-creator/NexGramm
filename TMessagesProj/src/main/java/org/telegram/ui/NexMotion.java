@@ -143,11 +143,24 @@ final class NexMotion {
 
     // the list stretches past its ends and springs back, as on iOS
     static void bounce(RecyclerView list) {
+        bounce(list, true);
+    }
+
+    // top = false where the top edge belongs to pull to refresh (both moving the list would fight)
+    static void bounce(RecyclerView list, boolean top) {
         list.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
         list.setEdgeEffectFactory(new RecyclerView.EdgeEffectFactory() {
             @NonNull
             @Override
             protected EdgeEffect createEdgeEffect(@NonNull RecyclerView view, int direction) {
+                if (direction == DIRECTION_TOP && !top) {
+                    return new EdgeEffect(view.getContext()) {
+                        @Override
+                        public boolean draw(Canvas canvas) {
+                            return false; // the pull to refresh shows the edge
+                        }
+                    };
+                }
                 if (direction == DIRECTION_TOP || direction == DIRECTION_BOTTOM) {
                     return new BounceEdge(view, direction == DIRECTION_TOP ? 1f : -1f);
                 }

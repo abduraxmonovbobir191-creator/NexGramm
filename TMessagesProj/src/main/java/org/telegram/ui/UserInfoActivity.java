@@ -431,13 +431,13 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
             for (int i = 0; i < accountNumbers.size(); ++i) {
                 items.add(SettingsActivity.AccountCell.Factory.of(i, accountNumbers.get(i)));
             }
-            if (!UserConfig.hasPremiumOnAccounts()) {
+            if (!UserConfig.hasNexPremiumOnAccounts()) {
                 final int moreAccounts = Math.max(0, UserConfig.getMaxAccountCount() - UserConfig.getActivatedAccountsCount());
                 items.add(UItem.asShadow(
                     TextUtils.concat(
                         moreAccounts > 0 ? LocaleController.formatPluralStringComma("AddAccountInfo1", moreAccounts) + " " : "",
                         replaceSingleTag(LocaleController.formatPluralStringComma("AddAccountInfo2", UserConfig.getMaxAccountCount()), () -> {
-                            presentFragment(new PremiumPreviewFragment("add_account"));
+                            presentFragment(new NexPremiumActivity());
                         })
                     )
                 ));
@@ -481,13 +481,13 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
                     }
                 }
             }
-            if (!UserConfig.hasPremiumOnAccounts()) {
+            if (!UserConfig.hasNexPremiumOnAccounts()) {
                 freeAccounts -= (UserConfig.MAX_ACCOUNT_COUNT - UserConfig.MAX_ACCOUNT_DEFAULT_COUNT);
             }
             if (freeAccounts > 0 && availableAccount != null) {
                 presentFragment(new LoginActivity(availableAccount));
-            } else if (!UserConfig.hasPremiumOnAccounts()) {
-                showDialog(new LimitReachedBottomSheet(this, getContext(), TYPE_ACCOUNTS, currentAccount, null));
+            } else if (!UserConfig.hasNexPremiumOnAccounts()) {
+                presentFragment(new NexPremiumActivity()); // NexGramm: 10 accounts with NexGramm Premium
             }
         } else if (item.instanceOf(SettingsActivity.AccountCell.Factory.class)) {
             final int account = item.intValue;

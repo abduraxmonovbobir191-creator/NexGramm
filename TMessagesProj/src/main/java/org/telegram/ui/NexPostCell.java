@@ -126,9 +126,13 @@ public class NexPostCell extends FrameLayout {
     public NexPostCell(Context context, Theme.ResourcesProvider resourcesProvider, Delegate delegate) {
         super(context);
         this.delegate = delegate;
+        // each post is a soft rounded card (the photo clipped to its corners)
         final LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, 0, 0, 22));
+        root.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 24));
+        root.setClipToOutline(true);
+        root.setPadding(0, AndroidUtilities.dp(10), 0, AndroidUtilities.dp(12));
+        addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 10, 0, 10, 14));
 
         // ---- header (Instagram): photo, name + place · time, Follow, ⋯ ----
         final LinearLayout header = new LinearLayout(context);

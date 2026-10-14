@@ -130,7 +130,10 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         this.delegate = delegate;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         followingMode = prefs().getBoolean("feed_following_" + tgUserId, false);
-        setBackgroundColor(NexLentaColors.BACKGROUND);
+        // a soft glow of the accent at the top, fading into the page
+        final int glow = uz.nexgramm.core.NexPalette.blend(NexLentaColors.ACCENT, NexLentaColors.BACKGROUND, NexLentaColors.dark ? 0.8f : 0.86f);
+        setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{glow, NexLentaColors.BACKGROUND, NexLentaColors.BACKGROUND, NexLentaColors.BACKGROUND}));
 
         listView = new RecyclerView(context);
         // one extra screen laid out ahead: the next post's photo loads and its video can buffer
@@ -147,7 +150,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         listView.setItemViewCacheSize(4);
         listView.setClipToPadding(false);
         listView.setAdapter(adapter);
-        NexMotion.bounce(listView);
+        NexMotion.bounce(listView, false); // the top edge is the pull to refresh
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -163,22 +166,33 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         final LinearLayout titles = new LinearLayout(context);
         titles.setOrientation(LinearLayout.VERTICAL);
         modeView = new TextView(context);
-        modeView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        modeView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         modeView.setTextColor(NexLentaColors.SECONDARY_TEXT);
-        modeView.setPadding(0, AndroidUtilities.dp(4), AndroidUtilities.dp(12), AndroidUtilities.dp(2));
+        modeView.setPadding(0, AndroidUtilities.dp(2), AndroidUtilities.dp(12), 0);
         modeView.setOnClickListener(v -> switchMode());
         titles.addView(modeView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
-        final TextView title = NexLentaUi.serifTitle(context, 40);
-        title.setText(LocaleController.getString(R.string.NexFeedTitle));
+        // "Lenta" in the NexGramm serif, the same word in every language, small and neat
+        final TextView title = NexLentaUi.serifTitle(context, 30);
+        title.setText("Lenta");
         title.setOnClickListener(v -> switchMode());
         titles.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
         header.addView(titles, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 0));
         final LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
+        // search: Lenta people by name or @username
+        final ImageView searchButton = NexLentaUi.circleButton(context, R.drawable.msg_search, NexLentaUi.PILL_CARD, false);
+        searchButton.setContentDescription(LocaleController.getString(R.string.Search));
+        searchButton.setOnClickListener(v -> {
+            final BaseFragment fragment = delegate.getFragment();
+            if (fragment != null) {
+                fragment.presentFragment(new NexLentaSearchActivity());
+            }
+        });
+        buttons.addView(searchButton, LayoutHelper.createLinear(36, 36));
         final ImageView composeButton = NexLentaUi.circleButton(context, R.drawable.msg_add, NexLentaUi.PILL_PRIMARY, false);
         composeButton.setContentDescription(LocaleController.getString(R.string.NexComposeTitle));
         composeButton.setOnClickListener(v -> delegate.onComposeClick());
-        buttons.addView(composeButton, LayoutHelper.createLinear(44, 44));
+        buttons.addView(composeButton, LayoutHelper.createLinear(36, 36, 8, 0, 0, 0));
         final ImageView heartButton = NexLentaUi.circleButton(context, R.drawable.media_like, NexLentaUi.PILL_CARD, false);
         heartButton.setContentDescription(LocaleController.getString(R.string.NexFeedNotifications));
         heartButton.setOnClickListener(v -> {
@@ -187,7 +201,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 fragment.presentFragment(new NexNotificationsActivity());
             }
         });
-        buttons.addView(heartButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
+        buttons.addView(heartButton, LayoutHelper.createLinear(36, 36, 8, 0, 0, 0));
         // own Lenta profile: my posts, liked and saved posts
         final ImageView meButton = NexLentaUi.circleButton(context, R.drawable.msg_openprofile, NexLentaUi.PILL_CARD, false);
         meButton.setContentDescription(LocaleController.getString(R.string.NexFeedMyProfile));
@@ -197,8 +211,14 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 fragment.presentFragment(new NexProfileActivity(null));
             }
         });
-        buttons.addView(meButton, LayoutHelper.createLinear(44, 44, 8, 0, 0, 0));
-        header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 10, 0, 0));
+        buttons.addView(meButton, LayoutHelper.createLinear(36, 36, 8, 0, 0, 0));
+        for (int i = 0; i < buttons.getChildCount(); i++) {
+            // small round buttons: the icon a little smaller too
+            final ImageView button = (ImageView) buttons.getChildAt(i);
+            button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            button.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8));
+        }
+        header.addView(buttons, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 0, 0));
         header.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(6), AndroidUtilities.dp(16), AndroidUtilities.dp(8));
         // stories under the title, as in Instagram
         final LinearLayout headerColumn = new LinearLayout(context);
@@ -387,12 +407,15 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                                                  HashSet<String> shown, HashMap<String, Boolean> followed) {
         final ArrayList<PixelfedStatus> pool = new ArrayList<>(page);
         if (first) {
+            // the home timeline and the trending posts at the same time: a refresh waits for one round trip, not two
+            final java.util.concurrent.Future<ArrayList<PixelfedStatus>> home = CoreClient.EXECUTOR.submit(() -> PixelfedClient.timelineBlocking(tgUserId, false, null));
+            final java.util.concurrent.Future<ArrayList<PixelfedStatus>> trending = CoreClient.EXECUTOR.submit(() -> PixelfedClient.trendingBlocking(tgUserId));
             try {
-                pool.addAll(PixelfedClient.timelineBlocking(tgUserId, false, null));
+                pool.addAll(home.get());
             } catch (Exception ignore) {
             }
             try {
-                pool.addAll(PixelfedClient.trendingBlocking(tgUserId));
+                pool.addAll(trending.get());
             } catch (Exception ignore) {
             }
         }
@@ -617,6 +640,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 if (dy > touchSlop && dy > dx * 1.5f && !listView.canScrollVertically(-1)) {
                     pulling = true;
                     pullDistance = 0;
+                    listView.animate().cancel();
                     refreshIndicator.animate().cancel();
                     refreshIndicator.setVisibility(View.VISIBLE);
                     return true;

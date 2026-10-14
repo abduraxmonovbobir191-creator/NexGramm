@@ -35,6 +35,7 @@ import uz.nexgramm.core.PixelfedMedia;
 public class NexStoryComposeActivity extends BaseFragment {
 
     private static final int PICK = 7201;
+    private static final int PICK_MUSIC = 7202;
     private static final int PHOTO_SECONDS = 6;
 
     private final Runnable onPosted;
@@ -42,6 +43,18 @@ public class NexStoryComposeActivity extends BaseFragment {
     private boolean video;
     private boolean posting;
     private boolean pickerShown;
+
+    // a song over the story (optional): the file, its name, length and where it starts
+    private Uri music;
+    private long musicLengthMs;
+    private long musicStartMs;
+    private LinearLayout musicPanel;
+    private TextView musicTitleView;
+    private TextView musicStartView;
+    private android.widget.SeekBar musicStartBar;
+    private TextView musicPlayButton;
+    private android.media.MediaPlayer musicPreview;
+    private final Runnable stopPreview = this::stopMusicPreview;
 
     private BackupImageView previewView;
     private TextView shareButton;
@@ -88,6 +101,7 @@ public class NexStoryComposeActivity extends BaseFragment {
         statusView.setGravity(Gravity.CENTER);
         statusView.setText(LocaleController.getString(R.string.NexStoryHint));
         bottom.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 12));
+        bottom.addView(createMusicPanel(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 12));
         final LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         final TextView change = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexStoryChange), NexLentaUi.PILL_CARD);
@@ -97,6 +111,13 @@ public class NexStoryComposeActivity extends BaseFragment {
             }
         });
         buttons.addView(change, LayoutHelper.createLinear(0, 50, 1f));
+        final TextView musicButton = NexLentaUi.pillButton(context, "🎵 " + LocaleController.getString(R.string.NexStoryMusic), NexLentaUi.PILL_CARD);
+        musicButton.setOnClickListener(v -> {
+            if (!posting) {
+                pickMusic();
+            }
+        });
+        buttons.addView(musicButton, LayoutHelper.createLinear(0, 50, 1f, 10, 0, 0, 0));
         shareButton = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexStoryShare), NexLentaUi.PILL_PRIMARY);
         shareButton.setOnClickListener(v -> post());
         shareButton.setEnabled(false);
@@ -130,9 +151,216 @@ public class NexStoryComposeActivity extends BaseFragment {
         }
     }
 
+    // ---- music ----
+
+    private View createMusicPanel(Context context) {
+        musicPanel = new LinearLayout(context);
+        musicPanel.setOrientation(LinearLayout.VERTICAL);
+        musicPanel.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(18), 0x66000000));
+        musicPanel.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(10), AndroidUtilities.dp(10), AndroidUtilities.dp(8));
+        musicPanel.setVisibility(View.GONE);
+        final LinearLayout top = new LinearLayout(context);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        musicPlayButton = new TextView(context);
+        musicPlayButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        musicPlayButton.setTextColor(0xFFFFFFFF);
+        musicPlayButton.setGravity(Gravity.CENTER);
+        musicPlayButton.setText("▶");
+        musicPlayButton.setBackground(Theme.createCircleDrawable(AndroidUtilities.dp(36), 0x33FFFFFF));
+        musicPlayButton.setOnClickListener(v -> toggleMusicPreview());
+        top.addView(musicPlayButton, LayoutHelper.createLinear(36, 36));
+        musicTitleView = new TextView(context);
+        musicTitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        musicTitleView.setTextColor(0xFFFFFFFF);
+        musicTitleView.setSingleLine(true);
+        musicTitleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        top.addView(musicTitleView, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, 10, 0, 6, 0));
+        final ImageView remove = new ImageView(context);
+        remove.setScaleType(ImageView.ScaleType.CENTER);
+        remove.setImageResource(R.drawable.ic_close_white);
+        remove.setOnClickListener(v -> setMusic(null, null, 0));
+        top.addView(remove, LayoutHelper.createLinear(36, 36));
+        musicPanel.addView(top, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        musicStartView = new TextView(context);
+        musicStartView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        musicStartView.setTextColor(0xB3FFFFFF);
+        musicPanel.addView(musicStartView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+        musicStartBar = new android.widget.SeekBar(context);
+        final android.content.res.ColorStateList white = android.content.res.ColorStateList.valueOf(0xFFFFFFFF);
+        musicStartBar.setProgressTintList(white);
+        musicStartBar.setThumbTintList(white);
+        musicStartBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                musicStartMs = progress * 1000L;
+                updateMusicStart();
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
+                stopMusicPreview();
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
+                toggleMusicPreview(); // hear where it starts now
+            }
+        });
+        musicPanel.addView(musicStartBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 32));
+        return musicPanel;
+    }
+
+    private void pickMusic() {
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("audio/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        try {
+            startActivityForResult(intent, PICK_MUSIC);
+        } catch (Exception e) {
+            toast(R.string.NexComposeNoPicker);
+        }
+    }
+
+    private void setMusic(Uri uri, String title, long lengthMs) {
+        stopMusicPreview();
+        music = uri;
+        musicLengthMs = lengthMs;
+        musicStartMs = 0;
+        if (uri == null) {
+            musicPanel.setVisibility(View.GONE);
+            return;
+        }
+        musicTitleView.setText("🎵 " + title);
+        musicStartBar.setMax((int) Math.max(0, (lengthMs - PixelfedMedia.MUSIC_PHOTO_MS) / 1000));
+        musicStartBar.setProgress(0);
+        updateMusicStart();
+        if (musicPanel.getVisibility() != View.VISIBLE) {
+            musicPanel.setVisibility(View.VISIBLE);
+            NexMotion.enter(musicPanel, 0);
+        }
+        toggleMusicPreview();
+    }
+
+    private void updateMusicStart() {
+        final long s = musicStartMs / 1000;
+        musicStartView.setText(LocaleController.formatString(R.string.NexStoryMusicFrom, String.format(java.util.Locale.US, "%d:%02d", s / 60, s % 60)));
+    }
+
+    // plays the part that goes into the story; a second tap stops it
+    private void toggleMusicPreview() {
+        if (musicPreview != null) {
+            stopMusicPreview();
+            return;
+        }
+        final Context context = getParentActivity();
+        if (context == null || music == null) {
+            return;
+        }
+        try {
+            final android.media.MediaPlayer player = new android.media.MediaPlayer();
+            player.setDataSource(context, music);
+            player.setOnPreparedListener(mp -> {
+                if (musicPreview != mp) {
+                    return;
+                }
+                mp.seekTo((int) musicStartMs);
+                mp.start();
+                AndroidUtilities.runOnUIThread(stopPreview, PixelfedMedia.MUSIC_PHOTO_MS);
+            });
+            player.setOnCompletionListener(mp -> stopMusicPreview());
+            musicPreview = player;
+            musicPlayButton.setText("❚❚");
+            player.prepareAsync();
+        } catch (Exception e) {
+            stopMusicPreview();
+        }
+    }
+
+    private void stopMusicPreview() {
+        AndroidUtilities.cancelRunOnUIThread(stopPreview);
+        if (musicPreview != null) {
+            try {
+                musicPreview.release();
+            } catch (Exception ignore) {
+            }
+            musicPreview = null;
+        }
+        if (musicPlayButton != null) {
+            musicPlayButton.setText("▶");
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        stopMusicPreview();
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        stopMusicPreview();
+        super.onFragmentDestroy();
+    }
+
+    // the song's name ("Artist — Title", else the file name) and length
+    private void readMusic(Uri uri) {
+        final Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        CoreClient.EXECUTOR.execute(() -> {
+            String title = null;
+            long length = 0;
+            final android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+            try {
+                retriever.setDataSource(context, uri);
+                final String t = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE);
+                final String a = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST);
+                final String d = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                if (t != null && !t.isEmpty()) {
+                    title = a != null && !a.isEmpty() ? a + " — " + t : t;
+                }
+                length = d == null ? 0 : Long.parseLong(d);
+            } catch (Exception ignore) {
+            } finally {
+                try {
+                    retriever.release();
+                } catch (Exception ignore) {
+                }
+            }
+            if (title == null) {
+                try (android.database.Cursor c = context.getContentResolver().query(uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                    if (c != null && c.moveToFirst()) {
+                        title = c.getString(0);
+                    }
+                } catch (Exception ignore) {
+                }
+            }
+            final String finalTitle = title == null ? "" : title;
+            final long finalLength = length;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (fragmentView == null) {
+                    return;
+                }
+                if (finalLength <= 0) {
+                    toast(R.string.NexStoryMusicBad);
+                    return;
+                }
+                setMusic(uri, finalTitle, finalLength);
+            });
+        });
+    }
+
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
         super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode == PICK_MUSIC) {
+            if (resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
+                readMusic(data.getData());
+            }
+            return;
+        }
         if (requestCode != PICK) {
             return;
         }
@@ -169,24 +397,31 @@ public class NexStoryComposeActivity extends BaseFragment {
             return;
         }
         posting = true;
+        stopMusicPreview();
         shareButton.setAlpha(0.5f);
         statusView.setText(LocaleController.getString(R.string.NexStoryPosting));
         final long userId = getUserConfig().getClientUserId();
         final Uri picked = uri;
         final boolean isVideo = video;
+        final Uri song = music;
+        final long songStart = musicStartMs;
         CoreClient.EXECUTOR.execute(() -> {
             File file = null;
             int error = 0;
             try {
                 final int[] duration = {PHOTO_SECONDS};
-                if (isVideo) {
+                final boolean asVideo = isVideo || song != null; // a photo with a song becomes a video
+                if (song != null) {
+                    file = PixelfedMedia.prepareStoryWithMusic(picked, isVideo, song, songStart, duration, fraction -> AndroidUtilities.runOnUIThread(() ->
+                        status(LocaleController.formatString(R.string.NexCoverPreparing, (int) (fraction * 100)))));
+                } else if (isVideo) {
                     file = PixelfedMedia.prepareStoryVideo(picked, duration, fraction -> AndroidUtilities.runOnUIThread(() ->
                         status(LocaleController.formatString(R.string.NexCoverPreparing, (int) (fraction * 100)))));
                 } else {
                     file = PixelfedMedia.prepareImage(picked);
                 }
                 AndroidUtilities.runOnUIThread(() -> status(LocaleController.getString(R.string.NexStoryPosting)));
-                PixelfedClient.postStoryBlocking(userId, file, isVideo ? PixelfedMedia.VIDEO_MIME : PixelfedMedia.IMAGE_MIME, duration[0],
+                PixelfedClient.postStoryBlocking(userId, file, asVideo ? PixelfedMedia.VIDEO_MIME : PixelfedMedia.IMAGE_MIME, duration[0],
                     (sent, total) -> {
                         if (total > 0) {
                             AndroidUtilities.runOnUIThread(() -> status(LocaleController.getString(R.string.NexStoryPosting) + " " + (int) (100 * sent / total) + "%"));

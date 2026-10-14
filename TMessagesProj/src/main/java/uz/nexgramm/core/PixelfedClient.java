@@ -663,6 +663,37 @@ public final class PixelfedClient {
         }
     }
 
+    // GET /api/v1/accounts/search?q=&limit=20 (Pixelfed: usernames starting with q, most followed first; q ≤ 30)
+    public static ArrayList<PixelfedAccount> searchAccountsBlocking(long tgUserId, String query) throws IOException, NotConnectedException {
+        String q = query.trim();
+        if (q.startsWith("@")) {
+            q = q.substring(1);
+        }
+        if (q.length() > 30) {
+            q = q.substring(0, 30);
+        }
+        final ArrayList<PixelfedAccount> list = new ArrayList<>();
+        if (q.isEmpty()) {
+            return list;
+        }
+        final Response response = apiBlocking(tgUserId, "GET", "/api/v1/accounts/search?q=" + encode(q) + "&limit=20", null);
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+        try {
+            final JSONArray array = new JSONArray(response.body);
+            for (int i = 0; i < array.length(); i++) {
+                final JSONObject item = array.optJSONObject(i);
+                if (item != null) {
+                    list.add(PixelfedAccount.fromJson(item.toString()));
+                }
+            }
+        } catch (JSONException e) {
+            throw new IOException("bad search");
+        }
+        return list;
+    }
+
     // GET /api/v1/accounts/relationships?id[]=: true when this user follows the account
     public static boolean isFollowingBlocking(long tgUserId, String accountId) throws IOException, NotConnectedException {
         final Response response = apiBlocking(tgUserId, "GET", "/api/v1/accounts/relationships?" + encode("id[]") + "=" + encode(accountId), null);
