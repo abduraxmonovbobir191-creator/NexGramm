@@ -4284,6 +4284,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         boolean notify = sendMessageParams.notify;
         int scheduleDate = sendMessageParams.scheduleDate;
         int scheduleRepeatPeriod = sendMessageParams.scheduleRepeatPeriod;
+        if (scheduleDate == 0 && retryMessageObject == null && peer != 0 && uz.nexgramm.core.NexGhost.readOnReply()) {
+            getMessagesController().nexReadOnReply(peer); // NexGramm ghost mode: replying marks the chat read
+        }
         int ttl = sendMessageParams.ttl;
         Object parentObject = sendMessageParams.parentObject;
         MessageObject.SendAnimationData sendAnimationData = sendMessageParams.sendAnimationData;

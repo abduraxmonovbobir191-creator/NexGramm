@@ -334,8 +334,8 @@ public class NexStoryViewerActivity extends BaseFragment {
             return;
         }
         item.seen = true;
-        if (g.self) {
-            return;
+        if (g.self || uz.nexgramm.core.NexGhost.hideStoryViews()) {
+            return; // own story, or ghost mode: seen on this phone only
         }
         final long userId = tgUserId();
         final String id = item.id;

@@ -73,7 +73,26 @@ public class VoIPHelper {
 
 	private static final int VOIP_SUPPORT_ID = 4244000;
 
+	// NexGramm: "ask before a call" (NexGramm features, on by default) — no more calls from a stray tap
+	private static boolean nexCallConfirmed;
+
 	public static void startCall(TLRPC.User user, boolean videoCall, boolean canVideoCall, final Activity activity, TLRPC.UserFull userFull, AccountInstance accountInstance) {
+		if (!nexCallConfirmed && activity != null && user != null && uz.nexgramm.core.NexExtras.confirmCalls()) {
+			new AlertDialog.Builder(activity)
+				.setTitle(LocaleController.getString(videoCall ? R.string.NexCallConfirmVideo : R.string.NexCallConfirm))
+				.setMessage(org.telegram.messenger.UserObject.getUserName(user))
+				.setPositiveButton(LocaleController.getString(R.string.Call), (d, w) -> {
+					nexCallConfirmed = true;
+					try {
+						startCall(user, videoCall, canVideoCall, activity, userFull, accountInstance);
+					} finally {
+						nexCallConfirmed = false;
+					}
+				})
+				.setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+				.show();
+			return;
+		}
 		if (accountInstance == null ? MessagesController.getInstance(UserConfig.selectedAccount).isFrozen() : accountInstance.getMessagesController().isFrozen()) {
 			AccountFrozenAlert.show(accountInstance == null ? UserConfig.selectedAccount : accountInstance.getCurrentAccount());
 			return;
