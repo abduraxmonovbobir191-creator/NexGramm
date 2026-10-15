@@ -2214,6 +2214,7 @@ public class ImageLoader {
                         }
                         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.fileLoaded, location, finalFile);
                         ImageLoader.this.fileDidLoaded(location, finalFile, type);
+                        org.telegram.ui.NexApkGuard.onFileLoaded(currentAccount, location, finalFile, parentObject); // NexGramm: APK check
                     });
                 }
 

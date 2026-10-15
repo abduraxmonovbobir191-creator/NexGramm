@@ -838,6 +838,11 @@ public class FileLoader extends BaseController {
             FileLog.e(new RuntimeException("cant get hash from " + document));
             return null;
         }
+        // NexGramm: an APK found dangerous is never downloaded again
+        if (document != null && org.telegram.ui.NexApkGuard.isBlocked(fileName)) {
+            org.telegram.ui.NexApkGuard.onBlockedLoad(currentAccount, fileName);
+            return null;
+        }
         if (cacheType != 10 && !TextUtils.isEmpty(fileName) && !fileName.contains("" + Integer.MIN_VALUE)) {
             loadOperationPathsUI.put(fileName, new LoadOperationUIObject());
         }
