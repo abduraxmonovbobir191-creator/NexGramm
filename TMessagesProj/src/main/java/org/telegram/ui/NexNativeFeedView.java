@@ -155,8 +155,19 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 checkLoadMore();
-                updateActiveVideo();
+                // during a fling no video players are made and dropped for posts flying past (that made it
+                // stutter); the one to play is picked when it slows down
+                if (recyclerView.getScrollState() != RecyclerView.SCROLL_STATE_SETTLING || Math.abs(dy) < AndroidUtilities.dp(12)) {
+                    updateActiveVideo();
+                }
                 trackDwell(false);
+            }
+
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    updateActiveVideo();
+                }
             }
         });
         addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -746,6 +757,14 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             learn(status, NexForYou.SAVE);
         }
         NexPostActions.toggleBookmark(getContext(), tgUserId, status, postListener);
+    }
+
+    @Override
+    public void onRepostClick(NexPostCell cell, PixelfedStatus status) {
+        if (!status.reblogged && !status.reblogPending) {
+            learn(status, NexForYou.SHARE);
+        }
+        NexPostActions.toggleRepost(getContext(), tgUserId, status, postListener);
     }
 
     @Override

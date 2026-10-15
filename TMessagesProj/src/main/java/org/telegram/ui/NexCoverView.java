@@ -63,9 +63,11 @@ final class NexCoverView extends FrameLayout {
         addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         if (fadeBottom) {
             final View fade = new View(context);
+            // a long, soft fade: the background melts into the page instead of ending in a hard line
+            final int bg = NexLentaColors.BACKGROUND & 0x00FFFFFF;
             fade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{NexLentaColors.BACKGROUND & 0x00FFFFFF, NexLentaColors.BACKGROUND}));
-            addView(fade, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 56, Gravity.BOTTOM));
+                new int[]{bg, bg, bg | 0x30000000, bg | 0x90000000, NexLentaColors.BACKGROUND}));
+            addView(fade, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
         setClipChildren(true);
     }

@@ -239,6 +239,11 @@ public class NexCommentsActivity extends BaseFragment implements NexPostCell.Del
     }
 
     @Override
+    public void onRepostClick(NexPostCell cell, PixelfedStatus status) {
+        NexPostActions.toggleRepost(getParentActivity(), tgUserId(), status, postListener);
+    }
+
+    @Override
     public void onMenuClick(NexPostCell cell, PixelfedStatus status) {
         NexPostActions.showMenu(this, tgUserId(), status, postListener);
     }

@@ -2677,6 +2677,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public boolean onFragmentCreate() {
+        nexAiOnOpen = arguments.getBoolean("nex_open_ai", false);
         final long chatId = arguments.getLong("chat_id", 0);
         final long userId = arguments.getLong("user_id", 0);
         final int encId = arguments.getInt("enc_id", 0);
@@ -27395,6 +27396,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
         super.onTransitionAnimationEnd(isOpen, backward);
+        if (isOpen && !backward && nexAiOnOpen) {
+            nexAiOnOpen = false;
+            nexOpenAiWhenLoaded(0);
+        }
         if (isOpen) {
             if (backward) {
                 if (showPinBulletin && pinBulletin != null) {
@@ -33465,6 +33470,20 @@ public class ChatActivity extends BaseFragment implements
             return message.caption;
         }
         return message.type == MessageObject.TYPE_TEXT ? message.messageText : null;
+    }
+
+    // NexGramm: opened from NEX AI's "Summary": the ✦ sheet once the messages are in (up to ~3 s)
+    private boolean nexAiOnOpen;
+
+    private void nexOpenAiWhenLoaded(int tries) {
+        if (getParentActivity() == null || isFinishing()) {
+            return;
+        }
+        if (messages.isEmpty() && tries < 12) {
+            AndroidUtilities.runOnUIThread(() -> nexOpenAiWhenLoaded(tries + 1), 250);
+            return;
+        }
+        openNexAiForChat();
     }
 
     // NexGramm: ✦ in the header — recent visible messages "Name: text" (oldest first) and the draft

@@ -37,12 +37,15 @@ public class FileUploadOperation {
     private boolean isLastPart;
     private boolean nextPartFirst;
     private int operationGuid;
-    private static final int minUploadChunkSize = 128;
-    private static final int minUploadChunkSlowNetworkSize = 32;
+    // NexGramm: 512 KB parts (the largest Telegram takes) and up to 4 MB in flight over the 4 upload
+    // connections: a video goes up with a quarter of the requests and twice the parallel data (was 128 KB / 2 MB).
+    // On 2G-class networks a little more than one tiny request at a time.
+    private static final int minUploadChunkSize = 512;
+    private static final int minUploadChunkSlowNetworkSize = 64;
     private static final int initialRequestsCount = 8;
-    private static final int initialRequestsSlowNetworkCount = 1;
-    private static final int maxUploadingKBytes = 1024 * 2;
-    private static final int maxUploadingSlowNetworkKBytes = 32;
+    private static final int initialRequestsSlowNetworkCount = 2;
+    private static final int maxUploadingKBytes = 1024 * 4;
+    private static final int maxUploadingSlowNetworkKBytes = 128;
 
     private int maxRequestsCount;
     private int uploadChunkSize = 64 * 1024;
@@ -330,7 +333,8 @@ public class FileUploadOperation {
                 calcTotalPartsCount();
                 readBuffer = new byte[uploadChunkSize];
 
-                fileKey = Utilities.MD5(uploadingFilePath + (isEncrypted ? "enc" : ""));
+                // NexGramm: the part size is in the key, so an upload half done with other parts is not resumed wrong
+                fileKey = Utilities.MD5(uploadingFilePath + (isEncrypted ? "enc" : "") + "_p" + uploadChunkSize);
                 long fileSize = preferences.getLong(fileKey + "_size", 0);
                 uploadStartTime = (int)(System.currentTimeMillis() / 1000);
                 boolean rewrite = false;

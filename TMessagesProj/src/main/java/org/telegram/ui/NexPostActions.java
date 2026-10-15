@@ -170,6 +170,40 @@ final class NexPostActions {
         });
     }
 
+    // Repost to your followers (optimistic, rolled back on error)
+    static void toggleRepost(Context context, long tgUserId, PixelfedStatus status, Listener listener) {
+        if (status.reblogPending) {
+            return;
+        }
+        final boolean reblog = !status.reblogged;
+        status.reblogPending = true;
+        status.reblogged = reblog;
+        status.reblogsCount = Math.max(0, status.reblogsCount + (reblog ? 1 : -1));
+        listener.onChanged(status);
+        CoreClient.EXECUTOR.execute(() -> {
+            boolean ok = false;
+            try {
+                PixelfedClient.setReblogBlocking(tgUserId, status.statusId, reblog);
+                ok = true;
+            } catch (Exception ignore) {
+            }
+            final boolean success = ok;
+            AndroidUtilities.runOnUIThread(() -> {
+                status.reblogPending = false;
+                if (!success) {
+                    status.reblogged = !reblog;
+                    status.reblogsCount = Math.max(0, status.reblogsCount + (reblog ? -1 : 1));
+                    listener.onChanged(status);
+                    if (context != null) {
+                        Toast.makeText(context, LocaleController.getString(R.string.NexActionFailed), Toast.LENGTH_SHORT).show();
+                    }
+                } else if (context != null && reblog) {
+                    Toast.makeText(context, LocaleController.getString(R.string.NexPostReposted), Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
     // ✦ under a post: NEX explains / translates the caption (same sheet as for a chat message)
     static void askAi(BaseFragment fragment, PixelfedStatus status) {
         if (fragment == null || status == null) {

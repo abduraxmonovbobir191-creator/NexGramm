@@ -16,6 +16,7 @@ public final class PixelfedStatus {
         public final String previewUrl;
         public final int width;
         public final int height;
+        public float ratioHint; // height / width learned from the loaded preview when the server sent no size
 
         Media(boolean video, String url, String previewUrl, int width, int height) {
             this.video = video;
@@ -37,6 +38,7 @@ public final class PixelfedStatus {
     public final String url;     // public link of the post (https), null when absent
     public final String placeName; // Pixelfed "place" (city), null when none
     public final ArrayList<Media> media;
+    public final String rebloggedBy; // who reposted it into this feed (display name), null when not a repost
     // Changed by the comments screen (UI thread only)
     public int repliesCount;
     // Changed by the like button (UI thread only)
@@ -44,12 +46,16 @@ public final class PixelfedStatus {
     public boolean favourited;
     public boolean bookmarked;
     public boolean bookmarkPending;
+    // Changed by the repost button (UI thread only)
+    public int reblogsCount;
+    public boolean reblogged;
+    public boolean reblogPending;
     public boolean captionExpanded;
     public boolean likePending;
 
     private PixelfedStatus(String id, String statusId, String authorId, String authorName, String authorUsername, String avatarUrl,
                            String contentHtml, long createdAt, String url, String placeName, ArrayList<Media> media, int favouritesCount, int repliesCount,
-                           boolean favourited, boolean bookmarked) {
+                           boolean favourited, boolean bookmarked, int reblogsCount, boolean reblogged, String rebloggedBy) {
         this.id = id;
         this.statusId = statusId;
         this.authorId = authorId;
@@ -65,6 +71,9 @@ public final class PixelfedStatus {
         this.repliesCount = repliesCount;
         this.favourited = favourited;
         this.bookmarked = bookmarked;
+        this.reblogsCount = reblogsCount;
+        this.reblogged = reblogged;
+        this.rebloggedBy = rebloggedBy;
     }
 
     static ArrayList<PixelfedStatus> listFromJson(String body) throws JSONException {
@@ -156,7 +165,17 @@ public final class PixelfedStatus {
         return new PixelfedStatus(id, statusId.isEmpty() ? id : statusId, authorId, name, username, avatar,
             json.optString("content", ""), parseTime(json.optString("created_at", "")), httpsOrNull(json.optString("url", "")), placeName(json), media,
             json.optInt("favourites_count", 0), json.optInt("replies_count", 0),
-            json.optBoolean("favourited", false), json.optBoolean("bookmarked", false));
+            json.optBoolean("favourited", false), json.optBoolean("bookmarked", false),
+            json.optInt("reblogs_count", 0), json.optBoolean("reblogged", false), reblog != null ? reposter(outer) : null);
+    }
+
+    private static String reposter(JSONObject outer) {
+        final JSONObject account = outer.optJSONObject("account");
+        if (account == null) {
+            return "";
+        }
+        final String name = account.optString("display_name", "").trim();
+        return name.isEmpty() ? account.optString("acct", account.optString("username", "")) : name;
     }
 
     private static String placeName(JSONObject json) {

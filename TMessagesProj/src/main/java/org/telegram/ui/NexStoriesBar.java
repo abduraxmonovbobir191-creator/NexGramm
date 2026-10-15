@@ -129,7 +129,8 @@ final class NexStoriesBar extends HorizontalScrollView {
         final ArrayList<PixelfedStories.Group> groups = groups();
         final boolean hasSelf = stories != null && stories.self != null;
         final StoryCell own = new StoryCell(getContext());
-        own.set(ownAvatarUrl, ownName, LocaleController.getString(R.string.NexStoryYours), hasSelf ? (stories.self.allSeen() ? 1 : 2) : 0, true);
+        // your own active story always gets the colored ring (your own stories count as seen, which would grey it)
+        own.set(ownAvatarUrl, ownName, LocaleController.getString(R.string.NexStoryYours), hasSelf ? 2 : 0, true);
         own.setOnClickListener(v -> {
             if (hasSelf) {
                 delegate.onOpenStories(groups, 0, own.avatar);

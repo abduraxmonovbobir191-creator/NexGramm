@@ -9,6 +9,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.MotionEvent;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.animation.Interpolator;
@@ -103,6 +104,37 @@ final class NexMotion {
             icon.setScaleY(0.82f);
             icon.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(300).setInterpolator(EASE).setListener(null).start();
         }
+    }
+
+    // a counter rolls to its new value: the old one slides up and fades, the new one comes up from below
+    static void rollText(android.widget.TextView view, CharSequence text, boolean up) {
+        if (TextUtils.equals(view.getText(), text)) {
+            return;
+        }
+        if (!view.isAttachedToWindow() || view.getText().length() == 0) {
+            view.setText(text);
+            return;
+        }
+        final float d = AndroidUtilities.dp(8) * (up ? 1 : -1);
+        view.animate().cancel();
+        view.animate().translationY(-d).alpha(0f).setStartDelay(0).setDuration(110).setInterpolator(EASE).setListener(null)
+            .withEndAction(() -> {
+                view.setText(text);
+                view.setTranslationY(d);
+                view.animate().translationY(0).alpha(1f).setDuration(220).setInterpolator(EASE).start();
+            })
+            .start();
+    }
+
+    // repost: a half turn with a spring
+    static void repostSpin(View icon, boolean on) {
+        icon.animate().cancel();
+        icon.setRotation(0);
+        icon.setScaleX(on ? 0.7f : 0.9f);
+        icon.setScaleY(on ? 0.7f : 0.9f);
+        icon.animate().rotation(on ? 180f : -180f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(480)
+            .setInterpolator(new OvershootInterpolator(1.6f)).setListener(null)
+            .withEndAction(() -> icon.setRotation(0)).start();
     }
 
     // the big heart over a photo: pops with a tilt, then floats up and fades

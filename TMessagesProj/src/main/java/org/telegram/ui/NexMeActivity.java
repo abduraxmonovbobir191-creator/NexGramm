@@ -355,7 +355,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
 
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(AndroidUtilities.dp(16), bannerHeight() + AndroidUtilities.dp(AVATAR_DP / 2f + 10), AndroidUtilities.dp(16), AndroidUtilities.dp(30));
+        column.setPadding(AndroidUtilities.dp(16), bannerHeight() + AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(30));
         headerColumn = column;
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
@@ -363,6 +363,9 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         final LinearLayout identity = new LinearLayout(context);
         identity.setOrientation(LinearLayout.HORIZONTAL);
         identity.setGravity(Gravity.CENTER_VERTICAL);
+        // beside the photo, which hangs from the banner on the right
+        identity.setPadding(0, 0, AndroidUtilities.dp(AVATAR_DP + 8), 0);
+        identity.setMinimumHeight(AndroidUtilities.dp(AVATAR_DP / 2f - 6));
         final LinearLayout names = new LinearLayout(context);
         names.setOrientation(LinearLayout.VERTICAL);
         nameView = new TextView(context);
@@ -417,6 +420,7 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
         plus.setContentDescription(LocaleController.getString(R.string.NexMeSetPhoto));
         plus.setOnClickListener(v -> openPhotoMenu());
         ScaleStateListAnimator.apply(plus, 0.1f, 1.6f);
+        plus.setElevation(AndroidUtilities.dp(14)); // over the photo's ring and glow, not under them
         avatarHolder.addView(plus, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.BOTTOM));
         final FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(AndroidUtilities.dp(AVATAR_DP), AndroidUtilities.dp(AVATAR_DP), Gravity.RIGHT | Gravity.TOP);
         avatarParams.rightMargin = AndroidUtilities.dp(16);
@@ -695,11 +699,10 @@ public class NexMeActivity extends BaseFragment implements MainTabsActivity.TabF
             openPhotoMenu();
             return;
         }
-        PhotoViewer.getInstance().setParentActivity(this);
         if (user.photo.dc_id != 0) {
             user.photo.photo_big.dc_id = user.photo.dc_id;
         }
-        PhotoViewer.getInstance().openPhoto(user.photo.photo_big, new PhotoViewer.EmptyPhotoViewerProvider());
+        NexAvatarViewer.open(this, avatarView, user.id, user.photo.photo_big);
     }
 
     private static boolean hasPhoto(TLRPC.User user) {
