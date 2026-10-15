@@ -71,6 +71,9 @@ public class NexPostCell extends FrameLayout {
         default void onBookmarkClick(NexPostCell cell, PixelfedStatus status) {
         }
 
+        default void onRepostClick(NexPostCell cell, PixelfedStatus status) {
+        }
+
         default void onMenuClick(NexPostCell cell, PixelfedStatus status) {
         }
 
@@ -95,8 +98,9 @@ public class NexPostCell extends FrameLayout {
     public static final int VIDEO_PRELOAD = 1;
     public static final int VIDEO_PLAY = 2;
 
-    private static final float MIN_RATIO = 1f;    // 1:1
-    private static final float MAX_RATIO = 1.25f; // 4:5
+    // media keep their own shape (as on X): from wide 16:9 up to tall 4:5
+    private static final float MIN_RATIO = 0.5625f; // 16:9
+    private static final float MAX_RATIO = 1.25f;   // 4:5
 
     private final Delegate delegate;
     private final FrameLayout mediaFrame;
@@ -112,6 +116,9 @@ public class NexPostCell extends FrameLayout {
     private final TextView followButton;
     private final ImageView likeIcon;
     private final TextView likeCount;
+    private final ImageView repostIcon;
+    private final TextView repostCount;
+    private final TextView repostedBy;
     private final TextView commentCount;
     private final ImageView bookmarkButton;
     private final TextView captionView;
@@ -122,6 +129,7 @@ public class NexPostCell extends FrameLayout {
     private PixelfedStatus status;
     private int currentPage;
     private int videoState = VIDEO_OFF;
+    private int videoPage;
 
     public NexPostCell(Context context, Theme.ResourcesProvider resourcesProvider, Delegate delegate) {
         super(context);
@@ -133,6 +141,16 @@ public class NexPostCell extends FrameLayout {
         root.setClipToOutline(true);
         root.setPadding(0, AndroidUtilities.dp(10), 0, AndroidUtilities.dp(12));
         addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 10, 0, 10, 14));
+
+        // "↻ Name reposted" over a repost (as on X)
+        repostedBy = new TextView(context);
+        repostedBy.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        repostedBy.setTypeface(AndroidUtilities.bold());
+        repostedBy.setTextColor(NexLentaColors.SECONDARY_TEXT);
+        repostedBy.setSingleLine(true);
+        repostedBy.setEllipsize(TextUtils.TruncateAt.END);
+        repostedBy.setVisibility(View.GONE);
+        root.addView(repostedBy, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 20, 0, 14, 4));
 
         // ---- header (Instagram): photo, name + place · time, Follow, ⋯ ----
         final LinearLayout header = new LinearLayout(context);
@@ -252,6 +270,7 @@ public class NexPostCell extends FrameLayout {
                 delegate.onLikeClick(this, status);
                 if (!pending) {
                     NexMotion.likeBounce(likeIcon, liking);
+                    v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
                 }
             }
         });
@@ -267,6 +286,24 @@ public class NexPostCell extends FrameLayout {
         commentGroup.addView(commentCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
         commentGroup.setOnClickListener(v -> openComments());
         actions.addView(commentGroup, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46, 4, 0, 0, 0));
+
+        final LinearLayout repostGroup = iconCount(context);
+        repostIcon = new ImageView(context);
+        repostIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        repostIcon.setImageResource(R.drawable.media_repost);
+        repostGroup.addView(repostIcon, LayoutHelper.createLinear(24, 24));
+        repostCount = countText(context);
+        repostGroup.addView(repostCount, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 6, 0, 0, 0));
+        repostGroup.setContentDescription(LocaleController.getString(R.string.NexPostRepost));
+        repostGroup.setOnClickListener(v -> {
+            if (status != null && !status.reblogPending) {
+                final boolean on = !status.reblogged;
+                delegate.onRepostClick(this, status);
+                NexMotion.repostSpin(repostIcon, on);
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+            }
+        });
+        actions.addView(repostGroup, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 46, 4, 0, 0, 0));
 
         final ImageView sendButton = plainIcon(context, R.drawable.msg_send, NexLentaColors.TEXT);
         sendButton.setContentDescription(LocaleController.getString(R.string.NexPostShare));
@@ -299,7 +336,9 @@ public class NexPostCell extends FrameLayout {
         bookmarkButton.setContentDescription(LocaleController.getString(R.string.NexPostSave));
         bookmarkButton.setOnClickListener(v -> {
             if (status != null) {
+                final boolean saving = !status.bookmarked && !status.bookmarkPending;
                 delegate.onBookmarkClick(this, status);
+                NexMotion.likeBounce(bookmarkButton, saving);
             }
         });
         actions.addView(bookmarkButton, LayoutHelper.createLinear(44, 44));
@@ -389,6 +428,12 @@ public class NexPostCell extends FrameLayout {
         currentPage = 0;
 
         nameView.setText(status.authorUsername.isEmpty() ? status.authorName : status.authorUsername);
+        if (status.rebloggedBy != null) {
+            repostedBy.setText("↻  " + LocaleController.formatString(R.string.NexPostRepostedBy, status.rebloggedBy));
+            repostedBy.setVisibility(View.VISIBLE);
+        } else {
+            repostedBy.setVisibility(View.GONE);
+        }
         final String time = NexLentaUi.timeAgo(status.createdAt);
         subtitleView.setText(status.placeName != null ? status.placeName + " · " + time : time);
         setAvatar(avatarView, status.avatarUrl, status.authorName, "36_36");
@@ -398,7 +443,8 @@ public class NexPostCell extends FrameLayout {
             mediaAdapter.setItems(new ArrayList<>(), 1f);
         } else {
             final PixelfedStatus.Media first = status.media.get(0);
-            final float ratio = first.width > 0 && first.height > 0 ? first.height / (float) first.width : MAX_RATIO;
+            final float ratio = first.width > 0 && first.height > 0 ? first.height / (float) first.width
+                : first.ratioHint > 0 ? first.ratioHint : MAX_RATIO;
             mediaRatio = Math.max(MIN_RATIO, Math.min(MAX_RATIO, ratio));
             mediaAdapter.setItems(status.media, mediaRatio);
             pagerView.scrollToPosition(0);
@@ -462,13 +508,39 @@ public class NexPostCell extends FrameLayout {
         }
     }
 
+    // A post without a size (Pixelfed sends none for some videos): the first page tells its shape once loaded
+    private void onMediaSize(PixelfedStatus bound, int width, int height) {
+        if (status != bound || width <= 0 || height <= 0 || status.media.isEmpty()) {
+            return;
+        }
+        final PixelfedStatus.Media first = status.media.get(0);
+        if (first.width > 0 && first.height > 0) {
+            return;
+        }
+        first.ratioHint = height / (float) width;
+        final float ratio = Math.max(MIN_RATIO, Math.min(MAX_RATIO, first.ratioHint));
+        if (Math.abs(ratio - mediaRatio) > 0.02f) {
+            mediaRatio = ratio;
+            mediaFrame.requestLayout();
+        }
+    }
+
     public void updateLike() {
         if (status == null) {
             return;
         }
         likeIcon.setImageResource(status.favourited ? R.drawable.media_like_active : R.drawable.media_like);
         likeIcon.setColorFilter(new PorterDuffColorFilter(status.favourited ? NexLentaColors.LIKED : NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
-        likeCount.setText(PixelfedFormat.count(Math.max(0, status.favouritesCount)));
+        NexMotion.rollText(likeCount, PixelfedFormat.count(Math.max(0, status.favouritesCount)), status.favourited);
+    }
+
+    public void updateRepost() {
+        if (status == null) {
+            return;
+        }
+        repostIcon.setColorFilter(new PorterDuffColorFilter(status.reblogged ? NexLentaColors.ACCENT : NexLentaColors.TEXT, PorterDuff.Mode.SRC_IN));
+        repostCount.setTextColor(status.reblogged ? NexLentaColors.ACCENT : NexLentaColors.TEXT);
+        NexMotion.rollText(repostCount, PixelfedFormat.count(Math.max(0, status.reblogsCount)), status.reblogged);
     }
 
     public void updateBookmark() {
@@ -490,6 +562,7 @@ public class NexPostCell extends FrameLayout {
             commentsLink.setVisibility(status.repliesCount > 0 ? View.VISIBLE : View.GONE);
             commentsLink.setText(LocaleController.formatString(R.string.NexPostViewComments, PixelfedFormat.count(status.repliesCount)));
             updateLike();
+            updateRepost();
             updateBookmark();
         }
     }
@@ -543,7 +616,12 @@ public class NexPostCell extends FrameLayout {
     }
 
     public void setVideoState(int state) {
+        // called on every scroll frame: nothing to do while the same page keeps the same state
+        if (state == videoState && currentPage == videoPage) {
+            return;
+        }
         videoState = state;
+        videoPage = currentPage;
         for (int i = 0; i < pagerView.getChildCount(); i++) {
             final View child = pagerView.getChildAt(i);
             if (!(child instanceof MediaPageView)) {
@@ -588,7 +666,8 @@ public class NexPostCell extends FrameLayout {
         @NonNull
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            final MediaPageView page = new MediaPageView(parent.getContext(), NexPostCell.this::openComments, NexPostCell.this::openVideo, NexPostCell.this::onDoubleTapLike);
+            final MediaPageView page = new MediaPageView(parent.getContext(), NexPostCell.this::openComments, NexPostCell.this::openVideo, NexPostCell.this::onDoubleTapLike,
+                (w, h) -> onMediaSize(status, w, h));
             page.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             return new RecyclerView.ViewHolder(page) {
             };
@@ -597,7 +676,7 @@ public class NexPostCell extends FrameLayout {
         @Override
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             final MediaPageView page = (MediaPageView) holder.itemView;
-            page.bind(items.get(position), filter);
+            page.bind(items.get(position), filter, position == 0);
             if (videoState != VIDEO_OFF && position == currentPage) {
                 page.prepare(videoState == VIDEO_PLAY);
             }
@@ -623,10 +702,24 @@ public class NexPostCell extends FrameLayout {
         private VideoPlayer player;
         private PixelfedStatus.Media media;
         private boolean muted = true;
+        private boolean reportSize;
+        private final SizeListener sizeListener;
+        private int videoW, videoH, videoRotation;
+        private float videoPixelRatio = 1f;
 
-        MediaPageView(Context context, Runnable onTap, Runnable onVideoTap, Runnable onDoubleTap) {
+        interface SizeListener {
+            void onSize(int width, int height);
+        }
+
+        MediaPageView(Context context, Runnable onTap, Runnable onVideoTap, Runnable onDoubleTap, SizeListener sizeListener) {
             super(context);
+            this.sizeListener = sizeListener;
             imageView = new BackupImageView(context);
+            imageView.getImageReceiver().setDelegate((imageReceiver, set, thumb, memCache) -> {
+                if (set && !thumb && reportSize) {
+                    sizeListener.onSize(imageReceiver.getBitmapWidth(), imageReceiver.getBitmapHeight());
+                }
+            });
             addView(imageView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             muteView = glassPill(context);
             muteView.setOnClickListener(v -> toggleMute());
@@ -662,9 +755,10 @@ public class NexPostCell extends FrameLayout {
             return true;
         }
 
-        void bind(PixelfedStatus.Media media, String filter) {
+        void bind(PixelfedStatus.Media media, String filter, boolean first) {
             stop();
             this.media = media;
+            reportSize = first && (media.width <= 0 || media.height <= 0);
             final String image = media.video ? media.previewUrl : media.url;
             imageView.setImage(image, filter, new ColorDrawable(NexLentaColors.PLACEHOLDER));
             muteView.setVisibility(media.video ? View.VISIBLE : View.GONE);
@@ -696,6 +790,15 @@ public class NexPostCell extends FrameLayout {
 
                     @Override
                     public void onVideoSizeChanged(int width, int height, int unappliedRotationDegrees, float pixelWidthHeightRatio) {
+                        if (reportSize && width > 0 && height > 0) {
+                            final boolean turned = unappliedRotationDegrees == 90 || unappliedRotationDegrees == 270;
+                            final int w = (int) (width * pixelWidthHeightRatio);
+                            sizeListener.onSize(turned ? height : w, turned ? w : height);
+                        }
+                        videoW = width;
+                        videoH = height;
+                        videoRotation = unappliedRotationDegrees;
+                        videoPixelRatio = pixelWidthHeightRatio;
                         fitTexture(texture, width, height, unappliedRotationDegrees, pixelWidthHeightRatio);
                     }
 
@@ -728,7 +831,22 @@ public class NexPostCell extends FrameLayout {
             }
         }
 
+        // the page got its post's real shape: the video fills it again
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            if (textureView != null && videoW > 0) {
+                final TextureView texture = textureView;
+                post(() -> {
+                    if (textureView == texture) {
+                        fitTexture(texture, videoW, videoH, videoRotation, videoPixelRatio);
+                    }
+                });
+            }
+        }
+
         void stop() {
+            videoW = 0;
             if (player != null) {
                 player.releasePlayer(true);
                 player = null;

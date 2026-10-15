@@ -208,6 +208,9 @@
     <string name="NexPostFollow">Obuna</string>
     <string name="NexPostShare">Telegram\'ga yuborish</string>
     <string name="NexPostSave">Saqlash</string>
+    <string name="NexPostRepost">Repost</string>
+    <string name="NexPostReposted">Obunachilaringizga repost qilindi</string>
+    <string name="NexPostRepostedBy">%1$s repost qildi</string>
     <string name="NexPostSaved">Saqlanganlarga qo\'shildi</string>
     <string name="NexPostMore">ko\'proq…</string>
     <string name="NexPostViewComments">Barcha izohlar: %1$s</string>

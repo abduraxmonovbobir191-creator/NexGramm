@@ -472,6 +472,9 @@
     <string name="NexPostFollow">Подписаться</string>
     <string name="NexPostShare">Отправить в Telegram</string>
     <string name="NexPostSave">Сохранить</string>
+    <string name="NexPostRepost">Репост</string>
+    <string name="NexPostReposted">Репост для ваших подписчиков</string>
+    <string name="NexPostRepostedBy">%1$s сделал(а) репост</string>
     <string name="NexPostSaved">Добавлено в сохранённые</string>
     <string name="NexPostMore">ещё…</string>
     <string name="NexPostViewComments">Все комментарии: %1$s</string>

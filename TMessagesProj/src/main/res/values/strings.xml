@@ -11532,6 +11532,9 @@
     <string name="NexPostFollow">Follow</string>
     <string name="NexPostShare">Send to Telegram</string>
     <string name="NexPostSave">Save</string>
+    <string name="NexPostRepost">Repost</string>
+    <string name="NexPostReposted">Reposted to your followers</string>
+    <string name="NexPostRepostedBy">%1$s reposted</string>
     <string name="NexPostSaved">Added to saved</string>
     <string name="NexPostMore">more…</string>
     <string name="NexPostViewComments">View all %1$s comments</string>

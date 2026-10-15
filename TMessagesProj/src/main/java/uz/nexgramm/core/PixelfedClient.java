@@ -500,6 +500,15 @@ public final class PixelfedClient {
         }
     }
 
+    // Repost (Mastodon API, Pixelfed "share"): POST /api/v1/statuses/{id}/reblog | /unreblog
+    public static void setReblogBlocking(long tgUserId, String statusId, boolean reblog) throws IOException, NotConnectedException {
+        final Response response = apiBlocking(tgUserId, "POST",
+            "/api/v1/statuses/" + encode(statusId) + (reblog ? "/reblog" : "/unreblog"), "");
+        if (response.code != 200) {
+            throw new HttpException("api", response);
+        }
+    }
+
     // POST /api/v1/statuses: a post (mediaIds, caption) or a comment (inReplyToId, text); returns the new status
     public static PixelfedStatus createStatusBlocking(long tgUserId, String text, ArrayList<String> mediaIds, String inReplyToId) throws IOException, NotConnectedException {
         final ArrayList<String> pairs = new ArrayList<>();
