@@ -49,6 +49,9 @@ public class NexAiTest {
     public void rewriteAndTranslate() {
         assertTrue(NexAiPrompts.rewrite("salom", NexAiPrompts.STYLE_FORMAL, "Uzbek").contains("more formal"));
         assertTrue(NexAiPrompts.rewrite("salom", "x", "Uzbek").contains("grammar"));
+        assertTrue(NexAiPrompts.imagine("tog'da quyosh", "Uzbek").contains("Prompt:"));
+        assertTrue(NexAiPrompts.imagine("tog'da quyosh", "Uzbek").endsWith("tog'da quyosh"));
+        assertTrue(NexAiPrompts.build("todo app", "Uzbek").contains("fenced"));
         assertTrue(NexAiPrompts.translate("hello", "Russian").startsWith("Translate the text between <<< and >>> into Russian."));
     }
 

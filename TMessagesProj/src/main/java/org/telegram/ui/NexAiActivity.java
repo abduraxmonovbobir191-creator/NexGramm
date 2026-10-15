@@ -25,6 +25,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserObject;
@@ -58,7 +59,9 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
     private View heroView;
     private ScrollView chatScroll;
     private LinearLayout chatList;
-    private LinearLayout modesView;
+    private NexMotion.Tabs modesView;
+    private LinearLayout quickRow;
+    private View orbView;
     private EditText inputView;
     private ImageView sendButton;
 
@@ -146,6 +149,11 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
 
         final View orb = new View(context);
         orb.setBackground(new NexAiUi.OrbDrawable(true));
+        orb.setOnClickListener(v -> {
+            NexMotion.pulse(orb);
+            focusInput(null);
+        });
+        orbView = orb;
         hero.addView(orb, LayoutHelper.createLinear(190, 190, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 18));
 
         final TextView hello = new TextView(context);
@@ -166,32 +174,10 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
         italic.setText(LocaleController.getString(R.string.NexAiWhatTodayItalic));
         hero.addView(italic, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-        modesView = new LinearLayout(context);
-        modesView.setOrientation(LinearLayout.HORIZONTAL);
+        // Chat / Imagine / Build: one accent pill slides between them
+        modesView = new NexMotion.Tabs(context, NexMotion.Tabs.PILL, NexLentaColors.ACCENT);
         modesView.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 26));
         modesView.setPadding(AndroidUtilities.dp(5), AndroidUtilities.dp(5), AndroidUtilities.dp(5), AndroidUtilities.dp(5));
-        hero.addView(modesView, LayoutHelper.createLinear(300, 52, Gravity.CENTER_HORIZONTAL, 0, 24, 0, 0));
-        rebuildModes();
-
-        final LinearLayout quick = new LinearLayout(context);
-        quick.setOrientation(LinearLayout.HORIZONTAL);
-        addQuick(context, quick, R.drawable.msg_list, R.string.NexAiQuickSummary, () -> toast(R.string.NexAiSummaryHint));
-        addQuick(context, quick, R.drawable.input_mic, R.string.NexAiQuickVoice, this::startVoice);
-        addQuick(context, quick, R.drawable.msg_edit, R.string.NexAiQuickCaption, () -> {
-            inputView.setText(LocaleController.getString(R.string.NexAiCaptionPrompt));
-            inputView.setSelection(inputView.length());
-            inputView.requestFocus();
-            AndroidUtilities.showKeyboard(inputView);
-        });
-        hero.addView(quick, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 24, 0, 0));
-
-        scroll.addView(hero);
-        return scroll;
-    }
-
-    private void rebuildModes() {
-        final Context context = getContext();
-        modesView.removeAllViews();
         final int[] names = {R.string.NexAiModeChat, R.string.NexAiModeImagine, R.string.NexAiModeBuild};
         for (int i = 0; i < names.length; i++) {
             final int m = i;
@@ -200,22 +186,113 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
             option.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
             option.setTypeface(AndroidUtilities.bold());
             option.setText(LocaleController.getString(names[i]));
-            if (m == mode) {
-                option.setTextColor(NexLentaColors.ON_ACCENT);
-                option.setBackground(NexLentaUi.roundRect(NexLentaColors.ACCENT, 21));
-            } else {
-                option.setTextColor(NexLentaColors.TEXT);
-                option.setOnClickListener(v -> {
-                    if (m != MODE_CHAT) {
-                        toast(R.string.NexAiModeSoon);
-                        return;
-                    }
-                    mode = m;
-                    rebuildModes();
-                });
-            }
+            option.setOnClickListener(v -> setMode(m));
             modesView.addView(option, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f));
         }
+        hero.addView(modesView, LayoutHelper.createLinear(300, 52, Gravity.CENTER_HORIZONTAL, 0, 24, 0, 0));
+
+        quickRow = new LinearLayout(context);
+        quickRow.setOrientation(LinearLayout.HORIZONTAL);
+        hero.addView(quickRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 24, 0, 0));
+        applyMode(false);
+
+        for (int i = 0; i < hero.getChildCount(); i++) {
+            NexMotion.enter(hero.getChildAt(i), i);
+        }
+        scroll.addView(hero);
+        return scroll;
+    }
+
+    private void setMode(int m) {
+        if (m == mode) {
+            NexMotion.pulse(modesView.getChildAt(m));
+            return;
+        }
+        mode = m;
+        applyMode(true);
+        if (orbView != null) {
+            NexMotion.pulse(orbView);
+        }
+    }
+
+    // pill, label colors, the input's hint and the quick actions of the mode
+    private void applyMode(boolean animated) {
+        modesView.select(mode, animated);
+        for (int i = 0; i < modesView.getChildCount(); i++) {
+            ((TextView) modesView.getChildAt(i)).setTextColor(i == mode ? NexLentaColors.ON_ACCENT : NexLentaColors.TEXT);
+        }
+        if (inputView != null) {
+            inputView.setHint(modeHint());
+        }
+        final Context context = getContext();
+        quickRow.removeAllViews();
+        if (mode == MODE_IMAGINE) {
+            addQuick(context, quickRow, R.drawable.msg_photos, R.string.NexAiQuickPortrait, () -> focusInput(R.string.NexAiPromptPortrait));
+            addQuick(context, quickRow, R.drawable.msg_gallery, R.string.NexAiQuickLandscape, () -> focusInput(R.string.NexAiPromptLandscape));
+            addQuick(context, quickRow, R.drawable.msg_palette, R.string.NexAiQuickLogo, () -> focusInput(R.string.NexAiPromptLogo));
+        } else if (mode == MODE_BUILD) {
+            addQuick(context, quickRow, R.drawable.msg_edit, R.string.NexAiQuickCode, () -> focusInput(R.string.NexAiPromptCode));
+            addQuick(context, quickRow, R.drawable.msg_report, R.string.NexAiQuickBug, () -> focusInput(R.string.NexAiPromptBug));
+            addQuick(context, quickRow, R.drawable.msg_help, R.string.NexAiQuickExplain, () -> focusInput(R.string.NexAiPromptExplain));
+        } else {
+            addQuick(context, quickRow, R.drawable.msg_list, R.string.NexAiQuickSummary, this::pickChatToSummarize);
+            addQuick(context, quickRow, R.drawable.input_mic, R.string.NexAiQuickVoice, this::startVoice);
+            addQuick(context, quickRow, R.drawable.msg_edit, R.string.NexAiQuickCaption, () -> focusInput(R.string.NexAiCaptionPrompt));
+        }
+        if (animated) {
+            for (int i = 0; i < quickRow.getChildCount(); i++) {
+                NexMotion.enter(quickRow.getChildAt(i), i);
+            }
+        }
+    }
+
+    private String modeHint() {
+        return LocaleController.getString(mode == MODE_IMAGINE ? R.string.NexAiHintImagine
+            : mode == MODE_BUILD ? R.string.NexAiHintBuild : R.string.NexAiInputHint);
+    }
+
+    // the input with a starting text (or empty), cursor at the end, keyboard up
+    private void focusInput(Integer startRes) {
+        if (inputView == null) {
+            return;
+        }
+        if (startRes != null) {
+            String start = LocaleController.getString(startRes);
+            if (!start.endsWith(" ") && !start.endsWith("\n")) {
+                start += " ";
+            }
+            inputView.setText(start);
+        }
+        inputView.setSelection(inputView.length());
+        inputView.requestFocus();
+        AndroidUtilities.showKeyboard(inputView);
+    }
+
+    // "Summary": pick a chat, it opens and NEX's ✦ sheet sums up its recent messages
+    private void pickChatToSummarize() {
+        final Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_DEFAULT);
+        final DialogsActivity picker = new DialogsActivity(args);
+        picker.setDelegate((fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            if (dids == null || dids.isEmpty()) {
+                return false;
+            }
+            final long did = dids.get(0).dialogId;
+            final Bundle chatArgs = new Bundle();
+            if (DialogObject.isEncryptedDialog(did)) {
+                chatArgs.putInt("enc_id", DialogObject.getEncryptedChatId(did));
+            } else if (DialogObject.isUserDialog(did)) {
+                chatArgs.putLong("user_id", did);
+            } else {
+                chatArgs.putLong("chat_id", -did);
+            }
+            chatArgs.putBoolean("nex_open_ai", true);
+            fragment.presentFragment(new ChatActivity(chatArgs), true);
+            return true;
+        });
+        presentFragment(picker);
+        toast(R.string.NexAiPickChat);
     }
 
     private void addQuick(Context context, LinearLayout row, int icon, int label, Runnable action) {
@@ -223,7 +300,10 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER_HORIZONTAL);
         final ImageView circle = NexLentaUi.circleButton(context, icon, NexLentaUi.PILL_CARD, false);
-        circle.setOnClickListener(v -> action.run());
+        circle.setOnClickListener(v -> {
+            NexMotion.pulse(circle);
+            action.run();
+        });
         item.addView(circle, LayoutHelper.createLinear(64, 64));
         final TextView text = new TextView(context);
         text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
@@ -244,7 +324,6 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
         inputView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
         inputView.setTextColor(NexLentaColors.TEXT);
         inputView.setHintTextColor(NexLentaColors.SECONDARY_TEXT);
-        inputView.setHint(LocaleController.getString(R.string.NexAiInputHint));
         inputView.setBackground(null);
         inputView.setPadding(0, AndroidUtilities.dp(8), 0, AndroidUtilities.dp(8));
         inputView.setMaxLines(5);
@@ -260,6 +339,7 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
         sendButton.setRotation(-90);
         sendButton.setOnClickListener(v -> send());
         pill.addView(sendButton, LayoutHelper.createLinear(48, 48, 4, 0, 0, 0));
+        inputView.setHint(modeHint());
         return pill;
     }
 
@@ -267,17 +347,44 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
         if (call != null) {
             call.cancel();
             call = null;
+            sendButton.setAlpha(1f);
+        }
+        if (chatScroll.getVisibility() != View.VISIBLE) {
+            // nothing to clear: a new question then
+            if (orbView != null) {
+                NexMotion.pulse(orbView);
+            }
+            focusInput(null);
+            return;
         }
         turns.clear();
         threadId = NexAi.newThreadId();
-        chatList.removeAllViews();
-        chatScroll.setVisibility(View.GONE);
-        heroView.setVisibility(View.VISIBLE);
+        chatScroll.animate().alpha(0f).setDuration(180).withEndAction(() -> {
+            chatList.removeAllViews();
+            chatScroll.setVisibility(View.GONE);
+            chatScroll.setAlpha(1f);
+            heroView.setVisibility(View.VISIBLE);
+            NexMotion.enter(heroView, 0);
+        }).start();
     }
 
     private void send() {
         final String question = inputView.getText().toString().trim();
-        if (question.isEmpty() || call != null) {
+        if (question.isEmpty()) {
+            AndroidUtilities.shakeView(inputView);
+            focusInput(null);
+            return;
+        }
+        if (call != null) {
+            return;
+        }
+        if (!NexAi.configured()) {
+            // the server is not connected yet: say so right in the conversation (nothing is sent, no free use spent)
+            inputView.setText("");
+            heroView.setVisibility(View.GONE);
+            chatScroll.setVisibility(View.VISIBLE);
+            addBubble(question, true);
+            addBubble(NexAiUi.errorText(NexAi.ERROR_NOT_CONFIGURED, null), false);
             return;
         }
         NexAiUi.withConsent(this, () -> {
@@ -290,7 +397,10 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
             addBubble(question, true);
             final TextView answerView = addBubble(LocaleController.getString(R.string.NexAiThinking), false);
             answerView.setAlpha(0.6f);
-            final String prompt = NexAiPrompts.conversation(turns, question, NexAiUi.language());
+            final String language = NexAiUi.language();
+            final String asked = mode == MODE_IMAGINE ? NexAiPrompts.imagine(question, language)
+                : mode == MODE_BUILD ? NexAiPrompts.build(question, language) : question;
+            final String prompt = NexAiPrompts.conversation(turns, asked, language);
             final long userId = getUserConfig().getClientUserId();
             sendButton.setAlpha(0.5f);
             NexAiUi.withCoreLogin(currentAccount, userId, () -> ask(userId, question, prompt, answerView), () -> {
@@ -360,6 +470,7 @@ public class NexAiActivity extends BaseFragment implements MainTabsActivity.TabF
             row.addView(bubble, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
             chatList.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 8, 24, 8));
         }
+        NexMotion.enter(mine ? bubble : (View) bubble.getParent(), 0);
         scrollToEnd();
         return bubble;
     }
