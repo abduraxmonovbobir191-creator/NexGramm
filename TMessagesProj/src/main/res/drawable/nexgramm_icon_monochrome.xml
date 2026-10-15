@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- NexGramm themed icon (Android 13+): bubble silhouette with stars cut out -->
+<!-- NexGramm themed icon (Android 13+): the same "N" and ✦ in one color -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:scaleX="0.3611"
-        android:scaleY="0.3611"
-        android:translateX="14.8651"
-        android:translateY="8.6373">
-        <path
-            android:fillColor="#FFFFFF"
-            android:fillType="evenOdd"
-            android:pathData="M120,40 A72,72 0 1,1 78.7,171 L50,194 L52.3,136.6 A72,72 0 0,1 120,40 Z M108,82 Q113.6,116.4 148,122 Q113.6,127.6 108,162 Q102.4,127.6 68,122 Q102.4,116.4 108,82 Z M152,62 Q154.8,79.2 172,82 Q154.8,84.8 152,102 Q149.2,84.8 132,82 Q149.2,79.2 152,62 Z M160,121 Q161.54,130.46 171,132 Q161.54,133.54 160,143 Q158.46,133.54 149,132 Q158.46,130.46 160,121 Z" />
-    </group>
+    <path
+        android:pathData="M36.4,73.9 L36.4,37.9 L66.4,73.9 L66.4,56.9"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66.4,29.4 Q68.2,37.6 76.4,39.4 Q68.2,41.2 66.4,49.4 Q64.6,41.2 56.4,39.4 Q64.6,37.6 66.4,29.4 Z" />
 </vector>
