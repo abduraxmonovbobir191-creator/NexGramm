@@ -204,6 +204,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     public static final int LAYOUT_TYPE_EMOJI = 14;
     public static final int LAYOUT_TYPE_LINK = 15;
     public static final int LAYOUT_TYPE_RICH = 16;
+    private static final int NEX_BUTTON_TAG = 9101; // NexGramm
 
     private static final int ANIMATOR_ID_CAPTION_ABOVE = 0;
     private static final int ANIMATOR_ID_CAPTION_VISIBLE = 1;
@@ -2869,6 +2870,13 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                         emojiLayout.setDelegate(emojiViewDelegate);
                     }
                     showLayout(emojiLayout);
+                } else if (num == NEX_BUTTON_TAG) {
+                    // NexGramm: the attach menu closes, the NEX picture sheet opens over the chat
+                    if (baseFragment instanceof ChatActivity) {
+                        final ChatActivity chat = (ChatActivity) baseFragment;
+                        dismiss(true);
+                        AndroidUtilities.runOnUIThread(() -> org.telegram.ui.NexAiImagineSheet.show(chat), 250);
+                    }
                 } else if (num == LAYOUT_TYPE_RICH) {
                     if (richLayout == null) {
                         layouts[10] = richLayout = new ChatAttachAlertRichLayout(this, getContext(), currentAccount, resourcesProvider);
@@ -6535,6 +6543,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         private int emojiButton;
         private int linksButton;
         private int richButton;
+        private int nexButton; // NexGramm: NEX imagines a picture
         private int buttonsCount;
 
         public ButtonsAdapter(Context context) {
@@ -6607,6 +6616,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else if (position == emojiButton) {
                         attachButton.setTextAndIcon(LAYOUT_TYPE_EMOJI, getString(R.string.ChatEmoji), GlassTabView.TabAnimation.EMOJI);
                         attachButton.setTag(LAYOUT_TYPE_EMOJI);
+                    } else if (position == nexButton) {
+                        attachButton.setTextAndIcon(NEX_BUTTON_TAG, "NEX", GlassTabView.TabAnimation.NEX_AI);
+                        attachButton.setTag(NEX_BUTTON_TAG);
                     } else if (position == richButton) {
                         attachButton.setTextAndIcon(LAYOUT_TYPE_RICH, getString(R.string.AttachArticle), GlassTabView.TabAnimation.ARTICLE);
                         attachButton.setTag(LAYOUT_TYPE_RICH);
@@ -6657,6 +6669,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             buttonsCount = 0;
             galleryButton = -1;
             documentButton = -1;
+            nexButton = -1;
             musicButton = -1;
             pollButton = -1;
             todoButton = -1;
@@ -6734,6 +6747,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     }
                 }
                 documentButton = buttonsCount++;
+                if (plainTextEnabled && baseFragment instanceof ChatActivity && !((ChatActivity) baseFragment).isSecretChat()) {
+                    nexButton = buttonsCount++;
+                }
 
                 if (plainTextEnabled) {
                     locationButton = buttonsCount++;

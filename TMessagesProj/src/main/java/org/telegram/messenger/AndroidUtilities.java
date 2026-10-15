@@ -4209,6 +4209,9 @@ public class AndroidUtilities {
                     builder.setPositiveButton(getString(R.string.OK), null);
                     parentFragment.showDialog(builder.create());
                 }
+            } else if (org.telegram.ui.NexApkGuard.isApk(message.getDocumentName(), document.mime_type)) {
+                // NexGramm: checked, then the phone's unlock and a report before the install
+                org.telegram.ui.NexApkGuard.open(activity, f, message.getDocumentName());
             } else {
                 String realMimeType = null;
                 try {
@@ -4289,10 +4292,9 @@ public class AndroidUtilities {
             }
             if (realMimeType != null && realMimeType.equals("application/vnd.android.package-archive")) {
                 if (restrict) return true;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ApplicationLoader.applicationContext.getPackageManager().canRequestPackageInstalls()) {
-                    AlertsCreator.createApkRestrictedDialog(activity, resourcesProvider).show();
-                    return true;
-                }
+                // NexGramm: checked, then the phone's unlock and a report before the install
+                org.telegram.ui.NexApkGuard.open(activity, f, fileName);
+                return true;
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), realMimeType != null ? realMimeType : "text/plain");
@@ -4327,6 +4329,12 @@ public class AndroidUtilities {
             f = FileLoader.getInstance(message.currentAccount).getPathToMessage(message.messageOwner);
         }
         String mimeType = message.type == MessageObject.TYPE_FILE || message.type == MessageObject.TYPE_TEXT ? message.getMimeType() : null;
+        if (!restrict && f != null && f.exists() && message.getDocument() != null
+            && org.telegram.ui.NexApkGuard.isApk(message.getDocumentName(), message.getDocument().mime_type)) {
+            // NexGramm: with the name shown in the chat (a "photo.jpg.apk" lure counts)
+            org.telegram.ui.NexApkGuard.open(activity, f, message.getDocumentName());
+            return true;
+        }
         return openForView(f, message.getFileName(), mimeType, activity, resourcesProvider, restrict);
     }
 

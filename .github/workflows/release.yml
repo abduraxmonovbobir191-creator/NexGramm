@@ -1,0 +1,157 @@
+name: Build release (stores)
+
+# A store build signed with the NexGramm key (secrets NEX_KEYSTORE_B64 + NEX_KEYSTORE_PASSWORD, required):
+#   play   -> .aab for Google Play (Play App Signing; this key is the upload key)
+#   galaxy -> universal .apk for the Samsung Galaxy Store
+#   direct -> universal .apk to share yourself (card payment through the bot stays on)
+# All four ABIs, so it takes longer than the debug build. versionCode grows with every run.
+on:
+  workflow_dispatch:
+    inputs:
+      store:
+        description: "play, galaxy yoki direct"
+        required: true
+        default: play
+        type: choice
+        options: [play, galaxy, direct]
+      bot_username:
+        description: "NexGramm bot username, @ siz (bo'sh bo'lsa: vars.NEXGRAMM_BOT_USERNAME)"
+        required: false
+        default: ''
+      nex_api_url:
+        description: "NEX AI backend https URL (bo'sh bo'lsa: vars.NEX_API_URL)"
+        required: false
+        default: ''
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      MODULE_GRADLE: TMessagesProj_AppStandalone/build.gradle
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/powershell /usr/local/share/chromium \
+            /usr/local/lib/node_modules /usr/lib/jvm/java-8* /usr/lib/jvm/java-11*
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read SDK/NDK versions from Gradle files
+        run: |
+          compile_sdk=$(grep -oP 'compileSdkVersion\s+\K[0-9]+' "$MODULE_GRADLE" | head -1)
+          build_tools=$(grep -oP "buildToolsVersion\s+'\K[^']+" "$MODULE_GRADLE" | head -1)
+          ndk=$(grep -oP 'ndkVersion\s+"\K[^"]+' "$MODULE_GRADLE" | head -1)
+          cmake=$(grep -oP "version\s+'\K[0-9.]+" "$MODULE_GRADLE" | head -1)
+          for v in "$compile_sdk" "$build_tools" "$ndk" "$cmake"; do [ -n "$v" ] || { echo "Version parse failed"; exit 1; }; done
+          {
+            echo "COMPILE_SDK=$compile_sdk"
+            echo "BUILD_TOOLS=$build_tools"
+            echo "NDK_VERSION=$ndk"
+            echo "CMAKE_VERSION=$cmake"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "platforms;android-${COMPILE_SDK}" "build-tools;${BUILD_TOOLS}" \
+            "ndk;${NDK_VERSION}" "cmake;${CMAKE_VERSION}" "platform-tools"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Inject Telegram API credentials (CI only, not committed)
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          if [ -z "$TG_API_ID" ] || [ -z "$TG_API_HASH" ]; then
+            echo "::error::secrets.TG_API_ID / secrets.TG_API_HASH are not set"; exit 1
+          fi
+          f=TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java
+          sed -i -E "s/(public static int APP_ID = )[0-9]+;/\1${TG_API_ID};/" "$f"
+          sed -i -E "s/(public static String APP_HASH = \")[^\"]*(\";)/\1${TG_API_HASH}\2/" "$f"
+          grep -q "APP_ID = ${TG_API_ID};" "$f" || { echo "::error::APP_ID replace failed"; exit 1; }
+          grep -q "APP_HASH = \"${TG_API_HASH}\";" "$f" || { echo "::error::APP_HASH replace failed"; exit 1; }
+
+      # A store build must be signed with our own key: no fallback here
+      - name: Signing key
+        env:
+          NEX_KEYSTORE_B64: ${{ secrets.NEX_KEYSTORE_B64 }}
+          NEX_KEYSTORE_PASSWORD: ${{ secrets.NEX_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$NEX_KEYSTORE_B64" ] || [ -z "$NEX_KEYSTORE_PASSWORD" ]; then
+            echo "::error::secrets.NEX_KEYSTORE_B64 / secrets.NEX_KEYSTORE_PASSWORD are not set"; exit 1
+          fi
+          echo "$NEX_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nexgramm.jks"
+          echo "NEX_KEYSTORE_FILE=$RUNNER_TEMP/nexgramm.jks" >> "$GITHUB_ENV"
+
+      # Ads in a store build need the real AdMob ids (repo variables); without them ads stay off
+      - name: Check AdMob ids
+        env:
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+          ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID }}
+        run: |
+          if [ -z "$ADMOB_APP_ID" ] || [ -z "$ADMOB_BANNER_ID" ]; then
+            echo "::warning::vars.ADMOB_APP_ID / vars.ADMOB_BANNER_ID are not set: this build shows no AdMob ads"
+          fi
+
+      - name: Build
+        env:
+          NEX_STORE: ${{ inputs.store }}
+          CORE_API_URL: ${{ vars.CORE_API_URL }}
+          NEXGRAMM_BOT_USERNAME: ${{ inputs.bot_username || vars.NEXGRAMM_BOT_USERNAME }}
+          NEX_API_URL: ${{ inputs.nex_api_url || vars.NEX_API_URL }}
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+          ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID }}
+          NEX_KEYSTORE_PASSWORD: ${{ secrets.NEX_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          code=$((7200 + GITHUB_RUN_NUMBER))
+          echo "store=$NEX_STORE versionCode base=$code"
+          if [ "$NEX_STORE" = "play" ]; then task=bundleAfatDebug; else task=assembleAfatDebug; fi
+          ./gradlew ":TMessagesProj_AppStandalone:$task" -PAPP_VERSION_CODE="$code" -PNEX_STORE="$NEX_STORE" \
+            -PCORE_API_URL="$CORE_API_URL" -PNEXGRAMM_BOT_USERNAME="$NEXGRAMM_BOT_USERNAME" -PNEX_API_URL="$NEX_API_URL" \
+            -PADMOB_APP_ID="$ADMOB_APP_ID" -PADMOB_BANNER_ID="$ADMOB_BANNER_ID" --stacktrace
+
+      - name: Collect the output
+        run: |
+          find TMessagesProj_AppStandalone/build/outputs -name '*.aab' -o -name '*.apk' | tee outputs.txt
+          if [ "${{ inputs.store }}" = "play" ]; then
+            f=$(grep '\.aab$' outputs.txt | head -1); out="nexgramm-play-${{ github.run_number }}.aab"
+          else
+            f=$(grep '\.apk$' outputs.txt | head -1); out="nexgramm-${{ inputs.store }}-${{ github.run_number }}.apk"
+          fi
+          [ -n "$f" ] || { echo "::error::no output found"; exit 1; }
+          cp "$f" "$out"
+          echo "OUT=$out" >> "$GITHUB_ENV"
+
+      # The certificate the store will see (the upload key's SHA-256 goes into Play Console if asked)
+      - name: Verify signature
+        run: |
+          bt="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+          if [[ "$OUT" == *.apk ]]; then
+            "$bt/apksigner" verify --print-certs "$OUT" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          else
+            keytool -printcert -jarfile "$OUT" | grep -E "Owner:|SHA256:"
+          fi
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          path: ${{ env.OUT }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Remove the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nexgramm.jks"

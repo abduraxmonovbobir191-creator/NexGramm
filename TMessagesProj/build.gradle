@@ -178,6 +178,13 @@ android {
             throw new GradleException("ADMOB_BANNER_ID must be empty or ca-app-pub-<n>/<n>, got: " + admobBanner)
         }
         buildConfigField "String", "ADMOB_BANNER_ID", "\"" + admobBanner + "\""
+        // NexGramm: where this build is published: direct (APK from us), play (Google Play), galaxy (Galaxy Store).
+        // Store builds sell nothing outside the store's own billing (their rules): no card payment through the bot.
+        def nexStore = (project.findProperty('NEX_STORE') ?: System.getenv('NEX_STORE') ?: 'direct').toString().trim()
+        if (!(nexStore in ['direct', 'play', 'galaxy'])) {
+            throw new GradleException("NEX_STORE must be direct, play or galaxy, got: " + nexStore)
+        }
+        buildConfigField "String", "NEX_STORE", "\"" + nexStore + "\""
 
         externalNativeBuild {
             cmake {
