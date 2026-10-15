@@ -25,6 +25,20 @@ public class PixelfedStatusTest {
         + "{\"content\":\"no id\"}]";
 
     @Test
+    public void readsRepostInfo() throws Exception {
+        final ArrayList<PixelfedStatus> list = PixelfedStatus.listFromJson("["
+            + "{\"id\":\"40\",\"reblogs_count\":9,\"reblogged\":true,\"account\":{\"acct\":\"bob\"},\"media_attachments\":[]},"
+            + "{\"id\":\"41\",\"account\":{\"acct\":\"cat\",\"display_name\":\"Cat\"},"
+            + "\"reblog\":{\"id\":\"8\",\"reblogs_count\":2,\"account\":{\"acct\":\"ann\"},\"media_attachments\":[]}}]");
+        assertEquals(9, list.get(0).reblogsCount);
+        assertTrue(list.get(0).reblogged);
+        assertNull(list.get(0).rebloggedBy);
+        assertEquals("Cat", list.get(1).rebloggedBy);
+        assertEquals(2, list.get(1).reblogsCount);
+        assertFalse(list.get(1).reblogged);
+    }
+
+    @Test
     public void parsesTimeline() throws Exception {
         final ArrayList<PixelfedStatus> list = PixelfedStatus.listFromJson(TIMELINE);
         assertEquals(2, list.size());
