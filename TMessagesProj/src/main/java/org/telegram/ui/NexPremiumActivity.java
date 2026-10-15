@@ -186,6 +186,17 @@ public class NexPremiumActivity extends BaseFragment {
         }
         final Context context = plansColumn.getContext();
         plansColumn.removeAllViews();
+        if (!"direct".equals(BuildConfig.NEX_STORE)) {
+            // Google Play / Galaxy Store build: buying goes only through the store's own billing, coming later
+            final TextView note = new TextView(context);
+            note.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            note.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+            note.setGravity(Gravity.CENTER);
+            note.setText(LocaleController.getString(R.string.NexPremiumStoreSoon));
+            plansColumn.addView(note, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 8, 0, 8));
+            plansShown = true;
+            return;
+        }
         final NexPremium.Status plans = s.plans.isEmpty() ? NexPremium.fallback() : s;
         for (NexPremium.Plan plan : plans.plans) {
             final boolean best = "3m".equals(plan.code);

@@ -236,6 +236,7 @@
     <string name="NexAiImagineCreate">Yaratish</string>
     <string name="NexAiImagineInsert">Xabarga qo\'yish</string>
     <string name="NexAiImagineNotYet">Rasmlar NEX AI serverga ulangach yaratiladi. Hozircha NEX bu yerda javob bera olmaydi.</string>
+    <string name="NexPremiumStoreSoon">Premium\'ni tez orada ilovalar do\'konida sotib olish mumkin bo\'ladi.</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Obunachilaringizga repost qilindi</string>
     <string name="NexPostRepostedBy">%1$s repost qildi</string>

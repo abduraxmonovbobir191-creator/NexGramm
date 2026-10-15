@@ -500,6 +500,7 @@
     <string name="NexAiImagineCreate">Создать</string>
     <string name="NexAiImagineInsert">Вставить в сообщение</string>
     <string name="NexAiImagineNotYet">Картинки появятся, когда NEX AI подключится к серверу. Пока NEX здесь не отвечает.</string>
+    <string name="NexPremiumStoreSoon">Premium скоро можно будет купить в магазине приложений.</string>
     <string name="NexPostRepost">Репост</string>
     <string name="NexPostReposted">Репост для ваших подписчиков</string>
     <string name="NexPostRepostedBy">%1$s сделал(а) репост</string>

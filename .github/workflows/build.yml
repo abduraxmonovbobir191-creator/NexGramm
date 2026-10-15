@@ -78,6 +78,20 @@ jobs:
           grep -q "APP_ID = ${TG_API_ID};" "$f" || { echo "::error::APP_ID replace failed"; exit 1; }
           grep -q "APP_HASH = \"${TG_API_HASH}\";" "$f" || { echo "::error::APP_HASH replace failed"; exit 1; }
 
+      # Our own signing key when the secrets are set (else the repo's public sample key). The key file lives
+      # only in the runner's temp folder for this job; nothing about it is printed.
+      - name: Signing key
+        env:
+          NEX_KEYSTORE_B64: ${{ secrets.NEX_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$NEX_KEYSTORE_B64" ]; then
+            echo "$NEX_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nexgramm.jks"
+            echo "NEX_KEYSTORE_FILE=$RUNNER_TEMP/nexgramm.jks" >> "$GITHUB_ENV"
+            echo "signing: NexGramm key"
+          else
+            echo "signing: public sample key (set secrets NEX_KEYSTORE_B64 and NEX_KEYSTORE_PASSWORD)"
+          fi
+
       # android.injected.build.abi limits the native (CMake) build to one ABI without editing Gradle files.
       # AGP treats any injected build-target property as an IDE deploy and adds
       # android:testOnly="true" (INSTALL_FAILED_TEST_ONLY); android.injected.testOnly=false overrides that.
@@ -89,6 +103,7 @@ jobs:
           NEX_API_URL: ${{ inputs.nex_api_url || vars.NEX_API_URL }}
           ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
           ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID }}
+          NEX_KEYSTORE_PASSWORD: ${{ secrets.NEX_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
           echo "CORE_API_URL=${CORE_API_URL:-https://ng.nexecos.com (default)} NEXGRAMM_BOT_USERNAME=${NEXGRAMM_BOT_USERNAME:-<empty>} NEX_API_URL=${NEX_API_URL:-<empty>}"
