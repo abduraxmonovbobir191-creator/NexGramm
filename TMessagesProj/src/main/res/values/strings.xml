@@ -11571,6 +11571,10 @@
     <string name="NexApkReasonContacts">reads your contacts</string>
     <string name="NexApkReasonCalls">reads calls or makes calls</string>
     <string name="NexApkReasonUnreadable">the file could not be read as an app</string>
+    <string name="NexAiImagineTitle">NEX imagines</string>
+    <string name="NexAiImagineCreate">Create</string>
+    <string name="NexAiImagineInsert">Put in the message</string>
+    <string name="NexAiImagineNotYet">Pictures will be made once NEX AI is connected to its server. For now NEX can\'t answer here.</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Reposted to your followers</string>
     <string name="NexPostRepostedBy">%1$s reposted</string>

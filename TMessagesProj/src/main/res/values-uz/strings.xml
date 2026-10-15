@@ -232,6 +232,10 @@
     <string name="NexApkReasonContacts">kontaktlaringizni o\'qiydi</string>
     <string name="NexApkReasonCalls">qo\'ng\'iroqlarni o\'qiydi yoki qo\'ng\'iroq qiladi</string>
     <string name="NexApkReasonUnreadable">fayl ilova sifatida o\'qilmadi</string>
+    <string name="NexAiImagineTitle">NEX tasavvur qiladi</string>
+    <string name="NexAiImagineCreate">Yaratish</string>
+    <string name="NexAiImagineInsert">Xabarga qo\'yish</string>
+    <string name="NexAiImagineNotYet">Rasmlar NEX AI serverga ulangach yaratiladi. Hozircha NEX bu yerda javob bera olmaydi.</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Obunachilaringizga repost qilindi</string>
     <string name="NexPostRepostedBy">%1$s repost qildi</string>

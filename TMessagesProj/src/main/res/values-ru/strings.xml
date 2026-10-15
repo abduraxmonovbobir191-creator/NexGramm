@@ -496,6 +496,10 @@
     <string name="NexApkReasonContacts">читает контакты</string>
     <string name="NexApkReasonCalls">читает звонки или звонит</string>
     <string name="NexApkReasonUnreadable">файл не читается как приложение</string>
+    <string name="NexAiImagineTitle">NEX придумает</string>
+    <string name="NexAiImagineCreate">Создать</string>
+    <string name="NexAiImagineInsert">Вставить в сообщение</string>
+    <string name="NexAiImagineNotYet">Картинки появятся, когда NEX AI подключится к серверу. Пока NEX здесь не отвечает.</string>
     <string name="NexPostRepost">Репост</string>
     <string name="NexPostReposted">Репост для ваших подписчиков</string>
     <string name="NexPostRepostedBy">%1$s сделал(а) репост</string>
