@@ -1,6 +1,7 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -9,12 +10,13 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
-import org.telegram.messenger.browser.Browser;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -261,12 +263,41 @@ public class NexPremiumActivity extends BaseFragment {
         }
     }
 
+    // The bot chat opens inside the app and gets "/start premium_<code>" at once (no t.me link, so a wrong
+    // server value cannot break it): the build's bot first, the server's only when it is a valid username.
     private void buy(NexPremium.Status s, String code) {
-        final String bot = !TextUtils.isEmpty(s.botUsername) ? s.botUsername : BuildConfig.NEXGRAMM_BOT_USERNAME;
-        if (TextUtils.isEmpty(bot) || getParentActivity() == null) {
+        String bot = username(BuildConfig.NEXGRAMM_BOT_USERNAME);
+        if (bot == null) {
+            bot = username(s.botUsername);
+        }
+        if (bot == null || getParentActivity() == null) {
+            failed();
             return;
         }
-        Browser.openUrl(getParentActivity(), "https://t.me/" + bot + "?start=premium_" + code);
+        getMessagesController().getUserNameResolver().resolve(bot, peerId -> {
+            final TLRPC.User user = peerId != null && peerId > 0 ? getMessagesController().getUser(peerId) : null;
+            if (user == null || fragmentView == null) {
+                failed();
+                return;
+            }
+            final Bundle args = new Bundle();
+            args.putLong("user_id", user.id);
+            final ChatActivity chat = new ChatActivity(args);
+            if (presentFragment(chat)) {
+                chat.setBotUser("premium_" + code);
+            }
+        });
+    }
+
+    private static String username(String value) {
+        final String v = value == null ? "" : value.trim().replaceFirst("^@", "");
+        return v.matches("[A-Za-z][A-Za-z0-9_]{4,31}") ? v : null;
+    }
+
+    private void failed() {
+        if (getParentActivity() != null) {
+            Toast.makeText(getParentActivity(), LocaleController.getString(R.string.NexActionFailed), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private LinearLayout card(Context context) {
