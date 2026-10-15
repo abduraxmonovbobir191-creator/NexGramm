@@ -423,6 +423,14 @@ public class NexPostCell extends FrameLayout {
     }
 
     public void setStatus(PixelfedStatus status) {
+        if (this.status != null && this.status != status && sameContent(this.status, status)) {
+            // the same post again (a refresh): new counters and flags only, the photo / playing video stay
+            this.status = status;
+            bindCaption();
+            updateCounts();
+            updateFollow();
+            return;
+        }
         releaseVideo();
         this.status = status;
         currentPage = 0;
@@ -457,6 +465,18 @@ public class NexPostCell extends FrameLayout {
         bindCaption();
         updateCounts();
         updateFollow();
+    }
+
+    private static boolean sameContent(PixelfedStatus a, PixelfedStatus b) {
+        if (!a.id.equals(b.id) || a.media.size() != b.media.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.media.size(); i++) {
+            if (!android.text.TextUtils.equals(a.media.get(i).url, b.media.get(i).url)) {
+                return false;
+            }
+        }
+        return android.text.TextUtils.equals(a.rebloggedBy, b.rebloggedBy);
     }
 
     // Photo or pastel initials (Pixelfed's default avatar counts as none)

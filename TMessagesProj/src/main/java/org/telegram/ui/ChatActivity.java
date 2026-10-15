@@ -9040,10 +9040,12 @@ public class ChatActivity extends BaseFragment implements
             || !NexChatLock.isLocked(currentAccount, dialog_id)) {
             return;
         }
-        nexLockCover = NexChatLock.createCover(fragmentView.getContext(), this::nexUnlock);
+        nexLockCover = NexChatLock.createCover(fragmentView.getContext(), this::nexUnlock, this::finishFragment);
+        // the whole screen, above everything of the chat (header and floating panels too): nothing shows through
         final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.TOP | Gravity.LEFT);
-        lp.topMargin = ActionBar.getCurrentActionBarHeight() + (actionBar != null && actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0);
+        nexLockCover.setTranslationZ(AndroidUtilities.dp(100));
         ((ViewGroup) fragmentView).addView(nexLockCover, lp);
+        nexLockCover.bringToFront();
     }
 
     private void nexUnlock() {

@@ -119,6 +119,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private float downX;
     private float downY;
     private boolean pulling;
+    private RadialProgressView refreshProgress;
     private boolean refreshing;
     private float pullDistance;
 
@@ -263,6 +264,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         refreshIndicator.setBackground(Theme.createCircleDrawable(AndroidUtilities.dp(40), NexLentaColors.CARD));
         refreshIndicator.setElevation(AndroidUtilities.dp(3));
         final RadialProgressView refreshProgress = new RadialProgressView(context);
+        this.refreshProgress = refreshProgress;
         refreshProgress.setSize(AndroidUtilities.dp(20));
         refreshProgress.setProgressColor(NexLentaColors.TEXT);
         refreshIndicator.addView(refreshProgress, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -421,13 +423,16 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
             // the home timeline and the trending posts at the same time: a refresh waits for one round trip, not two
             final java.util.concurrent.Future<ArrayList<PixelfedStatus>> home = CoreClient.EXECUTOR.submit(() -> PixelfedClient.timelineBlocking(tgUserId, false, null));
             final java.util.concurrent.Future<ArrayList<PixelfedStatus>> trending = CoreClient.EXECUTOR.submit(() -> PixelfedClient.trendingBlocking(tgUserId));
+            // at most a few seconds each: a slow extra source must not hold the refresh (the spinner) for long
             try {
-                pool.addAll(home.get());
+                pool.addAll(home.get(4, java.util.concurrent.TimeUnit.SECONDS));
             } catch (Exception ignore) {
+                home.cancel(true);
             }
             try {
-                pool.addAll(trending.get());
+                pool.addAll(trending.get(4, java.util.concurrent.TimeUnit.SECONDS));
             } catch (Exception ignore) {
+                trending.cancel(true);
             }
         }
         final HashMap<String, PixelfedStatus> byId = new HashMap<>();
@@ -615,6 +620,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
 
     private void showRefreshing() {
         refreshing = true;
+        refreshProgress.setNoProgress(true); // spins until the posts are in
         refreshIndicator.animate().cancel();
         refreshIndicator.setVisibility(View.VISIBLE);
         refreshIndicator.animate().alpha(1f).translationY(topInset + AndroidUtilities.dp(12)).setDuration(150).start();
@@ -654,6 +660,8 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                     listView.animate().cancel();
                     refreshIndicator.animate().cancel();
                     refreshIndicator.setVisibility(View.VISIBLE);
+                    refreshProgress.setNoProgress(false); // the ring fills with the pull
+                    refreshProgress.setProgress(0f);
                     return true;
                 }
                 break;
@@ -675,12 +683,13 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
                 refreshIndicator.setTranslationY(topInset - AndroidUtilities.dp(48) + pullDistance);
                 refreshIndicator.setAlpha(Math.min(1f, pullDistance / threshold));
                 refreshIndicator.setRotation(pullDistance * 2);
+                refreshProgress.setProgress(Math.min(1f, pullDistance / threshold));
                 listView.setTranslationY(pullDistance); // the posts follow the finger
                 return true;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 pulling = false;
-                refreshIndicator.setRotation(0);
+                refreshIndicator.animate().rotation(0).setDuration(200).start();
                 listView.animate().translationY(0).setStartDelay(0).setDuration(480).setInterpolator(NexMotion.EASE).start();
                 if (pullDistance >= threshold && ev.getActionMasked() == MotionEvent.ACTION_UP) {
                     refresh();

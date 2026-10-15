@@ -111,35 +111,46 @@ public final class NexChatLock {
         }
     }
 
-    // The cover over a locked chat: 🔒, a line of text and "Unlock"
-    static FrameLayout createCover(Context context, Runnable onUnlockClick) {
+    // The cover over a locked chat, the whole screen: a deep night sky of the accent with twinkling ✦ stars,
+    // 🔒, a line of text and "Unlock"; ← goes back
+    static FrameLayout createCover(Context context, Runnable onUnlockClick, Runnable onBack) {
         final FrameLayout cover = new FrameLayout(context);
-        cover.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        final int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
+        cover.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{0xFF07070C, uz.nexgramm.core.NexPalette.blend(0xFF0B0B14, accent, 0.18f), uz.nexgramm.core.NexPalette.blend(0xFF0B0B14, accent, 0.42f)}));
         cover.setClickable(true); // nothing behind it can be touched
+        cover.addView(new StarsView(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        final ImageView back = new ImageView(context);
+        back.setScaleType(ImageView.ScaleType.CENTER);
+        back.setImageResource(R.drawable.ic_ab_back);
+        back.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN));
+        back.setBackground(Theme.createSelectorDrawable(0x33FFFFFF, Theme.RIPPLE_MASK_CIRCLE_20DP));
+        back.setOnClickListener(v -> onBack.run());
+        cover.addView(back, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.TOP, 8, AndroidUtilities.statusBarHeight / AndroidUtilities.density + 6, 0, 0));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(Gravity.CENTER_HORIZONTAL);
         final ImageView icon = new ImageView(context);
         icon.setTag(ICON_TAG);
         icon.setImageResource(R.drawable.msg_secret);
-        icon.setColorFilter(new android.graphics.PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText), android.graphics.PorterDuff.Mode.SRC_IN));
+        icon.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN));
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         column.addView(icon, LayoutHelper.createLinear(56, 56, Gravity.CENTER_HORIZONTAL));
         final TextView title = new TextView(context);
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
         title.setTypeface(AndroidUtilities.bold());
-        title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        title.setTextColor(0xFFFFFFFF);
         title.setGravity(Gravity.CENTER);
         title.setText(LocaleController.getString(R.string.NexLockLocked));
         column.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0));
         final TextView button = new TextView(context);
         button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         button.setTypeface(AndroidUtilities.bold());
-        button.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
+        button.setTextColor(uz.nexgramm.core.NexPalette.onColor(accent));
         button.setGravity(Gravity.CENTER);
         button.setPadding(AndroidUtilities.dp(28), 0, AndroidUtilities.dp(28), 0);
         button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(24),
-            Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
+            accent, Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
         button.setText(LocaleController.getString(R.string.NexLockUnlock));
         button.setOnClickListener(v -> onUnlockClick.run());
         column.addView(button, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 48, Gravity.CENTER_HORIZONTAL, 0, 24, 0, 0));
@@ -168,6 +179,54 @@ public final class NexChatLock {
         cover.setClickable(false);
         cover.animate().alpha(0f).scaleX(1.06f).scaleY(1.06f).setStartDelay(160).setDuration(340).setInterpolator(NexMotion.EASE)
             .withEndAction(() -> AndroidUtilities.removeFromParent(cover)).start();
+    }
+
+    // Stars of a night sky: small ✦ and dots, each twinkling on its own slow beat; a few drift a little
+    private static final class StarsView extends View {
+        private static final int COUNT = 46;
+        private final float[] x = new float[COUNT];
+        private final float[] y = new float[COUNT];
+        private final float[] size = new float[COUNT];
+        private final float[] phase = new float[COUNT];
+        private final float[] speed = new float[COUNT];
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path path = new android.graphics.Path();
+        private final long start = android.os.SystemClock.elapsedRealtime();
+
+        StarsView(Context context) {
+            super(context);
+            final java.util.Random random = new java.util.Random();
+            for (int i = 0; i < COUNT; i++) {
+                x[i] = random.nextFloat();
+                y[i] = random.nextFloat();
+                // a quarter are ✦, the rest dots
+                size[i] = i % 4 == 0 ? AndroidUtilities.dp(4 + random.nextFloat() * 5) : AndroidUtilities.dp(0.8f + random.nextFloat() * 1.4f);
+                phase[i] = random.nextFloat() * (float) (Math.PI * 2);
+                speed[i] = 0.6f + random.nextFloat() * 1.6f;
+            }
+            paint.setColor(0xFFFFFFFF);
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas canvas) {
+            final float t = (android.os.SystemClock.elapsedRealtime() - start) / 1000f;
+            final int w = getWidth();
+            final int h = getHeight();
+            for (int i = 0; i < COUNT; i++) {
+                final float twinkle = 0.5f + 0.5f * (float) Math.sin(t * speed[i] + phase[i]);
+                paint.setAlpha((int) (40 + 215 * twinkle * twinkle));
+                final float cx = x[i] * w;
+                final float cy = ((y[i] - t * 0.004f * speed[i]) % 1f + 1f) % 1f * h; // a slow drift upwards
+                if (i % 4 == 0) {
+                    NexAiUi.drawStar(canvas, path, paint, cx, cy, size[i] * (0.75f + 0.35f * twinkle));
+                } else {
+                    canvas.drawCircle(cx, cy, size[i], paint);
+                }
+            }
+            if (isAttachedToWindow()) {
+                postInvalidateOnAnimation();
+            }
+        }
     }
 
     // Not accepted: the lock shakes "no"
