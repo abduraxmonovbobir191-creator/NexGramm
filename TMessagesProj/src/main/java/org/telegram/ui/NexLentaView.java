@@ -561,7 +561,14 @@ public class NexLentaView extends FrameLayout {
         showLoading();
         pageLoading = true;
         feedHomeForced = false;
-        webView.loadUrl(url);
+        // Pixelfed keeps a logged-in session and skips the login (auth/oidc/start → "/"): with another
+        // Telegram account's cookie the page would be that account. So log in fresh with this ticket.
+        final int attempt = oauthAttempt;
+        clearFeedCookies(() -> {
+            if (attempt == oauthAttempt && pageLoading && webView != null) {
+                webView.loadUrl(url);
+            }
+        });
     }
 
     public boolean isPageShown() {
