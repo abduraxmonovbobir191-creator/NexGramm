@@ -370,12 +370,12 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
         nameView.setTextColor(NexLentaColors.TEXT);
         nameView.setMaxLines(2);
         nameView.setEllipsize(TextUtils.TruncateAt.END);
-        column.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 10, 16, 0));
+        column.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 12 - AVATAR_DP / 2, AVATAR_DP + 24, 0));
         statusView = new TextView(context);
         statusView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         statusView.setSingleLine(true);
         statusView.setEllipsize(TextUtils.TruncateAt.END);
-        column.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 2, 16, 0));
+        column.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 2, AVATAR_DP + 24, 0));
 
         actionsRow = new LinearLayout(context);
         actionsRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -685,8 +685,7 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
         if (big == null) {
             return;
         }
-        PhotoViewer.getInstance().setParentActivity(this);
-        PhotoViewer.getInstance().openPhoto(big, new PhotoViewer.EmptyPhotoViewerProvider());
+        NexAvatarViewer.open(this, avatarView, dialogId, big);
     }
 
     private void openMedia(int index) {

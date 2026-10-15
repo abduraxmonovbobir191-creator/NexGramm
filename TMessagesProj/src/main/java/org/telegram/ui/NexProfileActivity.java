@@ -212,15 +212,15 @@ public class NexProfileActivity extends BaseFragment {
 
     private View createHeader(Context context) {
         // the user's cover (photo, muted video, color / emoji), else a soft band in the app colors, behind the
-        // whole header from the very top down below the buttons; in its own colors, no dark fade
+        // whole header from the very top down below the buttons, fading softly into the page
         final FrameLayout header = new FrameLayout(context);
-        coverView = new NexCoverView(context, false);
+        coverView = new NexCoverView(context, true);
         // a clear banner on top, the photo over its lower edge on the left; name and the rest below (as on X)
         final int banner = AndroidUtilities.statusBarHeight + AndroidUtilities.dp(56 + 96);
         header.addView(coverView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, banner));
         final LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(0, banner + AndroidUtilities.dp(AVATAR_DP / 2f + 10), 0, 0);
+        column.setPadding(0, banner + AndroidUtilities.dp(12), 0, 0);
         header.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         final FrameLayout identity = new FrameLayout(context);
@@ -260,7 +260,8 @@ public class NexProfileActivity extends BaseFragment {
         usernameView.setSingleLine(true);
         usernameView.setEllipsize(TextUtils.TruncateAt.END);
         names.addView(usernameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
-        identity.addView(names, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 16, 0, 16, 0));
+        identity.addView(names, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 16, 0, AVATAR_DP + 24, 0));
+        identity.setMinimumHeight(AndroidUtilities.dp(AVATAR_DP / 2f - 6));
         column.addView(identity, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         coverTexts.add(nameView);
         coverTexts.add(usernameView);
