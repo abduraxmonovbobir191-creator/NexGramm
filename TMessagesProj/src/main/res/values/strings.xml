@@ -11494,6 +11494,10 @@
     <string name="NexFeaturesComfort">Comfort</string>
     <string name="NexFeaturesConfirmCalls">Ask before calling</string>
     <string name="NexFeaturesConfirmCallsInfo">A call starts only after you confirm</string>
+    <string name="NexFeaturesLinkMedia">Links as videos</string>
+    <string name="NexFeaturesLinkMediaInfo">An Instagram, TikTok or YouTube link goes as the video and its music (via @SaveXStorageBot)</string>
+    <string name="NexLinkMediaPreparing">Getting the video…</string>
+    <string name="NexLinkMediaFailed">Couldn\'t get the video, the link was sent</string>
     <string name="NexFeaturesComfortNote">To lock a chat: open it → ⋮ → Lock chat. Long press a message to see its exact date and time.</string>
     <string name="NexFeedbackHeader">Contact NexGramm</string>
     <string name="NexFeedbackSupport">Support</string>
@@ -11576,6 +11580,8 @@
     <string name="NexAiImagineInsert">Put in the message</string>
     <string name="NexAiImagineNotYet">Pictures will be made once NEX AI is connected to its server. For now NEX can\'t answer here.</string>
     <string name="NexPremiumStoreSoon">Premium will be available to buy in the app store soon.</string>
+    <string name="NexLentaShareSending">Sending the post…</string>
+    <string name="NexLentaShareLinkOnly">The media couldn\'t be loaded, the link was sent</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Reposted to your followers</string>
     <string name="NexPostRepostedBy">%1$s reposted</string>

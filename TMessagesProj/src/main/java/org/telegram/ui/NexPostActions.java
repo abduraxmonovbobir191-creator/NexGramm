@@ -129,13 +129,35 @@ final class NexPostActions {
     }
 
     // Telegram's own share sheet (search, chats, comment, multi-select) with the post link
+    // Send to Telegram chats: the post's photos / video themselves (an album when several), with the author and the
+    // link as the caption; a post without media goes as its link
     static void share(BaseFragment fragment, PixelfedStatus status) {
         final Context context = fragment.getParentActivity();
         if (context == null) {
             return;
         }
         final String link = status.shareUrl();
-        fragment.showDialog(ShareAlert.createShareAlert(context, null, link, false, link, false));
+        if (status.media.isEmpty()) {
+            fragment.showDialog(ShareAlert.createShareAlert(context, null, link, false, link, false));
+            return;
+        }
+        final android.os.Bundle args = new android.os.Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
+        final DialogsActivity picker = new DialogsActivity(args);
+        picker.setDelegate((dialogs, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            if (dids == null || dids.isEmpty()) {
+                return false;
+            }
+            final java.util.ArrayList<Long> targets = new java.util.ArrayList<>();
+            for (org.telegram.messenger.MessagesStorage.TopicKey key : dids) {
+                targets.add(key.dialogId);
+            }
+            NexLentaShare.send(fragment.getCurrentAccount(), status, targets);
+            dialogs.finishFragment();
+            return true;
+        });
+        fragment.presentFragment(picker);
     }
 
     // Optimistic save (bookmark): UI at once, rolled back on error

@@ -7392,6 +7392,19 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (checkPremiumAnimatedEmoji(currentAccount, dialog_id, parentFragment, null, message)) {
                 return;
             }
+            // NexGramm: a lone Instagram / TikTok / YouTube link goes as the video itself (and its music)
+            if (scheduleDate == 0 && !isInScheduleMode() && payStars == 0 && editingMessageObject == null && replyingMessageObject == null
+                && delegate != null && !delegate.hasForwardingMessages() && org.telegram.ui.NexLinkMedia.shouldConvert(parentFragment, message)) {
+                final String nexUrl = message.toString().trim();
+                final long nexDialog = dialog_id;
+                final int nexAccount = currentAccount;
+                if (messageEditText != null) {
+                    messageEditText.setText("");
+                }
+                org.telegram.ui.NexLinkMedia.send(parentFragment, nexDialog, nexUrl,
+                    () -> SendMessagesHelper.getInstance(nexAccount).sendMessage(SendMessagesHelper.SendMessageParams.of(nexUrl, nexDialog)));
+                return;
+            }
             if (processSendingText(message, notify, scheduleDate, scheduleRepeatPeriod, payStars)) {
                 if (delegate.hasForwardingMessages() || (scheduleDate != 0 && !isInScheduleMode()) || isInScheduleMode()) {
                     if (messageEditText != null) {
