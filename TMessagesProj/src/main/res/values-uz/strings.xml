@@ -433,4 +433,7 @@
     <string name="NexAdsFeedError">E\'lonlar yuklanmadi. Internetni tekshirib, qayta oching.</string>
     <string name="NexPostNotInterested">Qiziq emas</string>
     <string name="NexPostNotInterestedDone">Tushunarli: bunaqa postlar kamroq chiqadi</string>
+    <string name="NexPremiumInvite">🎁 Do\'stlaringizni taklif qiling: NexGramm\'dan foydalana boshlagan har bir do\'stingiz uchun bepul Premium kunlar olasiz.</string>
+    <string name="NexPremiumInviteButton">Do\'stlarni taklif qilish</string>
+    <string name="NexPremiumInviteShare">NexGramm — qulay messenjer, Lenta va NEX AI. Mening havolam orqali kiring:</string>
 </resources>

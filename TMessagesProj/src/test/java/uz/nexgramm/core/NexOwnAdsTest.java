@@ -14,7 +14,8 @@ public class NexOwnAdsTest {
     public void feedPage() throws Exception {
         final NexOwnAds.Page page = NexOwnAds.parsePage("{\"ads\":["
             + "{\"id\":\"a1\",\"title\":\"Ish\",\"text\":\"Sotuvchi\",\"url\":\"https://t.me/ish\",\"category\":\"job\","
-            + "\"city\":\"tashkent\",\"sponsored\":true,\"image_url\":\"https://media.x/a.jpg\"},"
+            + "\"city\":\"tashkent\",\"sponsored\":true,\"top\":true,\"image_url\":\"https://media.x/a.jpg\","
+            + "\"video_url\":\"https://media.x/a.mp4\"},"
             + "{\"id\":\"a2\",\"title\":\"Bad\",\"url\":\"http://x.uz\"},"
             + "{\"id\":\"a3\",\"title\":\"Own\",\"url\":\"https://nex.uz\",\"image_url\":\"javascript:x\"}"
             + "],\"next_offset\":20}");
@@ -25,6 +26,10 @@ public class NexOwnAdsTest {
         assertEquals("tashkent", first.city);
         assertTrue(first.sponsored);
         assertEquals("https://media.x/a.jpg", first.imageUrl);
+        assertEquals("https://media.x/a.mp4", first.videoUrl);
+        assertTrue(first.top);
+        assertFalse(page.ads.get(1).top);
+        assertNull(page.ads.get(1).videoUrl);
         assertFalse(page.ads.get(1).sponsored);
         assertNull(page.ads.get(1).imageUrl); // not an https image
         assertEquals(-1, NexOwnAds.parsePage("{\"ads\":[],\"next_offset\":null}").nextOffset);
