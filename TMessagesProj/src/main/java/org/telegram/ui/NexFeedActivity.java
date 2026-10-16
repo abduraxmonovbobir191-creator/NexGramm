@@ -258,15 +258,15 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         updateUi();
     }
 
-    // Native feed when this account has a Pixelfed token; otherwise connect (OAuth); WebView after a failed OAuth
+    // Native feed when this account has a Pixelfed token; otherwise connect (OAuth). The Pixelfed web page is
+    // never shown as the feed: a failed connection is tried once more, then a card with "Try again".
     private void openLenta() {
         lentaRequested = true;
         if (PixelfedClient.getTokens(tgUserId()) != null) {
             showNativeFeed();
-        } else if (!oauthFailed) {
-            startOAuth();
         } else {
-            openWebLenta();
+            oauthFailed = false;
+            startOAuth();
         }
     }
 
@@ -288,11 +288,14 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
         lentaView.setVisibility(View.VISIBLE);
     }
 
-    // The Pixelfed token is gone or rejected: connect again once, then fall back to the WebView feed
+    // The Pixelfed token is gone or rejected: connect again once, then the "Try again" card (no endless loop)
     private void onFeedNotConnected() {
         PixelfedClient.clearTokens(tgUserId());
         if (++notConnectedCount > 1) {
-            oauthFailed = true;
+            notConnectedCount = 0;
+            showLentaWebView();
+            lentaView.showError(LocaleController.formatString(R.string.NexFeedConnectFailed, "token"));
+            return;
         }
         openLenta();
     }
@@ -414,8 +417,13 @@ public class NexFeedActivity extends BaseFragment implements MainTabsActivity.Ta
     }
 
     private void oauthFailedFallback(String reason) {
-        oauthFailed = true;
-        openWebLenta();
+        if (!oauthFailed) {
+            // once more at once (a slow page or a stale Pixelfed client is often fine the second time)
+            oauthFailed = true;
+            startOAuth();
+            return;
+        }
+        lentaView.showError(LocaleController.formatString(R.string.NexFeedConnectFailed, reason == null ? "?" : reason));
     }
 
     private void onCoreLoggedOut() {

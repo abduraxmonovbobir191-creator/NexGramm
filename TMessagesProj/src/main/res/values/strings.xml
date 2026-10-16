@@ -11582,6 +11582,7 @@
     <string name="NexPremiumStoreSoon">Premium will be available to buy in the app store soon.</string>
     <string name="NexLentaShareSending">Sending the post…</string>
     <string name="NexLentaShareLinkOnly">The media couldn\'t be loaded, the link was sent</string>
+    <string name="NexFeedConnectFailed">Couldn\'t connect to the Feed. Please try again.\n(%1$s)</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Reposted to your followers</string>
     <string name="NexPostRepostedBy">%1$s reposted</string>

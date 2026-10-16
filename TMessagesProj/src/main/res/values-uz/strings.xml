@@ -243,6 +243,7 @@
     <string name="NexPremiumStoreSoon">Premium\'ni tez orada ilovalar do\'konida sotib olish mumkin bo\'ladi.</string>
     <string name="NexLentaShareSending">Post yuborilmoqda…</string>
     <string name="NexLentaShareLinkOnly">Media yuklanmadi, havola yuborildi</string>
+    <string name="NexFeedConnectFailed">Lentaga ulanib bo\'lmadi. Qayta urinib ko\'ring.\n(%1$s)</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Obunachilaringizga repost qilindi</string>
     <string name="NexPostRepostedBy">%1$s repost qildi</string>
