@@ -2937,6 +2937,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.didLoadSendAsPeers)
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
+            .add(NotificationCenter.nexMessagesKept)
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -22422,6 +22423,24 @@ public class ChatActivity extends BaseFragment implements
             removeUnreadPlane(true);
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
+            }
+        } else if (id == NotificationCenter.nexMessagesKept) {
+            // NexGramm: a message deleted by its sender stays here with 🗑; an edited one shows its first text
+            final long did = (Long) args[0];
+            if (chatAdapter == null || did != dialog_id && did != mergeDialogId) {
+                return;
+            }
+            final ArrayList<Integer> ids = (ArrayList<Integer>) args[1];
+            final boolean edited = (Boolean) args[2];
+            for (Integer mid : ids) {
+                final MessageObject obj = messagesDict[did == dialog_id ? 0 : 1].get(mid);
+                if (obj != null) {
+                    if (edited) {
+                        obj.applyNewText();
+                    }
+                    obj.forceUpdate = true;
+                    chatAdapter.updateRowWithMessageObject(obj, !edited, false);
+                }
             }
         } else if (id == NotificationCenter.messagesDeleted) {
             boolean scheduled = (Boolean) args[2];

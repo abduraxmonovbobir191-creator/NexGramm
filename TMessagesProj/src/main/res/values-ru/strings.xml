@@ -399,10 +399,10 @@
     <string name="NexFeaturesInfo">Режим призрака, удалённые и изменённые сообщения</string>
     <string name="NexFeaturesMessages">Сообщения</string>
     <string name="NexFeaturesKeepDeleted">Сохранять удалённые сообщения</string>
-    <string name="NexFeaturesKeepDeletedInfo">Копия остаётся здесь, когда кто-то удаляет сообщение</string>
+    <string name="NexFeaturesKeepDeletedInfo">Если кто-то удалит сообщение, оно останется в чате с 🗑</string>
     <string name="NexFeaturesKeepEdits">Сохранять историю правок</string>
-    <string name="NexFeaturesKeepEditsInfo">Текст до изменения сохраняется</string>
-    <string name="NexFeaturesMessagesNote">Сохраняются только сообщения, которые уже пришли на этот телефон: текст и пометка о медиа, без файлов. Всё хранится только на этом телефоне. Сообщения, которые вы сами удалили с другого устройства, тоже могут сохраниться.</string>
+    <string name="NexFeaturesKeepEditsInfo">Под изменённым сообщением виден его первый текст</string>
+    <string name="NexFeaturesMessagesNote">Сохраняются только сообщения, успевшие прийти на этот телефон, и только на нём. Они есть и в списке «Удалённые и изменённые».</string>
     <string name="NexFeaturesOn">Вкл.</string>
     <string name="NexFeaturesOff">Выкл.</string>
     <string name="NexTimeCopied">Дата и время скопированы</string>
@@ -687,4 +687,6 @@
     <string name="NexHiddenUnhideAsk">Снова показывать этот чат в списке?</string>
     <string name="NexHiddenUnhide">Показать</string>
     <string name="NexHiddenHint">Зажмите чат, чтобы вернуть его в список. Скрытые чаты не присылают уведомлений.</string>
+    <string name="NexDeletedMark">🗑 удалено</string>
+    <string name="NexEditedBefore">✏️ До изменения:</string>
 </resources>
