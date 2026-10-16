@@ -108,11 +108,9 @@ final class NexAds {
             card.setBackground(NexLentaUi.roundRect(NexLentaColors.CARD, 18));
             card.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(12), AndroidUtilities.dp(14), AndroidUtilities.dp(14));
             card.addView(label(context), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
-            if (ad.imageUrl != null) {
-                final BackupImageView image = new BackupImageView(context);
-                image.setRoundRadius(AndroidUtilities.dp(12));
-                image.setImage(ad.imageUrl, null, null);
-                card.addView(image, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 180, 0, 8, 0, 0));
+            if (ad.imageUrl != null || ad.videoUrl != null) {
+                final FrameLayout picture = media(context, ad, 180);
+                card.addView(picture, picture.getLayoutParams());
             }
             final TextView title = new TextView(context);
             title.setText(ad.title);
@@ -184,5 +182,56 @@ final class NexAds {
                 adView = null;
             }
         }
+    }
+
+    // An ad's picture: the photo, and over it its short video (muted, looping) while it is on screen
+    static FrameLayout media(Context context, NexOwnAds.Ad ad, int heightDp) {
+        final FrameLayout box = new FrameLayout(context) {
+            private android.widget.VideoView video;
+
+            @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                if (ad.videoUrl == null || video != null) {
+                    return;
+                }
+                video = new android.widget.VideoView(getContext());
+                video.setAlpha(0f);
+                video.setOnPreparedListener(mp -> {
+                    mp.setLooping(true);
+                    mp.setVolume(0f, 0f);
+                    video.start();
+                    video.animate().alpha(1f).setDuration(200).start();
+                });
+                video.setOnErrorListener((mp, what, extra) -> true); // the photo stays
+                video.setVideoURI(android.net.Uri.parse(ad.videoUrl));
+                addView(video, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                super.onDetachedFromWindow();
+                if (video != null) {
+                    video.stopPlayback();
+                    removeView(video);
+                    video = null;
+                }
+            }
+        };
+        box.setClipToOutline(true);
+        box.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, android.graphics.Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), AndroidUtilities.dp(14));
+            }
+        });
+        final BackupImageView image = new BackupImageView(context);
+        image.setRoundRadius(AndroidUtilities.dp(14));
+        if (ad.imageUrl != null) {
+            image.setImage(ad.imageUrl, null, null);
+        }
+        box.addView(image, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        box.setLayoutParams(LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, heightDp, 0, 8, 0, 0));
+        return box;
     }
 }

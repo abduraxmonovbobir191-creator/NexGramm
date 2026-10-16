@@ -1724,6 +1724,22 @@ public class NotificationsController extends BaseController implements Notificat
         });
     }
 
+    // NexGramm: unread messages (or chats) of this account's hidden chats that are not muted
+    private static int hiddenUnread(int account, boolean messages) {
+        int n = 0;
+        try {
+            final MessagesController mc = MessagesController.getInstance(account);
+            for (long id : org.telegram.ui.NexChatLock.hiddenIds(account)) {
+                final TLRPC.Dialog d = mc.dialogs_dict.get(id);
+                if (d != null && d.unread_count > 0 && !mc.isDialogMuted(id, 0)) {
+                    n += messages ? d.unread_count : 1;
+                }
+            }
+        } catch (Exception ignore) {
+        }
+        return n;
+    }
+
     private int getTotalAllUnreadCount() {
         int count = 0;
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
@@ -1759,7 +1775,7 @@ public class NotificationsController extends BaseController implements Notificat
                         FileLog.e(e);
                     }
                 } else {
-                    count += controller.total_unread_count;
+                    count += Math.max(0, controller.total_unread_count - hiddenUnread(a, true)); // NexGramm: hidden chats left out
                 }
             } else {
                 if (controller.showBadgeMuted) {

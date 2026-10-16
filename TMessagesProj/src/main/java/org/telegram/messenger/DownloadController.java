@@ -858,9 +858,32 @@ public class DownloadController extends BaseController implements NotificationCe
         }
     }
 
+    // NexGramm: with "keep deleted messages" on (Premium), photos, videos, voice and round messages others send
+    // in chats and groups (≤ 30 MB) are fetched at once: once the sender deletes one, Telegram no longer serves
+    // its file, and the copy kept in the chat would show an empty frame
+    private boolean nexKeepsMedia(TLRPC.Message message) {
+        if (message.out || message.peer_id == null || !uz.nexgramm.core.NexSaved.keepDeleted()) {
+            return false;
+        }
+        if (message.peer_id.channel_id != 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(message.peer_id.channel_id);
+            if (!ChatObject.isChannel(chat) || !chat.megagroup) {
+                return false; // broadcast channels: not "someone deleted my message"
+            }
+        }
+        final boolean media = MessageObject.isPhoto(message) || MessageObject.isVideoMessage(message)
+            || MessageObject.isVoiceMessage(message) || MessageObject.isRoundVideoMessage(message);
+        final TLRPC.Document document = MessageObject.getDocument(message);
+        return media && (document == null || document.size <= 30L * 1024 * 1024)
+            && uz.nexgramm.core.NexPremium.isActive(getUserConfig().getClientUserId());
+    }
+
     public int canDownloadMedia(TLRPC.Message message) {
         if (message == null || message.media instanceof TLRPC.TL_messageMediaStory) {
             return canPreloadStories() ? 2 : 0;
+        }
+        if (nexKeepsMedia(message)) {
+            return 1;
         }
         int type;
         boolean isVideo;

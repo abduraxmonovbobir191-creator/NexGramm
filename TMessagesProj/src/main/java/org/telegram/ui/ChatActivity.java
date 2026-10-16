@@ -3368,6 +3368,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        if (nexLockCover != null) {
+            NexChatLock.detach(nexLockCover); // it lives on the window, not in this screen
+            nexLockCover = null;
+        }
         if (messageMetricsView != null) {
             messageMetricsView.finish();
         }
@@ -9051,11 +9055,14 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         nexLockCover = NexChatLock.createCover(fragmentView.getContext(), this::nexUnlock, this::finishFragment);
-        // the whole screen, above everything of the chat (header and floating panels too): nothing shows through
-        final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.TOP | Gravity.LEFT);
-        nexLockCover.setTranslationZ(AndroidUtilities.dp(100));
-        ((ViewGroup) fragmentView).addView(nexLockCover, lp);
-        nexLockCover.bringToFront();
+        // over the whole window from the first frame (status / navigation bars too), so neither the chat nor the
+        // list behind it shows while the screen slides in or is swiped; a preview popup keeps it inside itself
+        if (inPreviewMode || NexChatLock.attachToWindow(getParentActivity(), nexLockCover) == null) {
+            final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.TOP | Gravity.LEFT);
+            nexLockCover.setTranslationZ(AndroidUtilities.dp(100));
+            ((ViewGroup) fragmentView).addView(nexLockCover, lp);
+            nexLockCover.bringToFront();
+        }
     }
 
     private void nexUnlock() {
@@ -37065,6 +37072,9 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public boolean isSwipeBackEnabled(MotionEvent event) {
+        if (nexLockCover != null) {
+            return false; // a swipe would show the chat under the lock
+        }
         if (chatMode == MODE_QUICK_REPLIES && (messages.isEmpty() || threadMessageId == 0)) {
             return false;
         }

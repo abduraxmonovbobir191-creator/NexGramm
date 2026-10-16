@@ -23,6 +23,8 @@ public final class NexOwnAds {
         public String category = "";
         public String city = "";
         public boolean sponsored;     // an advertiser's paid ad
+        public boolean top;           // paid TOP right now (first in E'lonlar)
+        public String videoUrl;       // a short muted loop instead of the photo; null = none
 
         Ad(String id, String title, String text, String url, String imageUrl) {
             this.id = id;
@@ -76,6 +78,9 @@ public final class NexOwnAds {
             ad.category = a.optString("category", "");
             ad.city = a.optString("city", "");
             ad.sponsored = a.optBoolean("sponsored", false);
+            ad.top = a.optBoolean("top", false);
+            final String video = a.optString("video_url", "");
+            ad.videoUrl = video.startsWith("https://") ? video : null;
             list.add(ad);
         }
         return list;

@@ -11670,4 +11670,7 @@
     <string name="NexAdsFeedError">Could not load listings. Check the connection and open again.</string>
     <string name="NexPostNotInterested">Not interested</string>
     <string name="NexPostNotInterestedDone">Got it: fewer posts like this</string>
+    <string name="NexPremiumInvite">🎁 Invite friends: for each friend who starts using NexGramm you get free Premium days.</string>
+    <string name="NexPremiumInviteButton">Invite friends</string>
+    <string name="NexPremiumInviteShare">NexGramm — a handy messenger with the Lenta and NEX AI. Join with my link:</string>
 </resources>

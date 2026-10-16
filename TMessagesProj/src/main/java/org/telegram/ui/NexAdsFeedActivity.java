@@ -28,7 +28,6 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RadialProgressView;
 import org.telegram.ui.Components.ScaleStateListAnimator;
@@ -348,7 +347,7 @@ public class NexAdsFeedActivity extends BaseFragment {
     private class AdCard extends FrameLayout {
         private final LinearLayout card;
         private final TextView label;
-        private final BackupImageView image;
+        private final FrameLayout mediaHolder;
         private final TextView title;
         private final TextView text;
         private NexOwnAds.Ad ad;
@@ -373,9 +372,8 @@ public class NexAdsFeedActivity extends BaseFragment {
             label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
             label.setTextColor(NexLentaColors.SECONDARY_TEXT);
             card.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-            image = new BackupImageView(context);
-            image.setRoundRadius(AndroidUtilities.dp(14));
-            card.addView(image, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 210, 0, 8, 0, 0));
+            mediaHolder = new FrameLayout(context); // the photo / video of the bound ad
+            card.addView(mediaHolder, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             title = new TextView(context);
             title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
             title.setTypeface(AndroidUtilities.bold());
@@ -405,7 +403,11 @@ public class NexAdsFeedActivity extends BaseFragment {
         void bind(NexOwnAds.Ad ad) {
             this.ad = ad;
             final StringBuilder line = new StringBuilder();
+            if (ad.top) {
+                line.append("📌 TOP");
+            }
             if (ad.sponsored) {
+                line.append(line.length() > 0 ? " · " : "");
                 line.append(LocaleController.getString(R.string.NexAdLabel));
             }
             final String where = place(ad);
@@ -414,11 +416,10 @@ public class NexAdsFeedActivity extends BaseFragment {
             }
             label.setText(line);
             label.setVisibility(line.length() > 0 ? VISIBLE : GONE);
-            if (ad.imageUrl != null) {
-                image.setVisibility(VISIBLE);
-                image.setImage(ad.imageUrl, null, null);
-            } else {
-                image.setVisibility(GONE);
+            mediaHolder.removeAllViews();
+            if (ad.imageUrl != null || ad.videoUrl != null) {
+                final FrameLayout picture = NexAds.media(getContext(), ad, 210);
+                mediaHolder.addView(picture, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 218, Gravity.TOP, 0, 8, 0, 0));
             }
             title.setText(ad.title);
             text.setText(ad.text);

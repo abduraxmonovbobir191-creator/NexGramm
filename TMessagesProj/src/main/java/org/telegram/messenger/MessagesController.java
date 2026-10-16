@@ -23522,8 +23522,8 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public int getDialogUnreadCount(TLRPC.Dialog d) {
-        if (d == null) {
-            return 0;
+        if (d == null || org.telegram.ui.NexChatLock.isHidden(currentAccount, d.id)) {
+            return 0; // NexGramm: a hidden chat counts nowhere
         }
         int unreadCount = d.unread_count;
         TLRPC.Chat chatLocal = getChat(-d.id);

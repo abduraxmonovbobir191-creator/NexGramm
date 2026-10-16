@@ -288,7 +288,8 @@ public class ConnectionsManager extends BaseController {
         if (preferences.contains("pushConnection")) {
             return preferences.getBoolean("pushConnection", true);
         } else {
-            return MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("backgroundConnection", false);
+            // NexGramm: without our own Firebase (no push) the connection stays open in the background
+            return !org.telegram.messenger.BuildConfig.NEX_FCM || MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("backgroundConnection", false);
         }
     }
 

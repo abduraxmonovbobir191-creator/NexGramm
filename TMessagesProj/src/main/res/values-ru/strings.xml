@@ -697,4 +697,7 @@
     <string name="NexAdsFeedError">Не удалось загрузить объявления. Проверьте интернет и откройте снова.</string>
     <string name="NexPostNotInterested">Не интересно</string>
     <string name="NexPostNotInterestedDone">Понятно: таких постов будет меньше</string>
+    <string name="NexPremiumInvite">🎁 Приглашайте друзей: за каждого друга, который начнёт пользоваться NexGramm, — бесплатные дни Premium.</string>
+    <string name="NexPremiumInviteButton">Пригласить друзей</string>
+    <string name="NexPremiumInviteShare">NexGramm — удобный мессенджер с Лентой и NEX AI. Заходи по моей ссылке:</string>
 </resources>

@@ -121,6 +121,19 @@ public class NexPremiumActivity extends BaseFragment {
         how.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         column.addView(how, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 6, 4, 6, 0));
 
+        // invite friends: free Premium days for each friend who starts using the app
+        final LinearLayout invite = card(context);
+        final TextView inviteText = new TextView(context);
+        inviteText.setText(LocaleController.getString(R.string.NexPremiumInvite));
+        inviteText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        inviteText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        inviteText.setLineSpacing(AndroidUtilities.dp(2), 1f);
+        invite.addView(inviteText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextView inviteButton = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexPremiumInviteButton), NexLentaUi.PILL_PRIMARY);
+        inviteButton.setOnClickListener(v -> shareInvite());
+        invite.addView(inviteButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44, 0, 12, 0, 0));
+        column.addView(invite, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 16, 0, 0));
+
         // what it gives: a colored tile per perk
         final TextView gives = sectionTitle(context, R.string.NexPremiumGives);
         column.addView(gives, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 6, 24, 6, 10));
@@ -298,6 +311,27 @@ public class NexPremiumActivity extends BaseFragment {
                 chat.setBotUser("premium_" + code);
             }
         });
+    }
+
+    // "Join NexGramm: t.me/<bot>?start=ref_<my id>" through the phone's share sheet
+    private void shareInvite() {
+        String bot = username(BuildConfig.NEXGRAMM_BOT_USERNAME);
+        if (bot == null && status != null) {
+            bot = username(status.botUsername);
+        }
+        if (bot == null || getParentActivity() == null) {
+            failed();
+            return;
+        }
+        final String link = "https://t.me/" + bot + "?start=ref_" + tgUserId();
+        final android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(android.content.Intent.EXTRA_TEXT, LocaleController.getString(R.string.NexPremiumInviteShare) + "\n" + link);
+        try {
+            getParentActivity().startActivity(android.content.Intent.createChooser(send, LocaleController.getString(R.string.NexPremiumInviteButton)));
+        } catch (Exception ignore) {
+            failed();
+        }
     }
 
     private static String username(String value) {
