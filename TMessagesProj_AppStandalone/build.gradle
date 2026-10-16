@@ -175,5 +175,9 @@ android {
     }
 }
 
-// NexGramm: google-services.json is Telegram's and has no client for uz.nexgramm.app; disabled until our own Firebase config is added
-// apply plugin: 'com.google.gms.google-services'
+// NexGramm: push (FCM) with our own Firebase project. CI writes it from the GOOGLE_SERVICES_JSON secret; the file
+// in the repo is Telegram's (no client for uz.nexgramm.app), then the plugin stays off and the app keeps a
+// background connection for messages instead (BuildConfig.NEX_FCM = false)
+if (file('google-services.json').exists() && file('google-services.json').text.contains('"uz.nexgramm.app"')) {
+    apply plugin: 'com.google.gms.google-services'
+}

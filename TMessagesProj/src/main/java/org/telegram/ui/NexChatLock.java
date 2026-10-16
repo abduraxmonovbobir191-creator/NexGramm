@@ -96,6 +96,10 @@ public final class NexChatLock {
             set.remove(key(account, dialogId));
         }
         prefs().edit().putStringSet("hidden", new HashSet<>(set)).apply();
+        // counters (tabs, folders, the app icon) again, now with / without this chat
+        final org.telegram.messenger.MessagesStorage storage = org.telegram.messenger.MessagesStorage.getInstance(account);
+        storage.getStorageQueue().postRunnable(() -> storage.resetAllUnreadCounters(false));
+        org.telegram.messenger.NotificationsController.getInstance(account).updateBadge();
     }
 
     // the hidden chats of an account, newest hidden last
@@ -182,22 +186,31 @@ public final class NexChatLock {
         }
     }
 
-    // The cover over a locked chat, the whole screen: pitch black with ✦ stars floating through it, 🔒, a line
-    // of text and "Unlock"; ← goes back
+    // The cover over a locked or hidden chat: pitch black over the whole screen (status and navigation bars
+    // too) with ✦ stars floating through it; a thin lock, one line, a quiet glass "Unlock" pill; ← goes back.
+    // Stars drift on their own and lean away from the finger when it moves over the sky.
     static FrameLayout createCover(Context context, Runnable onUnlockClick, Runnable onBack) {
         return createCover(context, LocaleController.getString(R.string.NexLockLocked), onUnlockClick, onBack);
     }
 
     static FrameLayout createCover(Context context, CharSequence text, Runnable onUnlockClick, Runnable onBack) {
-        final FrameLayout cover = new FrameLayout(context);
+        final StarsView stars = new StarsView(context);
+        final FrameLayout cover = new FrameLayout(context) {
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent e) {
+                stars.touch(e);
+                return true; // nothing behind it can be touched
+            }
+        };
         cover.setBackgroundColor(0xFF000000);
-        cover.setClickable(true); // nothing behind it can be touched
-        cover.addView(new StarsView(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        cover.setClickable(true);
+        cover.setFitsSystemWindows(false);
+        cover.addView(stars, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         final ImageView back = new ImageView(context);
         back.setScaleType(ImageView.ScaleType.CENTER);
         back.setImageResource(R.drawable.ic_ab_back);
-        back.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN));
-        back.setBackground(Theme.createSelectorDrawable(0x33FFFFFF, Theme.RIPPLE_MASK_CIRCLE_20DP));
+        back.setColorFilter(new android.graphics.PorterDuffColorFilter(0xCCFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN));
+        back.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, Theme.RIPPLE_MASK_CIRCLE_20DP));
         back.setOnClickListener(v -> onBack.run());
         cover.addView(back, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.TOP, 8, AndroidUtilities.statusBarHeight / AndroidUtilities.density + 6, 0, 0));
         final LinearLayout column = new LinearLayout(context);
@@ -206,36 +219,59 @@ public final class NexChatLock {
         final ImageView icon = new ImageView(context);
         icon.setTag(ICON_TAG);
         icon.setImageResource(R.drawable.msg_secret);
-        icon.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN));
+        icon.setColorFilter(new android.graphics.PorterDuffColorFilter(0xE6FFFFFF, android.graphics.PorterDuff.Mode.SRC_IN));
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        column.addView(icon, LayoutHelper.createLinear(56, 56, Gravity.CENTER_HORIZONTAL));
+        column.addView(icon, LayoutHelper.createLinear(40, 40, Gravity.CENTER_HORIZONTAL));
         final TextView title = new TextView(context);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
-        title.setTypeface(AndroidUtilities.bold());
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+        title.setTypeface(NexLentaUi.serif());
         title.setTextColor(0xFFFFFFFF);
         title.setGravity(Gravity.CENTER);
         title.setText(text);
-        column.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 16, 24, 0));
+        column.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 18, 24, 0));
         final TextView button = new TextView(context);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
-        button.setTypeface(AndroidUtilities.bold());
-        button.setTextColor(0xFF000000);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        button.setTextColor(0xFFFFFFFF);
         button.setGravity(Gravity.CENTER);
-        button.setPadding(AndroidUtilities.dp(28), 0, AndroidUtilities.dp(28), 0);
-        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(24), 0xFFFFFFFF, 0xFFD7C4FA));
+        button.setPadding(AndroidUtilities.dp(30), 0, AndroidUtilities.dp(30), 0);
+        final android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+        pill.setCornerRadius(AndroidUtilities.dp(22));
+        pill.setColor(0x1AFFFFFF);
+        pill.setStroke(AndroidUtilities.dp(1), 0x40FFFFFF);
+        button.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), pill, null));
         button.setText(LocaleController.getString(R.string.NexLockUnlock));
         button.setOnClickListener(v -> onUnlockClick.run());
-        column.addView(button, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 48, Gravity.CENTER_HORIZONTAL, 0, 24, 0, 0));
+        column.addView(button, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 44, Gravity.CENTER_HORIZONTAL, 0, 28, 0, 0));
         column.setTag(COLUMN_TAG);
         cover.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
-        // the lock drops in with a small spring
-        icon.setScaleX(0.4f);
-        icon.setScaleY(0.4f);
+        // the lock drops in softly
+        icon.setScaleX(0.6f);
+        icon.setScaleY(0.6f);
         icon.setAlpha(0f);
-        icon.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(60).setDuration(520).setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
+        icon.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(80).setDuration(480).setInterpolator(new android.view.animation.OvershootInterpolator(1.6f)).start();
         NexMotion.enter(title, 1);
         NexMotion.enter(button, 2);
         return cover;
+    }
+
+    // Over the whole window at once (before the screen slides in), so nothing of the chat or the list behind
+    // it ever shows; detach() / reveal() take it away
+    static FrameLayout attachToWindow(android.app.Activity activity, FrameLayout cover) {
+        if (activity == null || !(activity.getWindow().getDecorView() instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        final android.view.ViewGroup decor = (android.view.ViewGroup) activity.getWindow().getDecorView();
+        decor.addView(cover, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        cover.setTranslationZ(AndroidUtilities.dp(100));
+        cover.bringToFront();
+        return cover;
+    }
+
+    static void detach(View cover) {
+        if (cover != null) {
+            cover.animate().cancel();
+            AndroidUtilities.removeFromParent(cover);
+        }
     }
 
     private static final String ICON_TAG = "nex_lock_icon";
@@ -273,6 +309,25 @@ public final class NexChatLock {
         private final long start = android.os.SystemClock.elapsedRealtime();
         private long shootAt;
         private float shootX, shootY, shootDx, shootDy;
+        // the sky leans away from the finger and floats back when it lets go
+        private float leanX, leanY, targetX, targetY, downX, downY;
+
+        void touch(android.view.MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    downX = e.getX();
+                    downY = e.getY();
+                    break;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    targetX = Math.max(-1f, Math.min(1f, (e.getX() - downX) / Math.max(1, getWidth()))) * -AndroidUtilities.dp(36);
+                    targetY = Math.max(-1f, Math.min(1f, (e.getY() - downY) / Math.max(1, getHeight()))) * -AndroidUtilities.dp(36);
+                    break;
+                default:
+                    targetX = 0;
+                    targetY = 0;
+                    break;
+            }
+        }
 
         StarsView(Context context) {
             super(context);
@@ -301,6 +356,8 @@ public final class NexChatLock {
         protected void onDraw(android.graphics.Canvas canvas) {
             final long now = android.os.SystemClock.elapsedRealtime();
             final float t = (now - start) / 1000f;
+            leanX += (targetX - leanX) * 0.08f;
+            leanY += (targetY - leanY) * 0.08f;
             final int w = getWidth();
             final int h = getHeight();
             paint.setStyle(android.graphics.Paint.Style.FILL);
@@ -309,8 +366,9 @@ public final class NexChatLock {
                 paint.setColor(0xFF000000 | color[i]);
                 paint.setAlpha((int) (35 + 220 * twinkle * twinkle));
                 final float sway = 0.012f * (float) Math.sin(t * 0.4f * speed[i] + phase[i]);
-                final float cx = wrap(x[i] + vx[i] * t + sway) * w;
-                final float cy = wrap(y[i] + vy[i] * t) * h;
+                final float depth = spark[i] ? 1f : size[i] > AndroidUtilities.dp(1.2f) ? 0.6f : 0.3f;
+                final float cx = wrap(x[i] + vx[i] * t + sway) * w + leanX * depth;
+                final float cy = wrap(y[i] + vy[i] * t) * h + leanY * depth;
                 if (spark[i]) {
                     NexAiUi.drawStar(canvas, path, paint, cx, cy, size[i] * (0.7f + 0.4f * twinkle));
                 } else {

@@ -2780,6 +2780,9 @@ public class MessagesStorage extends BaseController {
             while (cursor.next()) {
                 int folderId = cursor.intValue(1);
                 long did = cursor.longValue(0);
+                if (org.telegram.ui.NexChatLock.isHidden(currentAccount, did)) {
+                    continue; // NexGramm: a hidden chat counts nowhere (tabs, folders, archive)
+                }
                 int unread;
                 int mentions = 0;
                 if (isForum(did, FORUM_TYPE_CHAT | FORUM_TYPE_BOT | FORUM_TYPE_DIRECT)) {

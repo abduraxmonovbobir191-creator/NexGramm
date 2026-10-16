@@ -50,7 +50,16 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
     }
 
     @Override
+    public boolean isSwipeBackEnabled(android.view.MotionEvent event) {
+        return cover == null; // a swipe would show the list under the lock
+    }
+
+    @Override
     public void onFragmentDestroy() {
+        if (cover != null) {
+            NexChatLock.detach(cover);
+            cover = null;
+        }
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogsNeedReload);
         getNotificationCenter().removeObserver(this, NotificationCenter.updateInterfaces);
         super.onFragmentDestroy();
@@ -108,9 +117,12 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
         content.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         if (!unlocked) {
+            // over the whole window from the first frame: the chats list behind never shows
             cover = NexChatLock.createCover(context, LocaleController.getString(R.string.NexHiddenTitle), this::unlock, this::finishFragment);
-            cover.setTranslationZ(AndroidUtilities.dp(100));
-            root.addView(cover, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            if (NexChatLock.attachToWindow(getParentActivity(), cover) == null) {
+                cover.setTranslationZ(AndroidUtilities.dp(100));
+                root.addView(cover, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            }
         }
         reload();
         fragmentView = root;

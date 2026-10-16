@@ -185,6 +185,10 @@ android {
             throw new GradleException("NEX_STORE must be direct, play or galaxy, got: " + nexStore)
         }
         buildConfigField "String", "NEX_STORE", "\"" + nexStore + "\""
+        // our own Firebase config in the app module (see TMessagesProj_AppStandalone/build.gradle)
+        def nexFcmFile = rootProject.file('TMessagesProj_AppStandalone/google-services.json')
+        def nexFcm = nexFcmFile.exists() && nexFcmFile.text.contains('"uz.nexgramm.app"')
+        buildConfigField "boolean", "NEX_FCM", nexFcm ? "true" : "false"
 
         externalNativeBuild {
             cmake {

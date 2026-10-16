@@ -84,6 +84,29 @@ jobs:
           grep -q "APP_ID = ${TG_API_ID};" "$f" || { echo "::error::APP_ID replace failed"; exit 1; }
           grep -q "APP_HASH = \"${TG_API_HASH}\";" "$f" || { echo "::error::APP_HASH replace failed"; exit 1; }
 
+      # Push (FCM): our Firebase app config from the GOOGLE_SERVICES_JSON secret (raw JSON or base64). It is the
+      # app's public client config (Firebase → Project settings → Your apps → google-services.json), never the
+      # service account key. Without it the app keeps a background connection for new messages.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            if printf '%s' "$GOOGLE_SERVICES_JSON" | tr -d '[:space:]' | head -c 1 | grep -q '{'; then
+              printf '%s' "$GOOGLE_SERVICES_JSON" > TMessagesProj_AppStandalone/google-services.json
+            else
+              printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > TMessagesProj_AppStandalone/google-services.json
+            fi
+            if grep -q '"uz.nexgramm.app"' TMessagesProj_AppStandalone/google-services.json && ! grep -q '"private_key"' TMessagesProj_AppStandalone/google-services.json; then
+              echo "push: our Firebase project"
+            else
+              echo "::error::GOOGLE_SERVICES_JSON must be the google-services.json of the Android app uz.nexgramm.app (not a service account key)"
+              exit 1
+            fi
+          else
+            echo "push: no Firebase config (set secret GOOGLE_SERVICES_JSON); background connection instead"
+          fi
+
       # A store build must be signed with our own key: no fallback here
       - name: Signing key
         env:
