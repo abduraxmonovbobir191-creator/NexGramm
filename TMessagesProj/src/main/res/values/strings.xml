@@ -11662,4 +11662,12 @@
     <string name="NexHiddenHint">Long-press a chat to unhide it. Hidden chats send no notifications.</string>
     <string name="NexDeletedMark">🗑 deleted</string>
     <string name="NexEditedBefore">✏️ Before the edit:</string>
+    <string name="NexAdsFeedTitle">Listings</string>
+    <string name="NexAdsFeedPost">+ Post an ad</string>
+    <string name="NexAdsFeedAll">All</string>
+    <string name="NexAdsFeedRegion">All of Uzbekistan</string>
+    <string name="NexAdsFeedEmpty">No listings here yet.\nBe the first: tap “+ Post an ad”.</string>
+    <string name="NexAdsFeedError">Could not load listings. Check the connection and open again.</string>
+    <string name="NexPostNotInterested">Not interested</string>
+    <string name="NexPostNotInterestedDone">Got it: fewer posts like this</string>
 </resources>

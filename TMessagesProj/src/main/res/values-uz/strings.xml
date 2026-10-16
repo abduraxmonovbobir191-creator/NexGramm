@@ -425,4 +425,12 @@
     <string name="NexHiddenHint">Chatni ro\'yxatga qaytarish uchun uni bosib turing. Yashirin chatlardan bildirishnoma kelmaydi.</string>
     <string name="NexDeletedMark">🗑 o\'chirilgan</string>
     <string name="NexEditedBefore">✏️ Tahrirdan oldin:</string>
+    <string name="NexAdsFeedTitle">E\'lonlar</string>
+    <string name="NexAdsFeedPost">+ E\'lon berish</string>
+    <string name="NexAdsFeedAll">Hammasi</string>
+    <string name="NexAdsFeedRegion">Butun O\'zbekiston</string>
+    <string name="NexAdsFeedEmpty">Bu yerda hozircha e\'lon yo\'q.\nBirinchi bo\'ling: «+ E\'lon berish» ni bosing.</string>
+    <string name="NexAdsFeedError">E\'lonlar yuklanmadi. Internetni tekshirib, qayta oching.</string>
+    <string name="NexPostNotInterested">Qiziq emas</string>
+    <string name="NexPostNotInterestedDone">Tushunarli: bunaqa postlar kamroq chiqadi</string>
 </resources>

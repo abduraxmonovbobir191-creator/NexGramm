@@ -689,4 +689,12 @@
     <string name="NexHiddenHint">Зажмите чат, чтобы вернуть его в список. Скрытые чаты не присылают уведомлений.</string>
     <string name="NexDeletedMark">🗑 удалено</string>
     <string name="NexEditedBefore">✏️ До изменения:</string>
+    <string name="NexAdsFeedTitle">Объявления</string>
+    <string name="NexAdsFeedPost">+ Дать объявление</string>
+    <string name="NexAdsFeedAll">Все</string>
+    <string name="NexAdsFeedRegion">Весь Узбекистан</string>
+    <string name="NexAdsFeedEmpty">Здесь пока нет объявлений.\nБудьте первым: нажмите «+ Дать объявление».</string>
+    <string name="NexAdsFeedError">Не удалось загрузить объявления. Проверьте интернет и откройте снова.</string>
+    <string name="NexPostNotInterested">Не интересно</string>
+    <string name="NexPostNotInterestedDone">Понятно: таких постов будет меньше</string>
 </resources>
