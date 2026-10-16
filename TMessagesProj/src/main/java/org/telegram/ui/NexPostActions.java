@@ -25,6 +25,14 @@ final class NexPostActions {
 
         // a counter or flag changed: redraw the cell(s) of this post
         void onChanged(PixelfedStatus status);
+
+        // "Not interested": the For-you Lenta learns it and drops the post (only where it is offered)
+        default void onNotInterested(PixelfedStatus status) {
+        }
+
+        default boolean canSayNotInterested() {
+            return false;
+        }
     }
 
     // Report reasons shown to the user, same order as PixelfedClient.REPORT_TYPES
@@ -48,15 +56,23 @@ final class NexPostActions {
             return;
         }
         final boolean own = isOwn(tgUserId, status);
+        final boolean notInterested = !own && listener.canSayNotInterested();
         final CharSequence[] items = own
             ? new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostDelete)}
+            : notInterested
+            ? new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostNotInterested), LocaleController.getString(R.string.NexPostReport)}
             : new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostReport)};
-        final int[] icons = own ? new int[]{R.drawable.msg_link, R.drawable.msg_delete} : new int[]{R.drawable.msg_link, R.drawable.msg_report};
+        final int[] icons = own ? new int[]{R.drawable.msg_link, R.drawable.msg_delete}
+            : notInterested ? new int[]{R.drawable.msg_link, R.drawable.msg_archive_hide, R.drawable.msg_report}
+            : new int[]{R.drawable.msg_link, R.drawable.msg_report};
         final BottomSheet.Builder builder = new BottomSheet.Builder(context);
         builder.setItems(items, icons, (dialog, which) -> {
             if (which == 0) {
                 AndroidUtilities.addToClipboard(status.shareUrl());
                 Toast.makeText(context, LocaleController.getString(R.string.NexPostLinkCopied), Toast.LENGTH_SHORT).show();
+            } else if (notInterested && which == 1) {
+                listener.onNotInterested(status);
+                Toast.makeText(context, LocaleController.getString(R.string.NexPostNotInterestedDone), Toast.LENGTH_SHORT).show();
             } else if (own) {
                 confirmDelete(fragment, tgUserId, status, listener);
             } else {
