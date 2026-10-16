@@ -155,6 +155,10 @@
     <string name="NexFeaturesComfort">Qulaylik</string>
     <string name="NexFeaturesConfirmCalls">Qo\'ng\'iroqdan oldin so\'rash</string>
     <string name="NexFeaturesConfirmCallsInfo">Qo\'ng\'iroq faqat tasdiqlaganingizdan keyin boshlanadi</string>
+    <string name="NexFeaturesLinkMedia">Havolalar video bo\'lib borsin</string>
+    <string name="NexFeaturesLinkMediaInfo">Instagram, TikTok yoki YouTube havolasi video va musiqasi bilan boradi (@SaveXStorageBot orqali)</string>
+    <string name="NexLinkMediaPreparing">Video olinmoqda…</string>
+    <string name="NexLinkMediaFailed">Videoni olib bo\'lmadi, havola yuborildi</string>
     <string name="NexFeaturesComfortNote">Chatni qulflash: chatni oching → ⋮ → Chatni qulflash. Xabarni bosib ushlasangiz, uning aniq sanasi va vaqti chiqadi.</string>
     <string name="NexFeedbackHeader">NexGramm bilan aloqa</string>
     <string name="NexFeedbackSupport">Support</string>
@@ -237,6 +241,8 @@
     <string name="NexAiImagineInsert">Xabarga qo\'yish</string>
     <string name="NexAiImagineNotYet">Rasmlar NEX AI serverga ulangach yaratiladi. Hozircha NEX bu yerda javob bera olmaydi.</string>
     <string name="NexPremiumStoreSoon">Premium\'ni tez orada ilovalar do\'konida sotib olish mumkin bo\'ladi.</string>
+    <string name="NexLentaShareSending">Post yuborilmoqda…</string>
+    <string name="NexLentaShareLinkOnly">Media yuklanmadi, havola yuborildi</string>
     <string name="NexPostRepost">Repost</string>
     <string name="NexPostReposted">Obunachilaringizga repost qilindi</string>
     <string name="NexPostRepostedBy">%1$s repost qildi</string>

@@ -24,6 +24,11 @@ NEX AI works only when you tap it and agree once. Only the text you choose (a qu
 messages of one chat you open it in, or a short summary of an APK's declared permissions) is sent to the NEX AI
 server to produce the answer. It is not used for advertising.
 
+## 3a. Links as videos
+When you send a message that is only an Instagram / TikTok / YouTube (and similar) link, NexGramm sends that link to
+@SaveXStorageBot in your own Telegram account to get the video, then sends the video to your chat and removes the
+helper messages from the bot chat. You can turn this off in NexGramm features → Comfort.
+
 ## 4. Ads
 Users without Premium see ads from Google AdMob. Google may use your device's advertising ID and coarse data as
 described in https://policies.google.com/technologies/ads. You can reset or delete the advertising ID in your phone's
@@ -56,6 +61,7 @@ Telegram: @NexGrammBot
 - Lenta, Premium va NEX AI uchun NexGramm serveri Telegram ID, ism va username'ingizni oladi; Lentaga qo'ygan
   narsalaringiz boshqa foydalanuvchilarga ko'rinadi.
 - NEX AI faqat siz bosganingizda va rozilik berganingizda ishlaydi; faqat siz tanlagan matn yuboriladi.
+- Faqat Instagram / TikTok / YouTube havolasidan iborat xabar @SaveXStorageBot orqali video bo'lib boradi (sozlamalarda o'chirsa bo'ladi).
 - Premium bo'lmaganlarga Google AdMob reklamasi ko'rinadi.
 - Chat qulfi, saqlangan xabarlar va APK tekshiruvi faqat telefoningizda.
 - Ma'lumotlaringizni sotmaymiz. Akkauntni o'chirish: @NexGrammBot'ga "akkauntimni o'chiring" deb yozing (30 kun ichida).

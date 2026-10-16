@@ -100,12 +100,21 @@ public class NexFeaturesActivity extends BaseFragment {
         final TextCheckCell callsCell = new TextCheckCell(context);
         callsCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         callsCell.setTextAndValueAndCheck(LocaleController.getString(R.string.NexFeaturesConfirmCalls),
-            LocaleController.getString(R.string.NexFeaturesConfirmCallsInfo), uz.nexgramm.core.NexExtras.confirmCalls(), true, false);
+            LocaleController.getString(R.string.NexFeaturesConfirmCallsInfo), uz.nexgramm.core.NexExtras.confirmCalls(), true, true);
         callsCell.setOnClickListener(v -> {
             uz.nexgramm.core.NexExtras.setConfirmCalls(!uz.nexgramm.core.NexExtras.confirmCalls());
             callsCell.setChecked(uz.nexgramm.core.NexExtras.confirmCalls());
         });
         column.addView(callsCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextCheckCell linkCell = new TextCheckCell(context);
+        linkCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        linkCell.setTextAndValueAndCheck(LocaleController.getString(R.string.NexFeaturesLinkMedia),
+            LocaleController.getString(R.string.NexFeaturesLinkMediaInfo), NexLinkMedia.enabled(), true, false);
+        linkCell.setOnClickListener(v -> {
+            NexLinkMedia.setEnabled(!NexLinkMedia.enabled());
+            linkCell.setChecked(NexLinkMedia.enabled());
+        });
+        column.addView(linkCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         final TextInfoPrivacyCell comfortInfo = new TextInfoPrivacyCell(context);
         comfortInfo.setText(LocaleController.getString(R.string.NexFeaturesComfortNote));
         column.addView(comfortInfo, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));

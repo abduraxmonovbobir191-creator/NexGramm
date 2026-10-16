@@ -419,6 +419,10 @@
     <string name="NexFeaturesComfort">Удобство</string>
     <string name="NexFeaturesConfirmCalls">Спрашивать перед звонком</string>
     <string name="NexFeaturesConfirmCallsInfo">Звонок начнётся только после подтверждения</string>
+    <string name="NexFeaturesLinkMedia">Ссылки как видео</string>
+    <string name="NexFeaturesLinkMediaInfo">Ссылка на Instagram, TikTok или YouTube уходит как видео с музыкой (через @SaveXStorageBot)</string>
+    <string name="NexLinkMediaPreparing">Получаем видео…</string>
+    <string name="NexLinkMediaFailed">Не удалось получить видео, отправлена ссылка</string>
     <string name="NexFeaturesComfortNote">Чтобы заблокировать чат: откройте его → ⋮ → Заблокировать чат. Удерживайте сообщение, чтобы увидеть точные дату и время.</string>
     <string name="NexFeedbackHeader">Связь с NexGramm</string>
     <string name="NexFeedbackSupport">Поддержка</string>
@@ -501,6 +505,8 @@
     <string name="NexAiImagineInsert">Вставить в сообщение</string>
     <string name="NexAiImagineNotYet">Картинки появятся, когда NEX AI подключится к серверу. Пока NEX здесь не отвечает.</string>
     <string name="NexPremiumStoreSoon">Premium скоро можно будет купить в магазине приложений.</string>
+    <string name="NexLentaShareSending">Отправляем пост…</string>
+    <string name="NexLentaShareLinkOnly">Не удалось загрузить медиа, отправлена ссылка</string>
     <string name="NexPostRepost">Репост</string>
     <string name="NexPostReposted">Репост для ваших подписчиков</string>
     <string name="NexPostRepostedBy">%1$s сделал(а) репост</string>
