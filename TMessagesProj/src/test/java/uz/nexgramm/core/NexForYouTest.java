@@ -85,4 +85,46 @@ public class NexForYouTest {
         final ArrayList<String> tags = NexForYou.hashtags("<p>Hi <a href=\"x\">#<span>Toshkent</span></a> #food #food #a</p>");
         assertEquals(Arrays.asList("toshkent", "food"), tags);
     }
+
+    @Test
+    public void notInterestedSinksAuthorAndTopic() {
+        final NexForYou model = new NexForYou();
+        model.record("spam", NexForYou.hashtags("#bet"), false, NexForYou.NOT_INTERESTED, NOW);
+        final float before = new NexForYou().score(post("1", "spam", "#bet", false, 10, 2), NOW, 1);
+        assertTrue(model.score(post("1", "spam", "#bet", false, 10, 2), NOW, 1) < before - 2f);
+        assertTrue(model.score(post("2", "other", "#bet", false, 10, 2), NOW, 1) < before);
+    }
+
+    @Test
+    public void newUsersLeanOnPopularity() {
+        final NexForYou fresh = new NexForYou();
+        final NexForYou known = new NexForYou();
+        for (int i = 0; i < 10; i++) {
+            known.record("a" + i, NexForYou.hashtags("#t" + i), false, NexForYou.LIKE, NOW);
+        }
+        assertEquals(0f, fresh.knowledge(), 0.001f);
+        assertEquals(1f, known.knowledge(), 0.001f);
+        final NexForYou.Candidate hit = post("1", "x", "", false, 200, 2);
+        final NexForYou.Candidate quiet = post("2", "y", "", false, 0, 2);
+        final float freshGap = fresh.score(hit, NOW, 1) - fresh.score(quiet, NOW, 1);
+        final float knownGap = known.score(hit, NOW, 1) - known.score(quiet, NOW, 1);
+        assertTrue(freshGap > knownGap);
+    }
+
+    @Test
+    public void oneTopicDoesNotFillTheScreen() {
+        final NexForYou model = new NexForYou();
+        for (int i = 0; i < 5; i++) {
+            model.record("x", NexForYou.hashtags("#cars"), false, NexForYou.LIKE, NOW);
+        }
+        final ArrayList<NexForYou.Candidate> list = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            list.add(post("c" + i, "a" + i, "#cars", false, 5, 2));
+        }
+        list.add(post("f", "z", "#food", false, 0, 2));
+        final java.util.List<NexForYou.Candidate> ranked = model.rank(list, NOW, 1);
+        assertEquals("cars", ranked.get(0).tags.get(0));
+        assertEquals("cars", ranked.get(1).tags.get(0));
+        assertEquals("f", ranked.get(2).id); // a third #cars in a row waits for the food post
+    }
 }

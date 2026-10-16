@@ -32,9 +32,10 @@ import java.util.Random;
 import uz.nexgramm.core.NexOwnAds;
 import uz.nexgramm.core.NexPremium;
 
-// NexGramm: ads for users without NexGramm Premium. Mostly AdMob (ADMOB_BANNER_ID at build time; empty =
-// none), sometimes one of our own ads (GET /v1/ads, added by the owner in the bot). A slot is a card in
-// the Lenta, labelled "Ad". Own ads report a view (once per app run) and clicks (POST /v1/ads/{id}/…).
+// NexGramm: ads for users without NexGramm Premium. First the ads the server drew for this person
+// (GET /v1/ads/next: advertisers' paid ads and ours, by what the person likes); when there are none, mostly
+// AdMob (ADMOB_BANNER_ID at build time; empty = none), sometimes one of the general list (GET /v1/ads). A slot
+// is a card in the Lenta, labelled "Ad". Ads report a view (once per app run) and clicks (POST /v1/ads/{id}/…).
 final class NexAds {
 
     private static final float OWN_SHARE = 0.3f; // own ads get about a third of the slots when there are some
@@ -42,6 +43,7 @@ final class NexAds {
     private static boolean mobileAdsStarted;
     private static final HashSet<String> viewed = new HashSet<>();
     private static final Random random = new Random();
+    private static long account; // whose token goes with the ad calls
 
     private NexAds() {
     }
@@ -52,7 +54,11 @@ final class NexAds {
 
     // Ads at all for this account (no Premium, and something to show)
     static boolean enabled(long tgUserId) {
+        account = tgUserId;
         NexOwnAds.refresh();
+        if (!NexPremium.isActive(tgUserId)) {
+            NexOwnAds.refreshNext(tgUserId);
+        }
         return !NexPremium.isActive(tgUserId) && (admobConfigured() || !NexOwnAds.current().isEmpty());
     }
 
@@ -71,6 +77,11 @@ final class NexAds {
                 return;
             }
             filled = true;
+            final NexOwnAds.Ad drawn = NexOwnAds.pollNext(account);
+            if (drawn != null) {
+                showOwn(drawn);
+                return;
+            }
             final ArrayList<NexOwnAds.Ad> list = NexOwnAds.current();
             final boolean useOwn = !list.isEmpty() && (!admobConfigured() || random.nextFloat() < OWN_SHARE);
             if (useOwn) {
@@ -119,7 +130,7 @@ final class NexAds {
             final TextView open = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexAdOpen), NexLentaUi.PILL_PRIMARY);
             card.addView(open, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44, 0, 12, 0, 0));
             final View.OnClickListener click = v -> {
-                NexOwnAds.report(ad.id, "click");
+                NexOwnAds.report(account, ad.id, "click");
                 Browser.openUrl(getContext(), ad.url);
             };
             card.setOnClickListener(click);
@@ -128,7 +139,7 @@ final class NexAds {
             addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             synchronized (viewed) {
                 if (viewed.add(ad.id)) {
-                    NexOwnAds.report(ad.id, "view");
+                    NexOwnAds.report(account, ad.id, "view");
                 }
             }
         }

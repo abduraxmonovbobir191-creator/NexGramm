@@ -18,15 +18,18 @@ import java.util.regex.Pattern;
 // (local public timeline, home timeline, the month's most liked posts) for them, as Instagram / TikTok do:
 //
 //   interest model: author, hashtag and photo / video scores, raised by likes, saves, shares, comments,
-//   opened videos and profiles, follows and long looks (dwell), lowered by quick skips and unlikes;
-//   everything fades by 3 % a day so new tastes take over.
+//   opened videos and profiles, follows and long looks (dwell), lowered by quick skips, unlikes and
+//   "Not interested" (the strongest no); everything fades by 3 % a day so new tastes take over.
 //
 //   score = interest in the author + its hashtags + its kind (photo / video)
-//         + how liked it is (log of likes + 2 × comments) + followed author
+//         + how liked it is (log of likes + 2 × comments; counts more while the model knows little,
+//           so a new user first sees what everyone likes and then more and more what they like)
+//         + followed author
 //         − age (log, so a day hurts less than a week) − already seen − own post
 //         + a small per-session random part (exploration, so new things get a chance)
 //
-// then the same author is kept apart (not twice in three posts). Nothing leaves the phone.
+// then the same author is kept apart (not twice in three posts) and one topic does not fill the screen
+// (not three posts in a row with the same first hashtag). Nothing leaves the phone.
 public final class NexForYou {
 
     // signal weights: {author, hashtags, kind}
@@ -41,6 +44,7 @@ public final class NexForYou {
     public static final float[] LONG_LOOK = {0.6f, 0.4f, 0.4f};    // ≥ 3 s on screen
     public static final float[] VERY_LONG_LOOK = {1.2f, 0.8f, 0.8f}; // ≥ 8 s
     public static final float[] QUICK_SKIP = {-0.15f, -0.1f, -0.1f}; // < 0.7 s while scrolling
+    public static final float[] NOT_INTERESTED = {-5f, -3f, -0.5f};  // the post menu's "Not interested"
 
     private static final float DAILY_DECAY = 0.97f;
     private static final int MAX_KEYS = 300;
@@ -162,7 +166,7 @@ public final class NexForYou {
         }
         final float kind = clamp(video - photo, -10f, 10f) * 0.06f;
         s += c.video ? kind : -kind;
-        s += 0.55f * (float) Math.log1p(Math.max(0, c.likes) + 2.0 * Math.max(0, c.replies));
+        s += (0.55f + 0.35f * (1f - knowledge())) * (float) Math.log1p(Math.max(0, c.likes) + 2.0 * Math.max(0, c.replies));
         if (c.followed) {
             s += 0.6f;
         }
@@ -180,7 +184,20 @@ public final class NexForYou {
         return s;
     }
 
-    // Best first, the same author not twice within three posts when something else is left
+    // 0 (knows nothing yet) .. 1 (a clear taste): how much the model has learned
+    synchronized float knowledge() {
+        float sum = Math.abs(video) + Math.abs(photo);
+        for (Float v : authors.values()) {
+            sum += Math.abs(v);
+        }
+        for (Float v : tags.values()) {
+            sum += Math.abs(v);
+        }
+        return Math.min(1f, sum / 30f);
+    }
+
+    // Best first; the same author not twice within three posts and the same first hashtag not three times in a
+    // row, when something else is left
     public List<Candidate> rank(List<Candidate> candidates, long now, long sessionSeed) {
         final HashMap<String, Float> scores = new HashMap<>();
         for (Candidate c : candidates) {
@@ -190,14 +207,18 @@ public final class NexForYou {
         Collections.sort(pool, (a, b) -> Float.compare(scores.get(b.id), scores.get(a.id)));
         final ArrayList<Candidate> out = new ArrayList<>(pool.size());
         while (!pool.isEmpty()) {
-            int pick = 0;
-            for (int i = 0; i < pool.size(); i++) {
+            int pick = -1;
+            int authorOnly = -1;
+            for (int i = 0; i < pool.size() && pick < 0; i++) {
                 if (!recentAuthor(out, pool.get(i).authorId)) {
-                    pick = i;
-                    break;
+                    if (!sameTopicTwice(out, pool.get(i))) {
+                        pick = i;
+                    } else if (authorOnly < 0) {
+                        authorOnly = i;
+                    }
                 }
             }
-            out.add(pool.remove(pick));
+            out.add(pool.remove(pick >= 0 ? pick : Math.max(authorOnly, 0)));
         }
         return out;
     }
@@ -209,6 +230,21 @@ public final class NexForYou {
             }
         }
         return false;
+    }
+
+    // the last two posts already share this post's first hashtag
+    private static boolean sameTopicTwice(ArrayList<Candidate> out, Candidate c) {
+        if (c.tags.isEmpty() || out.size() < 2) {
+            return false;
+        }
+        final String topic = c.tags.get(0);
+        for (int i = out.size() - 2; i < out.size(); i++) {
+            final ArrayList<String> t = out.get(i).tags;
+            if (t.isEmpty() || !t.get(0).equals(topic)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // 0..1, the same for a post during one app session

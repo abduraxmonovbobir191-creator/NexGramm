@@ -73,7 +73,7 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
     private static final int TYPE_FOOTER = 3;
     private static final int TYPE_HEADER = 4;
     private static final int TYPE_AD = 5;
-    private static final int AD_EVERY = 4; // NexGramm: an ad after every 4 posts (no Premium)
+    private static final int AD_EVERY = 6; // NexGramm: an ad after every 6 posts (no Premium)
     private static final int SKELETON_COUNT = 2;
     private static final String PREFS = "nexgramm_lenta";
 
@@ -191,6 +191,16 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         header.addView(titles, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 0));
         final LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
+        // E'lonlar: ads to scroll through (jobs, homes, cars… by region), and "E'lon berish"
+        final ImageView adsButton = NexLentaUi.circleButton(context, R.drawable.msg_channel, NexLentaUi.PILL_CARD, false);
+        adsButton.setContentDescription(LocaleController.getString(R.string.NexAdsFeedTitle));
+        adsButton.setOnClickListener(v -> {
+            final BaseFragment fragment = delegate.getFragment();
+            if (fragment != null) {
+                fragment.presentFragment(new NexAdsFeedActivity());
+            }
+        });
+        buttons.addView(adsButton, LayoutHelper.createLinear(36, 36, 0, 0, 8, 0));
         // search: Lenta people by name or @username
         final ImageView searchButton = NexLentaUi.circleButton(context, R.drawable.msg_search, NexLentaUi.PILL_CARD, false);
         searchButton.setContentDescription(LocaleController.getString(R.string.Search));
@@ -717,6 +727,19 @@ public class NexNativeFeedView extends FrameLayout implements NexPostCell.Delega
         @Override
         public void onChanged(PixelfedStatus status) {
             updateCellsOf(status);
+        }
+
+        @Override
+        public boolean canSayNotInterested() {
+            return !followingMode;
+        }
+
+        // the author and the topics go down for a long while, the post leaves at once
+        @Override
+        public void onNotInterested(PixelfedStatus status) {
+            learn(status, NexForYou.NOT_INTERESTED);
+            forYou().markSeen(status.statusId, System.currentTimeMillis());
+            onDeleted(status);
         }
     };
 
