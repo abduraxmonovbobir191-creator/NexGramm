@@ -6196,6 +6196,12 @@ public class Theme {
             }
         }
         out.put(key_avatar_text, palette.avatarText());
+        // one solid outgoing bubble: the base theme's gradient faded the accent to white down the screen,
+        // leaving white text unreadable on the lower bubbles
+        out.put(key_chat_outBubbleGradient1, 0);
+        out.put(key_chat_outBubbleGradient2, 0);
+        out.put(key_chat_outBubbleGradient3, 0);
+        out.put(key_chat_outBubbleGradientAnimated, 0);
         for (int i = 0, N = out.size(); i < N; i++) {
             currentColors.put(out.keyAt(i), out.valueAt(i));
         }

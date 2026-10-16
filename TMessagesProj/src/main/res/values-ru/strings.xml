@@ -507,6 +507,7 @@
     <string name="NexPremiumStoreSoon">Premium скоро можно будет купить в магазине приложений.</string>
     <string name="NexLentaShareSending">Отправляем пост…</string>
     <string name="NexLentaShareLinkOnly">Не удалось загрузить медиа, отправлена ссылка</string>
+    <string name="NexFeedConnectFailed">Не удалось подключиться к Ленте. Попробуйте ещё раз.\n(%1$s)</string>
     <string name="NexPostRepost">Репост</string>
     <string name="NexPostReposted">Репост для ваших подписчиков</string>
     <string name="NexPostRepostedBy">%1$s сделал(а) репост</string>

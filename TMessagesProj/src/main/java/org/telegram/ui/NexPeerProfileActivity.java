@@ -649,7 +649,10 @@ public class NexPeerProfileActivity extends BaseFragment implements Notification
         final Bundle args = new Bundle();
         args.putLong("chat_id", chatId);
         args.putInt("type", ChatUsersActivity.TYPE_USERS);
-        presentFragment(new ChatUsersActivity(args));
+        final ChatUsersActivity users = new ChatUsersActivity(args);
+        // a small group lists its members from the group info; without it the list stayed empty
+        users.setInfo(chatFull != null ? chatFull : getMessagesController().getChatFull(chatId));
+        presentFragment(users);
     }
 
     private void openAllMedia() {
