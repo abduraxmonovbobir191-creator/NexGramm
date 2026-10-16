@@ -70,6 +70,77 @@ public final class NexChatLock {
         prefs().edit().putStringSet("locked", new HashSet<>(set)).apply();
     }
 
+    // ---- Hidden chats: gone from the chats list, folders, search, the share picker and notifications; they
+    // are listed only in "Hidden chats" (behind the phone's own unlock) and always open locked ----
+
+    private static final HashSet<String> hiddenCache = new HashSet<>();
+    private static boolean hiddenLoaded;
+
+    private static synchronized Set<String> hidden() {
+        if (!hiddenLoaded) {
+            hiddenCache.addAll(prefs().getStringSet("hidden", new HashSet<>()));
+            hiddenLoaded = true;
+        }
+        return hiddenCache;
+    }
+
+    public static synchronized boolean isHidden(int account, long dialogId) {
+        return dialogId != 0 && !hidden().isEmpty() && hidden().contains(key(account, dialogId));
+    }
+
+    public static synchronized void setHidden(int account, long dialogId, boolean value) {
+        final Set<String> set = hidden();
+        if (value) {
+            set.add(key(account, dialogId));
+        } else {
+            set.remove(key(account, dialogId));
+        }
+        prefs().edit().putStringSet("hidden", new HashSet<>(set)).apply();
+    }
+
+    // the hidden chats of an account, newest hidden last
+    public static synchronized java.util.ArrayList<Long> hiddenIds(int account) {
+        final java.util.ArrayList<Long> ids = new java.util.ArrayList<>();
+        final String prefix = account + ":";
+        for (String k : hidden()) {
+            if (k.startsWith(prefix)) {
+                try {
+                    ids.add(Long.parseLong(k.substring(prefix.length())));
+                } catch (NumberFormatException ignore) {
+                }
+            }
+        }
+        return ids;
+    }
+
+    // a hidden chat is locked too: its preview, notifications and opening are protected
+    public static boolean isProtected(int account, long dialogId) {
+        return isLocked(account, dialogId) || isHidden(account, dialogId);
+    }
+
+    // the list without the hidden chats (the same list when this account hides none)
+    public static java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> withoutHidden(int account, java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> dialogs) {
+        if (dialogs == null || dialogs.isEmpty()) {
+            return dialogs;
+        }
+        synchronized (NexChatLock.class) {
+            if (hidden().isEmpty() || hiddenIds(account).isEmpty()) {
+                return dialogs;
+            }
+        }
+        java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> out = null;
+        for (int i = 0, n = dialogs.size(); i < n; i++) {
+            final org.telegram.tgnet.TLRPC.Dialog d = dialogs.get(i);
+            final boolean skip = d != null && isHidden(account, d.id);
+            if (skip && out == null) {
+                out = new java.util.ArrayList<>(dialogs.subList(0, i));
+            } else if (!skip && out != null) {
+                out.add(d);
+            }
+        }
+        return out != null ? out : dialogs;
+    }
+
     // false when the phone has no screen lock at all (then nothing could protect the chat)
     public static boolean canLock(Context context) {
         try {
@@ -111,13 +182,15 @@ public final class NexChatLock {
         }
     }
 
-    // The cover over a locked chat, the whole screen: a deep night sky of the accent with twinkling ✦ stars,
-    // 🔒, a line of text and "Unlock"; ← goes back
+    // The cover over a locked chat, the whole screen: pitch black with ✦ stars floating through it, 🔒, a line
+    // of text and "Unlock"; ← goes back
     static FrameLayout createCover(Context context, Runnable onUnlockClick, Runnable onBack) {
+        return createCover(context, LocaleController.getString(R.string.NexLockLocked), onUnlockClick, onBack);
+    }
+
+    static FrameLayout createCover(Context context, CharSequence text, Runnable onUnlockClick, Runnable onBack) {
         final FrameLayout cover = new FrameLayout(context);
-        final int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
-        cover.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xFF07070C, uz.nexgramm.core.NexPalette.blend(0xFF0B0B14, accent, 0.18f), uz.nexgramm.core.NexPalette.blend(0xFF0B0B14, accent, 0.42f)}));
+        cover.setBackgroundColor(0xFF000000);
         cover.setClickable(true); // nothing behind it can be touched
         cover.addView(new StarsView(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         final ImageView back = new ImageView(context);
@@ -141,16 +214,15 @@ public final class NexChatLock {
         title.setTypeface(AndroidUtilities.bold());
         title.setTextColor(0xFFFFFFFF);
         title.setGravity(Gravity.CENTER);
-        title.setText(LocaleController.getString(R.string.NexLockLocked));
-        column.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0));
+        title.setText(text);
+        column.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 16, 24, 0));
         final TextView button = new TextView(context);
         button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         button.setTypeface(AndroidUtilities.bold());
-        button.setTextColor(uz.nexgramm.core.NexPalette.onColor(accent));
+        button.setTextColor(0xFF000000);
         button.setGravity(Gravity.CENTER);
         button.setPadding(AndroidUtilities.dp(28), 0, AndroidUtilities.dp(28), 0);
-        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(24),
-            accent, Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
+        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(24), 0xFFFFFFFF, 0xFFD7C4FA));
         button.setText(LocaleController.getString(R.string.NexLockUnlock));
         button.setOnClickListener(v -> onUnlockClick.run());
         column.addView(button, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 48, Gravity.CENTER_HORIZONTAL, 0, 24, 0, 0));
@@ -181,51 +253,113 @@ public final class NexChatLock {
             .withEndAction(() -> AndroidUtilities.removeFromParent(cover)).start();
     }
 
-    // Stars of a night sky: small ✦ and dots, each twinkling on its own slow beat; a few drift a little
+    // A starry sky in black: three depths of ✦ and dots floating slowly in their own directions (the near ones
+    // faster, a soft sway on top), each twinkling on its own beat, a few in lilac; now and then a shooting star
     private static final class StarsView extends View {
-        private static final int COUNT = 46;
+        private static final int COUNT = 96;
+        private static final long SHOOT_MS = 900;
         private final float[] x = new float[COUNT];
         private final float[] y = new float[COUNT];
+        private final float[] vx = new float[COUNT];
+        private final float[] vy = new float[COUNT];
         private final float[] size = new float[COUNT];
         private final float[] phase = new float[COUNT];
         private final float[] speed = new float[COUNT];
+        private final boolean[] spark = new boolean[COUNT];
+        private final int[] color = new int[COUNT];
         private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.Path path = new android.graphics.Path();
+        private final java.util.Random random = new java.util.Random();
         private final long start = android.os.SystemClock.elapsedRealtime();
+        private long shootAt;
+        private float shootX, shootY, shootDx, shootDy;
 
         StarsView(Context context) {
             super(context);
-            final java.util.Random random = new java.util.Random();
             for (int i = 0; i < COUNT; i++) {
+                final float depth = i % 3 == 0 ? 1f : i % 3 == 1 ? 0.55f : 0.25f; // near, middle, far
                 x[i] = random.nextFloat();
                 y[i] = random.nextFloat();
-                // a quarter are ✦, the rest dots
-                size[i] = i % 4 == 0 ? AndroidUtilities.dp(4 + random.nextFloat() * 5) : AndroidUtilities.dp(0.8f + random.nextFloat() * 1.4f);
+                final double angle = -Math.PI / 2 + (random.nextFloat() - 0.5f) * Math.PI * 1.2; // mostly upwards
+                final float v = (0.006f + random.nextFloat() * 0.012f) * depth; // screens per second
+                vx[i] = (float) Math.cos(angle) * v;
+                vy[i] = (float) Math.sin(angle) * v;
+                spark[i] = depth == 1f && i % 2 == 0;
+                size[i] = spark[i] ? AndroidUtilities.dp(4 + random.nextFloat() * 5) : AndroidUtilities.dp((0.6f + random.nextFloat() * 1.2f) * (0.6f + depth * 0.6f));
                 phase[i] = random.nextFloat() * (float) (Math.PI * 2);
-                speed[i] = 0.6f + random.nextFloat() * 1.6f;
+                speed[i] = 0.6f + random.nextFloat() * 1.8f;
+                color[i] = i % 7 == 0 ? 0xD7C4FA : 0xFFFFFF;
             }
-            paint.setColor(0xFFFFFFFF);
+            shootAt = start + 1800 + random.nextInt(2500);
+        }
+
+        private static float wrap(float v) {
+            return (v % 1f + 1f) % 1f;
         }
 
         @Override
         protected void onDraw(android.graphics.Canvas canvas) {
-            final float t = (android.os.SystemClock.elapsedRealtime() - start) / 1000f;
+            final long now = android.os.SystemClock.elapsedRealtime();
+            final float t = (now - start) / 1000f;
             final int w = getWidth();
             final int h = getHeight();
+            paint.setStyle(android.graphics.Paint.Style.FILL);
             for (int i = 0; i < COUNT; i++) {
                 final float twinkle = 0.5f + 0.5f * (float) Math.sin(t * speed[i] + phase[i]);
-                paint.setAlpha((int) (40 + 215 * twinkle * twinkle));
-                final float cx = x[i] * w;
-                final float cy = ((y[i] - t * 0.004f * speed[i]) % 1f + 1f) % 1f * h; // a slow drift upwards
-                if (i % 4 == 0) {
-                    NexAiUi.drawStar(canvas, path, paint, cx, cy, size[i] * (0.75f + 0.35f * twinkle));
+                paint.setColor(0xFF000000 | color[i]);
+                paint.setAlpha((int) (35 + 220 * twinkle * twinkle));
+                final float sway = 0.012f * (float) Math.sin(t * 0.4f * speed[i] + phase[i]);
+                final float cx = wrap(x[i] + vx[i] * t + sway) * w;
+                final float cy = wrap(y[i] + vy[i] * t) * h;
+                if (spark[i]) {
+                    NexAiUi.drawStar(canvas, path, paint, cx, cy, size[i] * (0.7f + 0.4f * twinkle));
                 } else {
                     canvas.drawCircle(cx, cy, size[i], paint);
                 }
             }
+            drawShootingStar(canvas, now, w, h);
             if (isAttachedToWindow()) {
                 postInvalidateOnAnimation();
             }
+        }
+
+        // a bright head with a fading tail, crossing part of the sky
+        private void drawShootingStar(android.graphics.Canvas canvas, long now, int w, int h) {
+            if (now < shootAt) {
+                return;
+            }
+            if (shootDx == 0 && shootDy == 0) {
+                shootX = w * (0.15f + random.nextFloat() * 0.7f);
+                shootY = h * (0.05f + random.nextFloat() * 0.4f);
+                final float dir = random.nextBoolean() ? 1f : -1f;
+                shootDx = dir * w * (0.35f + random.nextFloat() * 0.2f);
+                shootDy = h * (0.12f + random.nextFloat() * 0.1f);
+            }
+            final float p = (now - shootAt) / (float) SHOOT_MS;
+            if (p >= 1f) {
+                shootDx = shootDy = 0;
+                shootAt = now + 3000 + random.nextInt(4000);
+                return;
+            }
+            final float eased = 1f - (1f - p) * (1f - p);
+            final float headX = shootX + shootDx * eased;
+            final float headY = shootY + shootDy * eased;
+            final float fade = p < 0.8f ? 1f : (1f - p) / 0.2f;
+            paint.setColor(0xFFFFFFFF);
+            paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+            final int parts = 10;
+            for (int k = 0; k < parts; k++) {
+                final float a = k / (float) parts;
+                final float b = (k + 1) / (float) parts;
+                final float tail = 0.28f; // of the whole path
+                paint.setStrokeWidth(AndroidUtilities.dp(2.2f) * (1f - a));
+                paint.setAlpha((int) (230 * fade * (1f - a)));
+                canvas.drawLine(headX - shootDx * tail * a, headY - shootDy * tail * a,
+                    headX - shootDx * tail * b, headY - shootDy * tail * b, paint);
+            }
+            paint.setStyle(android.graphics.Paint.Style.FILL);
+            paint.setAlpha((int) (255 * fade));
+            canvas.drawCircle(headX, headY, AndroidUtilities.dp(2f), paint);
         }
     }
 

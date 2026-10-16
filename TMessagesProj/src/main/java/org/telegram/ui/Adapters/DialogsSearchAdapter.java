@@ -282,7 +282,14 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         }
     }
 
+    private static long nexDialogId(Object obj) {
+        return obj instanceof TLRPC.User ? ((TLRPC.User) obj).id : obj instanceof TLRPC.Chat ? -((TLRPC.Chat) obj).id : 0;
+    }
+
     private boolean filter(Object obj) {
+        if (org.telegram.ui.NexChatLock.isHidden(currentAccount, nexDialogId(obj))) {
+            return false; // NexGramm: hidden chats are not in the recent searches either
+        }
         if (dialogsType != DialogsActivity.DIALOGS_TYPE_START_ATTACH_BOT) {
             return true;
         }
@@ -989,6 +996,16 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 searchResultMessages.clear();
             }
             searchWas = true;
+            // NexGramm: hidden chats never show up in search
+            for (int i = 0; i < result.size(); ++i) {
+                if (org.telegram.ui.NexChatLock.isHidden(currentAccount, nexDialogId(result.get(i)))) {
+                    result.remove(i);
+                    if (i < names.size()) {
+                        names.remove(i);
+                    }
+                    i--;
+                }
+            }
             for (int i = 0; i < result.size(); ++i) {
                 if (!filter(result.get(i))) {
                     result.remove(i);

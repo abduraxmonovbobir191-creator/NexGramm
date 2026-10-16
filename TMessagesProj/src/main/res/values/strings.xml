@@ -11651,4 +11651,13 @@
     <string name="NexHighlightAdd">New</string>
     <string name="NexHighlightName">Album name</string>
     <string name="NexHighlightCreate">Create</string>
+    <string name="NexHideMenu">Hide chat</string>
+    <string name="NexHideMenuOff">Unhide chat</string>
+    <string name="NexHideOn">Chat hidden. To find it: long-press the NexGramm title on the chats screen.</string>
+    <string name="NexHideOff">The chat is back in the list</string>
+    <string name="NexHiddenTitle">Hidden chats</string>
+    <string name="NexHiddenEmpty">No hidden chats yet.\n\nIn a chat: ⋮ → Hide chat.\nIn the list: long-press a chat → ⋮ → Hide chat.</string>
+    <string name="NexHiddenUnhideAsk">Show this chat in the list again?</string>
+    <string name="NexHiddenUnhide">Unhide</string>
+    <string name="NexHiddenHint">Long-press a chat to unhide it. Hidden chats send no notifications.</string>
 </resources>

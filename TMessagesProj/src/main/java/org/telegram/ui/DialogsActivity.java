@@ -711,6 +711,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private final static int pin2 = 108;
     private final static int add_to_folder = 109;
     private final static int remove_from_folder = 110;
+    private final static int nex_hide = 120; // NexGramm: hide the selected chats
     private final static int community_ungroup = 111;
 
     private final static int ARCHIVE_ITEM_STATE_PINNED = 0;
@@ -3545,6 +3546,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 actionBar.setTitle(getString(R.string.NexAppTitle), statusDrawable);
                 if (actionBar.getTitleTextView() != null) {
                     actionBar.getTitleTextView().setTypeface(NexLentaUi.serif());
+                    // NexGramm: a long press on the title opens "Hidden chats" (behind the phone's own unlock)
+                    actionBar.getTitleTextView().setOnLongClickListener(v -> {
+                        if (onlySelect || actionBar.isActionModeShowed()) {
+                            return false;
+                        }
+                        v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                        presentFragment(new NexHiddenChatsActivity());
+                        return true;
+                    });
                 }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
@@ -4038,6 +4048,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     hideActionMode(false);
                 } else if (id == pin || id == read || id == delete || id == clear || id == mute || id == archive || id == block || id == archive2 || id == pin2) {
                     performSelectedDialogsAction(selectedDialogs, id, true, false);
+                } else if (id == nex_hide) {
+                    nexHideSelected();
                 }
             }
         });
@@ -6773,6 +6785,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         readItem = otherItem.addSubItem(read, R.drawable.msg_markread, LocaleController.getString(R.string.MarkAsRead));
         clearItem = otherItem.addSubItem(clear, R.drawable.msg_clear, LocaleController.getString(R.string.ClearHistory));
         blockItem = otherItem.addSubItem(block, R.drawable.msg_block, LocaleController.getString(R.string.BlockUser));
+        otherItem.addSubItem(nex_hide, R.drawable.msg_archive_hide, LocaleController.getString(R.string.NexHideMenu));
 
         muteItem.setOnLongClickListener(e -> {
             performSelectedDialogsAction(selectedDialogs, mute, true, true);
@@ -11017,10 +11030,34 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ArrayList<TLRPC.Dialog> botShareDialogs;
 
     @NonNull
+    // NexGramm: the selected chats go to "Hidden chats" (gone from the list, search and notifications)
+    private void nexHideSelected() {
+        final ArrayList<Long> ids = new ArrayList<>(selectedDialogs);
+        hideActionMode(true);
+        if (ids.isEmpty() || getParentActivity() == null || !NexPremiumActivity.check(this)) {
+            return;
+        }
+        if (!NexChatLock.canLock(getParentActivity())) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.NexLockNoScreenLock)).show();
+            return;
+        }
+        for (long id : ids) {
+            NexChatLock.setHidden(currentAccount, id, true);
+            getNotificationsController().removeNotificationsForDialog(id);
+        }
+        getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.NexHideOn)).show();
+    }
+
     public ArrayList<TLRPC.Dialog> getDialogsArray(int currentAccount, int dialogsType, int folderId, boolean frozen) {
         if (frozen && frozenDialogsList != null) {
             return frozenDialogsList;
         }
+        // NexGramm: hidden chats are left out of every list here (chats, folders, archive, share pickers)
+        return NexChatLock.withoutHidden(currentAccount, nexGetDialogsArray(currentAccount, dialogsType, folderId));
+    }
+
+    private ArrayList<TLRPC.Dialog> nexGetDialogsArray(int currentAccount, int dialogsType, int folderId) {
         MessagesController messagesController = AccountInstance.getInstance(currentAccount).getMessagesController();
         if (dialogsType == DIALOGS_TYPE_DEFAULT) {
             return messagesController.getDialogs(folderId);

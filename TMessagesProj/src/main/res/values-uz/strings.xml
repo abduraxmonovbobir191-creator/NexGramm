@@ -414,4 +414,13 @@
     <string name="NexHighlightAdd">Qo\'shish</string>
     <string name="NexHighlightName">Albom nomi</string>
     <string name="NexHighlightCreate">Yaratish</string>
+    <string name="NexHideMenu">Chatni yashirish</string>
+    <string name="NexHideMenuOff">Chatni ko\'rsatish</string>
+    <string name="NexHideOn">Chat yashirildi. Topish uchun: chatlar oynasida NexGramm yozuvini bosib turing.</string>
+    <string name="NexHideOff">Chat yana ro\'yxatda</string>
+    <string name="NexHiddenTitle">Yashirin chatlar</string>
+    <string name="NexHiddenEmpty">Hozircha yashirin chat yo\'q.\n\nChat ichida: ⋮ → Chatni yashirish.\nRo\'yxatda: chatni bosib turing → ⋮ → Chatni yashirish.</string>
+    <string name="NexHiddenUnhideAsk">Bu chat yana ro\'yxatda ko\'rinsinmi?</string>
+    <string name="NexHiddenUnhide">Ko\'rsatish</string>
+    <string name="NexHiddenHint">Chatni ro\'yxatga qaytarish uchun uni bosib turing. Yashirin chatlardan bildirishnoma kelmaydi.</string>
 </resources>

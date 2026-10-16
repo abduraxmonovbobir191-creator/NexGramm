@@ -678,4 +678,13 @@
     <string name="NexHighlightAdd">Добавить</string>
     <string name="NexHighlightName">Название альбома</string>
     <string name="NexHighlightCreate">Создать</string>
+    <string name="NexHideMenu">Скрыть чат</string>
+    <string name="NexHideMenuOff">Показать чат</string>
+    <string name="NexHideOn">Чат скрыт. Чтобы найти его, зажмите заголовок NexGramm на экране чатов.</string>
+    <string name="NexHideOff">Чат снова в списке</string>
+    <string name="NexHiddenTitle">Скрытые чаты</string>
+    <string name="NexHiddenEmpty">Скрытых чатов пока нет.\n\nВ чате: ⋮ → Скрыть чат.\nВ списке: зажмите чат → ⋮ → Скрыть чат.</string>
+    <string name="NexHiddenUnhideAsk">Снова показывать этот чат в списке?</string>
+    <string name="NexHiddenUnhide">Показать</string>
+    <string name="NexHiddenHint">Зажмите чат, чтобы вернуть его в список. Скрытые чаты не присылают уведомлений.</string>
 </resources>
