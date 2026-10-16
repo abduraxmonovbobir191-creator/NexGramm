@@ -18489,6 +18489,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentMessageObject.messageOwner.video_processing_pending) {
             timeString = formatString(R.string.ScheduledTimeApprox, timeString);
         }
+        if (!messageObject.isOutOwner() && uz.nexgramm.core.NexSaved.isDeletedInChat(currentAccount, messageObject.getDialogId(), messageObject.getId())) {
+            timeString = getString(R.string.NexDeletedMark) + " " + timeString; // NexGramm: deleted by its sender, kept here
+        }
         if (signString != null) {
             if (messageObject.messageOwner.via_business_bot_id != 0) {
                 currentTimeString = timeString + ", ";

@@ -18852,16 +18852,19 @@ public class MessagesController extends BaseController implements NotificationCe
                 dialogs_read_outbox_max.put(dialogId, Math.max(value, update.max_id));
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteMessages) {
                 TL_update.TL_updateDeleteMessages update = (TL_update.TL_updateDeleteMessages) baseUpdate;
-                NexCapture.deleted(getMessagesStorage(), currentAccount, 0, update.messages); // NexGramm, opt-in
-                if (deletedMessages == null) {
-                    deletedMessages = new LongSparseArray<>();
+                if (NexCapture.keepInChat(currentAccount)) {
+                    NexCapture.deletedInChat(this, 0, update.messages); // NexGramm: others' messages stay in the chat, marked
+                } else {
+                    if (deletedMessages == null) {
+                        deletedMessages = new LongSparseArray<>();
+                    }
+                    ArrayList<Integer> arrayList = deletedMessages.get(0);
+                    if (arrayList == null) {
+                        arrayList = new ArrayList<>();
+                        deletedMessages.put(0, arrayList);
+                    }
+                    arrayList.addAll(update.messages);
                 }
-                ArrayList<Integer> arrayList = deletedMessages.get(0);
-                if (arrayList == null) {
-                    arrayList = new ArrayList<>();
-                    deletedMessages.put(0, arrayList);
-                }
-                arrayList.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteQuickReplyMessages) {
                 TL_update.TL_updateDeleteQuickReplyMessages update = (TL_update.TL_updateDeleteQuickReplyMessages) baseUpdate;
                 if (deletedQuickReplyMessages == null) {
@@ -19378,17 +19381,20 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d(baseUpdate + " channelId = " + update.channel_id);
                 }
-                NexCapture.deleted(getMessagesStorage(), currentAccount, -update.channel_id, update.messages); // NexGramm, opt-in
-                if (deletedMessages == null) {
-                    deletedMessages = new LongSparseArray<>();
+                if (NexCapture.keepInChat(currentAccount)) {
+                    NexCapture.deletedInChat(this, -update.channel_id, update.messages); // NexGramm: others' messages stay in the chat, marked
+                } else {
+                    if (deletedMessages == null) {
+                        deletedMessages = new LongSparseArray<>();
+                    }
+                    long dialogId = -update.channel_id;
+                    ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
+                    if (arrayList == null) {
+                        arrayList = new ArrayList<>();
+                        deletedMessages.put(dialogId, arrayList);
+                    }
+                    arrayList.addAll(update.messages);
                 }
-                long dialogId = -update.channel_id;
-                ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
-                if (arrayList == null) {
-                    arrayList = new ArrayList<>();
-                    deletedMessages.put(dialogId, arrayList);
-                }
-                arrayList.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateChannel) {
                 if (BuildVars.LOGS_ENABLED) {
                     TL_update.TL_updateChannel update = (TL_update.TL_updateChannel) baseUpdate;
@@ -21554,6 +21560,34 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
             });
         }
+    }
+
+    // NexGramm (NexCapture.deletedInChat): the UI side of Telegram's deletion for the messages that were deleted;
+    // notifications go away for all of them
+    void nexApplyDeleted(long key, ArrayList<Integer> deleted, ArrayList<Integer> all) {
+        if (!deleted.isEmpty()) {
+            getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, deleted, -key, false);
+            if (key == 0) {
+                for (int b = 0; b < deleted.size(); b++) {
+                    final MessageObject obj = dialogMessagesByIds.get(deleted.get(b));
+                    if (obj != null) {
+                        obj.deleted = true;
+                    }
+                }
+            } else {
+                final ArrayList<MessageObject> objs = dialogMessage.get(key);
+                if (objs != null) {
+                    for (MessageObject obj : objs) {
+                        if (obj != null && deleted.contains(obj.getId())) {
+                            obj.deleted = true;
+                        }
+                    }
+                }
+            }
+        }
+        final LongSparseArray<ArrayList<Integer>> byDialog = new LongSparseArray<>();
+        byDialog.put(key, all);
+        getNotificationsController().removeDeletedMessagesFromNotifications(byDialog, false);
     }
 
     public boolean isDialogMuted(long dialogId, long topicId) {

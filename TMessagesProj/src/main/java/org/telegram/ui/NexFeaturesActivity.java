@@ -50,6 +50,11 @@ public class NexFeaturesActivity extends BaseFragment {
         ghostCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         ghostCell.setOnClickListener(v -> presentFragment(new NexGhostActivity()));
         column.addView(ghostCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextCell hiddenCell = new TextCell(context);
+        hiddenCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        hiddenCell.setTextAndIcon(LocaleController.getString(R.string.NexHiddenTitle), R.drawable.msg_archive_hide, false);
+        hiddenCell.setOnClickListener(v -> presentFragment(new NexHiddenChatsActivity()));
+        column.addView(hiddenCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         column.addView(new ShadowSectionCell(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         final HeaderCell header = new HeaderCell(context);
@@ -128,7 +133,7 @@ public class NexFeaturesActivity extends BaseFragment {
         super.onResume();
         if (ghostCell != null) {
             ghostCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexGhostTitle),
-                LocaleController.getString(NexGhost.isEnabled() ? R.string.NexFeaturesOn : R.string.NexFeaturesOff), R.drawable.ghost, false);
+                LocaleController.getString(NexGhost.isEnabled() ? R.string.NexFeaturesOn : R.string.NexFeaturesOff), R.drawable.ghost, true);
         }
     }
 }

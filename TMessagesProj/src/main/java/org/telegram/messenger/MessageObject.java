@@ -3529,6 +3529,7 @@ public class MessageObject {
         if (messageText == null) {
             messageText = "";
         }
+        messageText = NexCapture.withOriginal(this, messageText); // NexGramm: the first text of an edited message
 
         TextPaint paint;
         if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame) {
@@ -3755,7 +3756,7 @@ public class MessageObject {
         if (isFromUser()) {
             fromUser = MessagesController.getInstance(currentAccount).getUser(messageOwner.from_id.user_id);
         }
-        messageText = text;
+        messageText = NexCapture.withOriginal(this, text); // NexGramm: the first text of an edited message
         final ArrayList<TLRPC.MessageEntity> entities = getEntities();
         final TextPaint paint;
         if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame) {

@@ -52,6 +52,9 @@ public final class NexSaved {
 
     private static final ExecutorService DISK = Executors.newSingleThreadExecutor();
     private static ArrayList<Entry> entries;
+    // for the chat itself: which messages were deleted by others, and the first text of edited ones
+    private static java.util.HashSet<String> deletedKeys;
+    private static java.util.HashMap<String, String> originals;
 
     private NexSaved() {
     }
@@ -112,7 +115,48 @@ public final class NexSaved {
         while (list.size() > MAX) {
             list.remove(list.size() - 1);
         }
+        if (deletedKeys != null) {
+            if (entry.type == DELETED) {
+                deletedKeys.add(key(entry.account, entry.dialogId, entry.messageId));
+            } else if (entry.type == EDITED && !originals.containsKey(key(entry.account, entry.dialogId, entry.messageId))) {
+                originals.put(key(entry.account, entry.dialogId, entry.messageId), entry.text); // the first text stays
+            }
+        }
         save();
+    }
+
+    private static String key(int account, long dialogId, int messageId) {
+        return account + ":" + dialogId + ":" + messageId;
+    }
+
+    private static void index() {
+        if (deletedKeys != null) {
+            return;
+        }
+        deletedKeys = new java.util.HashSet<>();
+        originals = new java.util.HashMap<>();
+        final ArrayList<Entry> list = all();
+        for (int i = list.size() - 1; i >= 0; i--) { // oldest first, so the first text of an edited message wins
+            final Entry e = list.get(i);
+            final String k = key(e.account, e.dialogId, e.messageId);
+            if (e.type == DELETED) {
+                deletedKeys.add(k);
+            } else if (e.type == EDITED && !originals.containsKey(k)) {
+                originals.put(k, e.text);
+            }
+        }
+    }
+
+    // the chat shows this message with a "deleted" mark (someone else deleted it; it is kept on this phone)
+    public static synchronized boolean isDeletedInChat(int account, long dialogId, int messageId) {
+        index();
+        return !deletedKeys.isEmpty() && deletedKeys.contains(key(account, dialogId, messageId));
+    }
+
+    // the text this message had before it was first edited by its sender, or null
+    public static synchronized String originalText(int account, long dialogId, int messageId) {
+        index();
+        return originals.isEmpty() ? null : originals.get(key(account, dialogId, messageId));
     }
 
     // newest first; dialogId 0 = every chat
@@ -134,6 +178,8 @@ public final class NexSaved {
                 list.remove(i);
             }
         }
+        deletedKeys = null;
+        originals = null;
         save();
     }
 

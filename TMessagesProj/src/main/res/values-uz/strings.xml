@@ -135,10 +135,10 @@
     <string name="NexFeaturesInfo">Arvoh rejimi, o\'chirilgan va tahrirlangan xabarlar</string>
     <string name="NexFeaturesMessages">Xabarlar</string>
     <string name="NexFeaturesKeepDeleted">O\'chirilgan xabarlarni saqlash</string>
-    <string name="NexFeaturesKeepDeletedInfo">Kimdir xabarni o\'chirsa, nusxasi shu yerda qoladi</string>
+    <string name="NexFeaturesKeepDeletedInfo">Kimdir xabarni o\'chirsa, u chatda 🗑 belgisi bilan qoladi</string>
     <string name="NexFeaturesKeepEdits">Tahrirlar tarixini saqlash</string>
-    <string name="NexFeaturesKeepEditsInfo">Tahrirdan oldingi matn saqlanadi</string>
-    <string name="NexFeaturesMessagesNote">Faqat bu telefonga kelib ulgurgan xabarlar saqlanadi: matni va media belgisi, fayllarsiz. Hammasi faqat shu telefonda turadi. Boshqa qurilmangizdan o\'zingiz o\'chirgan xabarlar ham saqlanib qolishi mumkin.</string>
+    <string name="NexFeaturesKeepEditsInfo">Tahrirlangan xabar ostida uning birinchi matni ko\'rinadi</string>
+    <string name="NexFeaturesMessagesNote">Faqat bu telefonga kelib ulgurgan xabarlar saqlanadi va faqat shu telefonda turadi. Ular «O\'chirilgan va tahrirlanganlar» ro\'yxatida ham bor.</string>
     <string name="NexFeaturesOn">Yoqilgan</string>
     <string name="NexFeaturesOff">O\'chiq</string>
     <string name="NexTimeCopied">Sana va vaqt nusxalandi</string>
@@ -414,4 +414,15 @@
     <string name="NexHighlightAdd">Qo\'shish</string>
     <string name="NexHighlightName">Albom nomi</string>
     <string name="NexHighlightCreate">Yaratish</string>
+    <string name="NexHideMenu">Chatni yashirish</string>
+    <string name="NexHideMenuOff">Chatni ko\'rsatish</string>
+    <string name="NexHideOn">Chat yashirildi. Topish uchun: chatlar oynasida NexGramm yozuvini bosib turing.</string>
+    <string name="NexHideOff">Chat yana ro\'yxatda</string>
+    <string name="NexHiddenTitle">Yashirin chatlar</string>
+    <string name="NexHiddenEmpty">Hozircha yashirin chat yo\'q.\n\nChat ichida: ⋮ → Chatni yashirish.\nRo\'yxatda: chatni bosib turing → ⋮ → Chatni yashirish.</string>
+    <string name="NexHiddenUnhideAsk">Bu chat yana ro\'yxatda ko\'rinsinmi?</string>
+    <string name="NexHiddenUnhide">Ko\'rsatish</string>
+    <string name="NexHiddenHint">Chatni ro\'yxatga qaytarish uchun uni bosib turing. Yashirin chatlardan bildirishnoma kelmaydi.</string>
+    <string name="NexDeletedMark">🗑 o\'chirilgan</string>
+    <string name="NexEditedBefore">✏️ Tahrirdan oldin:</string>
 </resources>

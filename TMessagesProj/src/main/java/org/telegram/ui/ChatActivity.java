@@ -1694,6 +1694,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int nex_saved = 91; // NexGramm: messages others deleted / edited here (when kept)
     private final static int nex_lock = 92; // NexGramm: lock / unlock this chat (fingerprint or screen PIN)
     private final static int nex_save_all = 93; // NexGramm: selected photos / videos → gallery in one go
+    private final static int nex_hide = 94; // NexGramm: hide / unhide this chat ("Hidden chats")
     private int nexSaveMediaCount;
     private android.widget.FrameLayout nexLockCover;
     private boolean nexLockOpened;
@@ -2936,6 +2937,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.didLoadSendAsPeers)
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
+            .add(NotificationCenter.nexMessagesKept)
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -4006,6 +4008,8 @@ public class ChatActivity extends BaseFragment implements
                     presentFragment(new NexSavedActivity(dialog_id));
                 } else if (id == nex_lock) {
                     nexToggleLock();
+                } else if (id == nex_hide) {
+                    nexToggleHidden();
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4450,6 +4454,8 @@ public class ChatActivity extends BaseFragment implements
             }
             if (chatMode == 0 && dialog_id != getUserConfig().getClientUserId()) {
                 headerItem.lazilyAddSubItem(nex_lock, R.drawable.msg_secret, LocaleController.getString(R.string.NexLockMenu));
+                headerItem.lazilyAddSubItem(nex_hide, R.drawable.msg_archive_hide, LocaleController.getString(
+                    NexChatLock.isHidden(currentAccount, dialog_id) ? R.string.NexHideMenuOff : R.string.NexHideMenu));
             }
             if (currentUser != null && chatMode != MODE_SAVED) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
@@ -9037,7 +9043,11 @@ public class ChatActivity extends BaseFragment implements
     // A locked chat is covered (below the header) until the phone's own unlock succeeds
     private void nexApplyLock() {
         if (nexLockOpened || nexLockCover != null || chatMode != 0 || !(fragmentView instanceof ViewGroup)
-            || !NexChatLock.isLocked(currentAccount, dialog_id)) {
+            || !NexChatLock.isProtected(currentAccount, dialog_id)) {
+            return;
+        }
+        if (arguments != null && arguments.getBoolean("nex_unlocked")) {
+            nexLockOpened = true; // opened from "Hidden chats", already unlocked there
             return;
         }
         nexLockCover = NexChatLock.createCover(fragmentView.getContext(), this::nexUnlock, this::finishFragment);
@@ -9080,6 +9090,30 @@ public class ChatActivity extends BaseFragment implements
             NexChatLock.setLocked(currentAccount, dialog_id, true);
             nexLockOpened = true; // it is open now; the next opening asks
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOn)).show();
+        }
+    }
+
+    // Hidden: gone from the chats list, folders and search, silent, listed only in "Hidden chats"
+    private void nexToggleHidden() {
+        if (!(getParentActivity() instanceof androidx.fragment.app.FragmentActivity)) {
+            return;
+        }
+        if (NexChatLock.isHidden(currentAccount, dialog_id)) {
+            NexChatLock.authenticate((androidx.fragment.app.FragmentActivity) getParentActivity(), () -> {
+                NexChatLock.setHidden(currentAccount, dialog_id, false);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexHideOff)).show();
+            });
+        } else if (!NexPremiumActivity.check(this)) {
+            // hiding a chat is NexGramm Premium (chats already hidden stay hidden)
+        } else if (!NexChatLock.canLock(getParentActivity())) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockNoScreenLock)).show();
+        } else {
+            NexChatLock.setHidden(currentAccount, dialog_id, true);
+            nexLockOpened = true; // it is open now; the next opening asks
+            getNotificationsController().removeNotificationsForDialog(dialog_id);
+            getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexHideOn)).show();
         }
     }
 
@@ -22389,6 +22423,24 @@ public class ChatActivity extends BaseFragment implements
             removeUnreadPlane(true);
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
+            }
+        } else if (id == NotificationCenter.nexMessagesKept) {
+            // NexGramm: a message deleted by its sender stays here with 🗑; an edited one shows its first text
+            final long did = (Long) args[0];
+            if (chatAdapter == null || did != dialog_id && did != mergeDialogId) {
+                return;
+            }
+            final ArrayList<Integer> ids = (ArrayList<Integer>) args[1];
+            final boolean edited = (Boolean) args[2];
+            for (Integer mid : ids) {
+                final MessageObject obj = messagesDict[did == dialog_id ? 0 : 1].get(mid);
+                if (obj != null) {
+                    if (edited) {
+                        obj.applyNewText();
+                    }
+                    obj.forceUpdate = true;
+                    chatAdapter.updateRowWithMessageObject(obj, !edited, false);
+                }
             }
         } else if (id == NotificationCenter.messagesDeleted) {
             boolean scheduled = (Boolean) args[2];

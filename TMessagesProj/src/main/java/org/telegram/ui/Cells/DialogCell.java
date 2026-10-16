@@ -2060,7 +2060,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
 
             // NexGramm: a locked chat shows no preview
-            final boolean nexLocked = currentDialogFolderId == 0 && currentDialogCommunityId == 0 && org.telegram.ui.NexChatLock.isLocked(currentAccount, currentDialogId);
+            final boolean nexLocked = currentDialogFolderId == 0 && currentDialogCommunityId == 0 && org.telegram.ui.NexChatLock.isProtected(currentAccount, currentDialogId);
             if (nexLocked) {
                 messageString = "🔒 " + getString(R.string.NexLockPreview);
                 messageNameString = null;

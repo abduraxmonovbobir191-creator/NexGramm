@@ -1080,6 +1080,9 @@ public class NotificationsController extends BaseController implements Notificat
                     }
                     continue;
                 }
+                if (org.telegram.ui.NexChatLock.isHidden(currentAccount, messageObject.getDialogId())) {
+                    continue; // NexGramm: a hidden chat stays silent
+                }
                 if (messageObject.isStoryPush) {
                     long date = messageObject.messageOwner == null ? System.currentTimeMillis() : messageObject.messageOwner.date * 1000L;
                     long dialogId = messageObject.getDialogId();
@@ -1799,7 +1802,7 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     public String getShortStringForMessage(MessageObject messageObject, String[] userName, boolean[] preview) {
-        if (messageObject != null && org.telegram.ui.NexChatLock.isLocked(currentAccount, messageObject.getDialogId())) {
+        if (messageObject != null && org.telegram.ui.NexChatLock.isProtected(currentAccount, messageObject.getDialogId())) {
             if (preview != null && preview.length > 0) {
                 preview[0] = false; // NexGramm: a locked chat never shows its text in a notification
             }
@@ -2491,7 +2494,7 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     private String getStringForMessage(MessageObject messageObject, boolean shortMessage, boolean[] text, boolean[] preview) {
-        if (messageObject != null && org.telegram.ui.NexChatLock.isLocked(currentAccount, messageObject.getDialogId())) {
+        if (messageObject != null && org.telegram.ui.NexChatLock.isProtected(currentAccount, messageObject.getDialogId())) {
             if (text != null && text.length > 0) {
                 text[0] = false;
             }
