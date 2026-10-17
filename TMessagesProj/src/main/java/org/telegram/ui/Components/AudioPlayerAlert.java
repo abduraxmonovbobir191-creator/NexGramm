@@ -572,9 +572,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             @Override
             protected void onImageUpdated(ImageReceiver imageReceiver) {
                 final Bitmap b = imageReceiver.getBitmap();
-                final int padding = (b != null && imageReceiver.hasImageLoaded() || imageReceiver.hasBitmapImage()) ? AndroidUtilities.dp(64) : 0;
-                setCustomPaddingRight(padding, true);
-                nexSetArt(b);
+                nexSetArt(b); // NexGramm: the cover is the card's background now, the title stays centered
                 if (blurredView.getTag() != null) {
                     bigAlbumConver.setImageBitmap(b);
                 }
@@ -1478,6 +1476,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         bigAlbumConver.setScaleY(0.9f);
         blurredView.addView(bigAlbumConver, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP, 30, 30, 30, 30));
 
+        nexApplyCardColors();
         updateTitle(false);
         updateRepeatButton();
         updateEmptyView();
@@ -2164,6 +2163,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             Theme.setSelectorDrawableColor(repeatButton.getBackground(), getThemedColor(Theme.key_player_buttonActive) & 0x19ffffff, true);
             repeatButton.setContentDescription(LocaleController.getString(R.string.AccDescrRepeatOne));
         }
+        nexTintRepeat();
     }
 
     private void updateProgress(MessageObject messageObject) {
@@ -2183,8 +2183,114 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
     private int nexAccent;
     private ValueAnimator nexArtAnimator;
 
-    private boolean nexDark() {
-        return AndroidUtilities.computePerceivedBrightness(getThemedColor(Theme.key_player_background)) < 0.5f;
+    private final RectF nexCardRect = new RectF();
+    private final Paint nexCardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final android.graphics.Path nexCardClip = new android.graphics.Path();
+    private android.graphics.LinearGradient nexScrim;
+    private float nexScrimHeight;
+    private long nexFilledDialog;
+
+    // "✦ Title • Artist" in one centered line, the artist a little softer
+    private CharSequence nexTitle(String title, String author) {
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+        sb.append("✦ ");
+        sb.setSpan(new android.text.style.ForegroundColorSpan(nexAccent != 0 ? nexAccent : 0xFFFFFFFF), 0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.append(title == null ? "" : title);
+        if (!TextUtils.isEmpty(author)) {
+            final int start = sb.length();
+            sb.append("  •  ").append(author);
+            sb.setSpan(new android.text.style.ForegroundColorSpan(0xB3FFFFFF), start, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return sb;
+    }
+
+    // the player is a dark card (One UI's media card): white text and icons, round glassy buttons
+    private void nexApplyCardColors() {
+        for (TextView tv : new TextView[]{titleTextView.getTextView(), titleTextView.getNextTextView()}) {
+            if (tv != null) {
+                tv.setTextColor(0xFFFFFFFF);
+                tv.setGravity(Gravity.CENTER);
+                tv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+            }
+        }
+        authorTextView.setVisibility(View.GONE);
+        coverContainer.setVisibility(View.INVISIBLE); // still loads the cover for the card
+        timeTextView.setTextColor(0xB3FFFFFF);
+        durationTextView.setTextColor(0xB3FFFFFF);
+        for (RLottieImageView button : new RLottieImageView[]{prevButton, nextButton}) {
+            button.setLayerColor("Triangle 3", 0xFFFFFFFF);
+            button.setLayerColor("Triangle 4", 0xFFFFFFFF);
+            button.setLayerColor("Rectangle 4", 0xFFFFFFFF);
+            button.setBackground(Theme.createSimpleSelectorCircleDrawable(dp(44), 0x1FFFFFFF, 0x40FFFFFF));
+        }
+        playButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.MULTIPLY));
+        playButton.setBackground(Theme.createSimpleSelectorCircleDrawable(dp(48), 0x33FFFFFF, 0x55FFFFFF));
+        optionsButton.setIconColor(0xD9FFFFFF);
+        seekBarView.setNexTrackColor(0x40FFFFFF);
+        seekBarView.setOuterColor(0xFFFFFFFF);
+        playerShadow.setVisibility(View.GONE);
+    }
+
+    private void nexTintRepeat() {
+        if (repeatButton == null) {
+            return;
+        }
+        final boolean active = Theme.key_player_buttonActive == (repeatButton.getTag() instanceof Integer ? (Integer) repeatButton.getTag() : -1);
+        repeatButton.setIconColor(active ? (nexAccent != 0 ? nexAccent : 0xFFFFFFFF) : 0xD9FFFFFF);
+    }
+
+    // Telegram builds the list only from music already cached on the phone; a bot chat often has none, so the
+    // chat's music is also asked from the server and handed to the player the way its own loader does
+    private void nexFillPlaylist(MessageObject playing) {
+        if (playing == null || !playing.isMusic() || playing.scheduled || playlist.size() > 1 || savedMusicList != null
+            || playing != MediaController.getInstance().getPlayingMessageObject()) {
+            return;
+        }
+        final long did = playing.getDialogId();
+        if (did == 0 || DialogObject.isEncryptedDialog(did) || did == nexFilledDialog) {
+            return;
+        }
+        final int account = playing.currentAccount;
+        final TLRPC.InputPeer peer = MessagesController.getInstance(account).getInputPeer(did);
+        if (peer == null) {
+            return;
+        }
+        nexFilledDialog = did;
+        final TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
+        req.peer = peer;
+        req.q = "";
+        req.filter = new TLRPC.TL_inputMessagesFilterMusic();
+        req.limit = 100;
+        ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> {
+            if (!(response instanceof TLRPC.messages_Messages)) {
+                return;
+            }
+            final TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+            AndroidUtilities.runOnUIThread(() -> {
+                final MessageObject now = MediaController.getInstance().getPlayingMessageObject();
+                if (now == null || now.getDialogId() != did) {
+                    return;
+                }
+                MessagesController.getInstance(account).putUsers(res.users, false);
+                MessagesController.getInstance(account).putChats(res.chats, false);
+                final java.util.HashSet<Integer> have = new java.util.HashSet<>();
+                for (MessageObject o : MediaController.getInstance().getPlaylist()) {
+                    have.add(o.getId());
+                }
+                final ArrayList<MessageObject> older = new ArrayList<>();
+                final ArrayList<MessageObject> newer = new ArrayList<>();
+                for (TLRPC.Message message : res.messages) {
+                    if (message == null || have.contains(message.id) || !MessageObject.isMusicMessage(message)) {
+                        continue;
+                    }
+                    message.dialog_id = did;
+                    (message.id < now.getId() ? older : newer).add(new MessageObject(account, message, false, true));
+                }
+                if (!older.isEmpty() || !newer.isEmpty()) {
+                    NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.musicDidLoad, did, older, newer);
+                }
+            });
+        });
     }
 
     private void nexSetArt(Bitmap source) {
@@ -2196,15 +2302,15 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         Bitmap blurred = null;
         if (source != null) {
             try {
-                blurred = Utilities.stackBlurBitmapMax(source);
+                blurred = Utilities.stackBlurBitmapWithScaleFactor(source, 5f);
             } catch (Throwable e) {
                 FileLog.e(e);
             }
         }
         nexArtOld = nexArt;
         nexArt = blurred;
-        final int fromAccent = nexAccent != 0 ? nexAccent : getThemedColor(Theme.key_player_progress);
-        final int toAccent = NexMusicWave.accentFrom(source, nexDark(), getThemedColor(Theme.key_player_progress));
+        final int fromAccent = nexAccent != 0 ? nexAccent : 0xFF7FD8FF;
+        final int toAccent = NexMusicWave.accentFrom(source, true, 0xFF7FD8FF);
         if (nexArtAnimator != null) {
             nexArtAnimator.cancel();
         }
@@ -2217,8 +2323,8 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             if (seekBarView != null) {
                 seekBarView.setOuterColor(nexAccent);
             }
-            if (playButton != null) {
-                playButton.setColorFilter(new PorterDuffColorFilter(nexAccent, PorterDuff.Mode.MULTIPLY));
+            if (nexArtProgress >= 1f && lastMessageObject != null && titleTextView != null) {
+                nexTintRepeat();
             }
             if (playerLayout != null) {
                 playerLayout.invalidate();
@@ -2234,23 +2340,44 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
     }
 
     private void nexDrawArt(Canvas canvas, View layout) {
-        final int alpha = nexDark() ? 150 : 95;
-        if (nexArtOld != null && nexArtProgress < 1f) {
-            nexDrawBitmap(canvas, layout, nexArtOld, (int) (alpha * (1f - nexArtProgress)));
-        }
-        if (nexArt != null) {
-            nexDrawBitmap(canvas, layout, nexArt, (int) (alpha * nexArtProgress));
-        }
-    }
-
-    private void nexDrawBitmap(Canvas canvas, View layout, Bitmap bitmap, int alpha) {
-        if (bitmap == null || bitmap.isRecycled() || alpha <= 0 || layout.getWidth() <= 0) {
+        final float w = layout.getWidth();
+        if (w <= 0) {
             return;
         }
-        // center crop over the whole player
-        final float scale = Math.max(layout.getWidth() / (float) bitmap.getWidth(), layout.getHeight() / (float) bitmap.getHeight());
+        nexCardRect.set(dp(8), dp(4), w - dp(8), dp(178));
+        canvas.save();
+        nexCardClip.rewind();
+        nexCardClip.addRoundRect(nexCardRect, dp(30), dp(30), android.graphics.Path.Direction.CW);
+        canvas.clipPath(nexCardClip);
+        nexCardPaint.setShader(null);
+        nexCardPaint.setColor(0xFF16161C);
+        canvas.drawRect(nexCardRect, nexCardPaint);
+        if (nexArtOld != null && nexArtProgress < 1f) {
+            nexDrawBitmap(canvas, nexArtOld, (int) (255 * (1f - nexArtProgress)));
+        }
+        if (nexArt != null) {
+            nexDrawBitmap(canvas, nexArt, (int) (255 * nexArtProgress));
+        }
+        // darker toward the buttons, like the lock screen card, so white stays readable on any cover
+        if (nexScrim == null || nexScrimHeight != nexCardRect.height()) {
+            nexScrimHeight = nexCardRect.height();
+            nexScrim = new android.graphics.LinearGradient(0, nexCardRect.top, 0, nexCardRect.bottom, 0x73000000, 0xB3000000, android.graphics.Shader.TileMode.CLAMP);
+        }
+        nexCardPaint.setShader(nexScrim);
+        canvas.drawRect(nexCardRect, nexCardPaint);
+        nexCardPaint.setShader(null);
+        canvas.restore();
+    }
+
+    private void nexDrawBitmap(Canvas canvas, Bitmap bitmap, int alpha) {
+        if (bitmap == null || bitmap.isRecycled() || alpha <= 0) {
+            return;
+        }
+        // center crop over the card
+        final float scale = Math.max(nexCardRect.width() / bitmap.getWidth(), nexCardRect.height() / bitmap.getHeight());
         nexArtMatrix.setScale(scale, scale);
-        nexArtMatrix.postTranslate((layout.getWidth() - bitmap.getWidth() * scale) / 2f, (layout.getHeight() - bitmap.getHeight() * scale) / 2f);
+        nexArtMatrix.postTranslate(nexCardRect.left + (nexCardRect.width() - bitmap.getWidth() * scale) / 2f,
+            nexCardRect.top + (nexCardRect.height() - bitmap.getHeight() * scale) / 2f);
         nexArtPaint.setAlpha(alpha);
         canvas.drawBitmap(bitmap, nexArtMatrix, nexArtPaint);
     }
@@ -2388,8 +2515,11 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             }
             String title = messageObject.getMusicTitle();
             String author = messageObject.getMusicAuthor();
-            titleTextView.setText(title);
+            titleTextView.setText(nexTitle(title, author));
             authorTextView.setText(author);
+            if (!sameMessageObject) {
+                AndroidUtilities.runOnUIThread(() -> nexFillPlaylist(messageObject), 700);
+            }
 
             final MessagesController.SavedMusicIds musicIds = MessagesController.getInstance(currentAccount).getSavedMusicIds();
             saveToProfileButton.setLoading(musicIds.loading);

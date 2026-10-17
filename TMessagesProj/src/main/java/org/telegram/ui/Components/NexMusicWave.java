@@ -9,10 +9,10 @@ import android.os.SystemClock;
 
 import org.telegram.messenger.AndroidUtilities;
 
-// NexGramm: the music player's progress line, One UI style. The played part is a wave that moves with the
-// song itself: the player's FFT (VideoPlayer's audio visualizer, every ~64 ms, in sync with what is heard)
+// NexGramm: the music player's progress line, One UI style. Above the played part a soft glowing light rises
+// and breathes with the song itself: the player's FFT (VideoPlayer's audio visualizer, every ~64 ms, in sync with what is heard)
 // gives a loudness and six frequency bands; loudness sets how tall the wave is and how fast it runs, the
-// bands shape it along the line (bass at the start, treble at the end). Silence or pause lays it flat.
+// bands shape it along the line (bass at the start, treble at the end). Silence or pause lets it settle.
 // accentFrom picks the cover's most vivid color, so the wave, the thumb and the play button match the song.
 public class NexMusicWave {
 
@@ -73,55 +73,68 @@ public class NexMusicWave {
         }
     }
 
-    // draws the played part from left to right around centerY; true while it still moves (invalidate again)
+    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private android.graphics.LinearGradient glowShader;
+    private int glowColor;
+    private float glowTop, glowBottom;
+
+    // draws the played part from left to right around centerY, One UI style: the straight progress line with a
+    // soft glowing "aurora" rising above it that breathes with the music; true while it still moves
     public boolean draw(Canvas canvas, float left, float right, float centerY, float lineWidth, int color, boolean active) {
         final long now = SystemClock.elapsedRealtime();
         final float dt = lastFrame == 0 ? 16 : Math.min(48, now - lastFrame);
         lastFrame = now;
 
-        // ease toward the music: quick to rise, slower to fall, so beats pop and the wave never jitters
+        // ease toward the music: quick to rise, slower to fall, so beats pop and the light never jitters
         final float target = active && playing ? level : 0;
-        shownLevel += (target - shownLevel) * (target > shownLevel ? 0.35f : 0.12f) * (dt / 16f);
+        shownLevel += (target - shownLevel) * (target > shownLevel ? 0.3f : 0.08f) * (dt / 16f);
         for (int i = 0; i < shownBands.length; i++) {
             final float t = active && playing ? bands[i] : 0;
-            shownBands[i] += (t - shownBands[i]) * (t > shownBands[i] ? 0.3f : 0.1f) * (dt / 16f);
+            shownBands[i] += (t - shownBands[i]) * (t > shownBands[i] ? 0.25f : 0.07f) * (dt / 16f);
         }
-        // the wave keeps flowing while music plays, faster when it is loud
         if (active && playing) {
-            phase += dt * (0.006f + 0.012f * shownLevel);
+            phase += dt * (0.0025f + 0.004f * shownLevel);
+        }
+
+        final float width = right - left;
+        final float maxHeight = AndroidUtilities.dp(4) + AndroidUtilities.dp(13) * shownLevel;
+        if (width > AndroidUtilities.dp(8) && shownLevel > 0.01f) {
+            final float step = AndroidUtilities.dp(3);
+            path.rewind();
+            path.moveTo(left, centerY);
+            for (float x = 0; x <= width; x += step) {
+                final float pos = x / width;
+                final float f = pos * (shownBands.length - 1);
+                final int i = (int) f;
+                final float band = i >= shownBands.length - 1 ? shownBands[shownBands.length - 1]
+                    : shownBands[i] + (shownBands[i + 1] - shownBands[i]) * (f - i);
+                // two slow swells drifting at different speeds: a liquid, never-repeating hill line
+                final double a = Math.sin(x / AndroidUtilities.dp(70) * Math.PI - phase);
+                final double b = Math.sin(x / AndroidUtilities.dp(31) * Math.PI + phase * 1.7);
+                final float shape = (float) (0.55 + 0.3 * a + 0.15 * b);
+                final float taper = Math.min(1f, Math.min(x, width - x) / AndroidUtilities.dp(18));
+                final float h = maxHeight * Math.max(0f, shape) * (0.45f + 0.55f * band) * taper;
+                path.lineTo(left + x, centerY - h);
+            }
+            path.lineTo(right, centerY);
+            path.close();
+            final float top = centerY - AndroidUtilities.dp(17);
+            if (glowShader == null || glowColor != color || glowTop != top || glowBottom != centerY) {
+                glowColor = color;
+                glowTop = top;
+                glowBottom = centerY;
+                glowShader = new android.graphics.LinearGradient(0, top, 0, centerY,
+                    (color & 0x00FFFFFF) | 0x10000000, (color & 0x00FFFFFF) | 0xA0000000, android.graphics.Shader.TileMode.CLAMP);
+            }
+            glowPaint.setShader(glowShader);
+            canvas.drawPath(path, glowPaint);
         }
 
         paint.setColor(color);
         paint.setStrokeWidth(lineWidth);
-        final float width = right - left;
-        final float base = AndroidUtilities.dp(1.2f) + AndroidUtilities.dp(4.5f) * shownLevel;
-        if (width <= lineWidth || base < AndroidUtilities.dp(1.25f) && shownLevel < 0.02f) {
-            canvas.drawLine(left, centerY, Math.max(left, right), centerY, paint);
-            return active && playing;
+        if (right > left) {
+            canvas.drawLine(left, centerY, right, centerY, paint);
         }
-
-        final float wavelength = AndroidUtilities.dp(22);
-        final float step = AndroidUtilities.dp(2);
-        path.rewind();
-        for (float x = 0; x <= width; x += step) {
-            final float pos = x / width;
-            // the bands spread along the line, blended between neighbours
-            final float f = pos * (shownBands.length - 1);
-            final int i = (int) f;
-            final float band = i >= shownBands.length - 1 ? shownBands[shownBands.length - 1]
-                : shownBands[i] + (shownBands[i + 1] - shownBands[i]) * (f - i);
-            // the ends taper into the line, so the wave grows out of the start and into the thumb
-            final float taper = Math.min(1f, Math.min(x, width - x) / AndroidUtilities.dp(10));
-            final float amp = base * (0.55f + 0.45f * band) * taper;
-            final float y = centerY + (float) Math.sin(x / wavelength * 2 * Math.PI - phase) * amp;
-            if (x == 0) {
-                path.moveTo(left, y);
-            } else {
-                path.lineTo(left + x, y);
-            }
-        }
-        path.lineTo(right, centerY);
-        canvas.drawPath(path, paint);
         return active && playing || shownLevel > 0.01f;
     }
 
