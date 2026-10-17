@@ -1711,8 +1711,6 @@ public class ChatActivity extends BaseFragment implements
     private final static int nex_lock = 92; // NexGramm: lock / unlock this chat (fingerprint or screen PIN)
     private final static int nex_save_all = 93; // NexGramm: selected photos / videos → gallery in one go
     private final static int nex_hide = 94; // NexGramm: hide / unhide this chat ("Hidden chats")
-    private final static int nex_privacy = 95; // NexGramm: privacy view on / off in this chat
-    private org.telegram.ui.Components.NexPrivacyView nexPrivacy;
     private int nexSaveMediaCount;
     private android.widget.FrameLayout nexLockCover;
     private boolean nexLockOpened;
@@ -4065,8 +4063,6 @@ public class ChatActivity extends BaseFragment implements
                     nexToggleLock();
                 } else if (id == nex_hide) {
                     nexToggleHidden();
-                } else if (id == nex_privacy) {
-                    nexTogglePrivacy();
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4517,9 +4513,6 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(nex_lock, R.drawable.msg_secret, LocaleController.getString(R.string.NexLockMenu));
                 headerItem.lazilyAddSubItem(nex_hide, R.drawable.msg_archive_hide, LocaleController.getString(
                     NexChatLock.isHidden(currentAccount, dialog_id) ? R.string.NexHideMenuOff : R.string.NexHideMenu));
-                if (nexWantsPrivacy()) {
-                    headerItem.lazilyAddSubItem(nex_privacy, R.drawable.msg_stories_stealth, LocaleController.getString(R.string.NexPrivacyView));
-                }
             }
             if (currentUser != null && chatMode != MODE_SAVED) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
@@ -9101,58 +9094,7 @@ public class ChatActivity extends BaseFragment implements
         Timer.finish(t);
 
         nexApplyLock();
-        nexApplyPrivacy();
         return fragmentView;
-    }
-
-    // ---- NexGramm: privacy view (hidden / locked chats, hidden accounts) ----
-
-    private boolean nexWantsPrivacy() {
-        return chatMode == 0 && uz.nexgramm.core.NexShield.privacyView()
-            && (NexChatLock.isProtected(currentAccount, dialog_id) || org.telegram.messenger.NexAccounts.isHidden(currentAccount));
-    }
-
-    // on by itself where it belongs; the ⋮ item or a two-finger tap switch it for this visit
-    private void nexApplyPrivacy() {
-        if (contentView == null || chatListView == null) {
-            return;
-        }
-        if (!nexWantsPrivacy()) {
-            if (nexPrivacy != null) {
-                nexPrivacy.setOn(false, true);
-            }
-            return;
-        }
-        nexCreatePrivacy();
-        nexPrivacy.setOn(true, nexPrivacy.isAttachedToWindow());
-    }
-
-    private void nexCreatePrivacy() {
-        if (nexPrivacy != null) {
-            return;
-        }
-        nexPrivacy = new org.telegram.ui.Components.NexPrivacyView(contentView.getContext());
-        nexPrivacy.setLimits(actionBar, chatInputBubbleContainer);
-        nexPrivacy.setOnToggle(() -> {
-            if (nexWantsPrivacy()) {
-                nexTogglePrivacy();
-            }
-        });
-        nexPrivacy.watch(chatListView);
-        contentView.addView(nexPrivacy, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        if (!paused) {
-            nexPrivacy.onResume(getParentActivity());
-        }
-    }
-
-    private void nexTogglePrivacy() {
-        if (contentView == null || chatListView == null) {
-            return;
-        }
-        nexCreatePrivacy();
-        final boolean on = !nexPrivacy.isOn();
-        nexPrivacy.setOn(on, true);
-        BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(on ? R.string.NexPrivacyOn : R.string.NexPrivacyOff)).show();
     }
 
     // ---- NexGramm: chat lock ----
@@ -9203,7 +9145,6 @@ public class ChatActivity extends BaseFragment implements
                 if (flagSecure != null) {
                     flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
                 }
-                nexApplyPrivacy();
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOff)).show();
             });
         } else if (!NexPremiumActivity.check(this)) {
@@ -9215,7 +9156,6 @@ public class ChatActivity extends BaseFragment implements
             if (flagSecure != null) {
                 flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
             }
-            nexApplyPrivacy();
             nexLockOpened = true; // it is open now; the next opening asks
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOn)).show();
         }
@@ -9232,7 +9172,6 @@ public class ChatActivity extends BaseFragment implements
                 if (flagSecure != null) {
                     flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
                 }
-                nexApplyPrivacy();
                 getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexHideOff)).show();
             });
@@ -9245,7 +9184,6 @@ public class ChatActivity extends BaseFragment implements
             if (flagSecure != null) {
                 flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
             }
-            nexApplyPrivacy();
             nexLockOpened = true; // it is open now; the next opening asks
             getNotificationsController().removeNotificationsForDialog(dialog_id);
             getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
@@ -30142,9 +30080,6 @@ public class ChatActivity extends BaseFragment implements
     public void onResume() {
         super.onResume();
         nexApplyLock();
-        if (nexPrivacy != null) {
-            nexPrivacy.onResume(getParentActivity());
-        }
         if (nexLockCover != null && !nexLockPrompted) {
             nexLockPrompted = true;
             AndroidUtilities.runOnUIThread(() -> {
@@ -30365,9 +30300,6 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onPause() {
         super.onPause();
-        if (nexPrivacy != null) {
-            nexPrivacy.onPause();
-        }
         scrolling = false;
         if (scrimPopupWindow != null) {
             scrimPopupWindow.setPauseNotifications(false);

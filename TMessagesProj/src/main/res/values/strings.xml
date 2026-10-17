@@ -11999,8 +11999,4 @@
     <string name="NexAccSilent">No notifications from hidden accounts</string>
     <string name="NexAccSilentInfo">Off: only “New message” is shown, without the name or the text</string>
     <string name="NexAccPick">Accounts to hide</string>
-    <string name="NexPrivacyView">Privacy view</string>
-    <string name="NexPrivacyViewInfo">Hidden and locked chats and hidden accounts stay dark: only the few lines under your finger are lit and the screen dims, so people next to you can\'t read along. Tap with two fingers to switch it off and on</string>
-    <string name="NexPrivacyOn">Privacy view on</string>
-    <string name="NexPrivacyOff">Privacy view off — two fingers turn it back on</string>
 </resources>

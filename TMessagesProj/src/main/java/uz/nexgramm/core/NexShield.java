@@ -8,15 +8,13 @@ import java.util.Locale;
 //    (zero-click media bugs need the file to be fetched and decoded by itself);
 //  - links: a link that is not plain https to a named site (http, a bare IP, an .apk, a look-alike name)
 //    always shows where it goes and why it may be a trap before anything opens;
-//  - screen: locked and hidden chats cannot be screenshotted or recorded, and show nothing in recent apps;
-//  - privacy view: those chats (and hidden accounts) sit dark, only a reading strip under the finger is lit.
+//  - screen: locked and hidden chats cannot be screenshotted or recorded, and show nothing in recent apps.
 // All on by default; switched in Settings → Security center. The prefs part needs Android; linkRisk is pure.
 public final class NexShield {
 
     public static final String STRANGERS = "strangers";
     public static final String LINKS = "links";
     public static final String SCREEN = "screen";
-    public static final String PRIVACY = "privacy_view";
 
     public static final int LINK_OK = 0;
     public static final int LINK_HTTP = 1;
@@ -28,7 +26,6 @@ public final class NexShield {
     private static volatile boolean strangers = true;
     private static volatile boolean links = true;
     private static volatile boolean screen = true;
-    private static volatile boolean privacy = true;
 
     private NexShield() {
     }
@@ -45,7 +42,6 @@ public final class NexShield {
         strangers = p.getBoolean(STRANGERS, true);
         links = p.getBoolean(LINKS, true);
         screen = p.getBoolean(SCREEN, true);
-        privacy = p.getBoolean(PRIVACY, true);
         loaded = true;
     }
 
@@ -64,15 +60,9 @@ public final class NexShield {
         return screen;
     }
 
-    // privacy view: hidden / locked chats and hidden accounts sit dark, only a reading strip lit
-    public static boolean privacyView() {
-        load();
-        return privacy;
-    }
-
     public static boolean isOn(String key) {
         load();
-        return STRANGERS.equals(key) ? strangers : LINKS.equals(key) ? links : PRIVACY.equals(key) ? privacy : screen;
+        return STRANGERS.equals(key) ? strangers : LINKS.equals(key) ? links : screen;
     }
 
     public static void set(String key, boolean value) {
@@ -81,12 +71,10 @@ public final class NexShield {
         load();
     }
 
-    public static final int LAYERS = 4;
-
-    // how many of the layers are on (the security center shows it as "4 / 4")
+    // how many of the layers are on (the security center shows it as "3 / 3")
     public static int activeCount() {
         load();
-        return (strangers ? 1 : 0) + (links ? 1 : 0) + (screen ? 1 : 0) + (privacy ? 1 : 0);
+        return (strangers ? 1 : 0) + (links ? 1 : 0) + (screen ? 1 : 0);
     }
 
     // why opening this web link deserves a second look, or LINK_OK; tg:// and t.me links are not checked here
