@@ -588,6 +588,7 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         NEX_AI(TabAnimationType.STATIC, R.drawable.nex_tab_ai),
         FEED(TabAnimationType.STATIC, R.drawable.nex_tab_feed),
         ARTICLE(R.raw.tab_article, R.raw.tab_article_reverse),
+        GRAM(R.raw.gram, R.raw.gram_reverse),
 
         BOOSTS(R.raw.boosts, 25, 49),
         MONETIZATION(R.raw.monetize, 19, 45);
