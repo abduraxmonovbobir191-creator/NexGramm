@@ -534,6 +534,12 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         
         playerLayout = new FrameLayout(context) {
             @Override
+            protected void dispatchDraw(@NonNull Canvas canvas) {
+                nexDrawArt(canvas, this); // NexGramm: the cover, blurred, behind the player
+                super.dispatchDraw(canvas);
+            }
+
+            @Override
             protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
                 super.onLayout(changed, left, top, right, bottom);
                 if (playbackSpeedButton != null && durationTextView != null) {
@@ -568,6 +574,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                 final Bitmap b = imageReceiver.getBitmap();
                 final int padding = (b != null && imageReceiver.hasImageLoaded() || imageReceiver.hasBitmapImage()) ? AndroidUtilities.dp(64) : 0;
                 setCustomPaddingRight(padding, true);
+                nexSetArt(b);
                 if (blurredView.getTag() != null) {
                     bigAlbumConver.setImageBitmap(b);
                 }
@@ -660,6 +667,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             }
         });
         seekBarView.setReportChanges(true);
+        seekBarView.setNexWave(nexWave);
         playerLayout.addView(seekBarView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38 + 6, Gravity.TOP | Gravity.LEFT, 5, 67, 5, 0));
 
         seekBarBufferSpring = new SpringAnimation(new FloatValueHolder(0))
@@ -2162,8 +2170,94 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         updateProgress(messageObject, false);
     }
 
+    // ---- NexGramm: One UI style player — blurred cover behind it, the wave and the play button in the
+    // cover's color, a soft crossfade and a small pop of the cover when the song changes ----
+
+    private final NexMusicWave nexWave = new NexMusicWave();
+    private final Paint nexArtPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private final android.graphics.Matrix nexArtMatrix = new android.graphics.Matrix();
+    private Bitmap nexArtSource;
+    private Bitmap nexArt;
+    private Bitmap nexArtOld;
+    private float nexArtProgress = 1f;
+    private int nexAccent;
+    private ValueAnimator nexArtAnimator;
+
+    private boolean nexDark() {
+        return AndroidUtilities.computePerceivedBrightness(getThemedColor(Theme.key_player_background)) < 0.5f;
+    }
+
+    private void nexSetArt(Bitmap source) {
+        if (source == nexArtSource || source != null && source.isRecycled()) {
+            return;
+        }
+        final boolean changed = nexArtSource != null;
+        nexArtSource = source;
+        Bitmap blurred = null;
+        if (source != null) {
+            try {
+                blurred = Utilities.stackBlurBitmapMax(source);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
+        nexArtOld = nexArt;
+        nexArt = blurred;
+        final int fromAccent = nexAccent != 0 ? nexAccent : getThemedColor(Theme.key_player_progress);
+        final int toAccent = NexMusicWave.accentFrom(source, nexDark(), getThemedColor(Theme.key_player_progress));
+        if (nexArtAnimator != null) {
+            nexArtAnimator.cancel();
+        }
+        nexArtAnimator = ValueAnimator.ofFloat(0f, 1f);
+        nexArtAnimator.setDuration(520);
+        nexArtAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        nexArtAnimator.addUpdateListener(a -> {
+            nexArtProgress = (float) a.getAnimatedValue();
+            nexAccent = ColorUtils.blendARGB(fromAccent, toAccent, nexArtProgress);
+            if (seekBarView != null) {
+                seekBarView.setOuterColor(nexAccent);
+            }
+            if (playButton != null) {
+                playButton.setColorFilter(new PorterDuffColorFilter(nexAccent, PorterDuff.Mode.MULTIPLY));
+            }
+            if (playerLayout != null) {
+                playerLayout.invalidate();
+            }
+        });
+        nexArtAnimator.start();
+        if (changed && source != null) {
+            coverContainer.animate().cancel();
+            coverContainer.setScaleX(0.86f);
+            coverContainer.setScaleY(0.86f);
+            coverContainer.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
+        }
+    }
+
+    private void nexDrawArt(Canvas canvas, View layout) {
+        final int alpha = nexDark() ? 150 : 95;
+        if (nexArtOld != null && nexArtProgress < 1f) {
+            nexDrawBitmap(canvas, layout, nexArtOld, (int) (alpha * (1f - nexArtProgress)));
+        }
+        if (nexArt != null) {
+            nexDrawBitmap(canvas, layout, nexArt, (int) (alpha * nexArtProgress));
+        }
+    }
+
+    private void nexDrawBitmap(Canvas canvas, View layout, Bitmap bitmap, int alpha) {
+        if (bitmap == null || bitmap.isRecycled() || alpha <= 0 || layout.getWidth() <= 0) {
+            return;
+        }
+        // center crop over the whole player
+        final float scale = Math.max(layout.getWidth() / (float) bitmap.getWidth(), layout.getHeight() / (float) bitmap.getHeight());
+        nexArtMatrix.setScale(scale, scale);
+        nexArtMatrix.postTranslate((layout.getWidth() - bitmap.getWidth() * scale) / 2f, (layout.getHeight() - bitmap.getHeight() * scale) / 2f);
+        nexArtPaint.setAlpha(alpha);
+        canvas.drawBitmap(bitmap, nexArtMatrix, nexArtPaint);
+    }
+
     private void updateProgress(MessageObject messageObject, boolean animated) {
         if (seekBarView != null) {
+            seekBarView.setNexWaveActive(!MediaController.getInstance().isMessagePaused());
             int newTime;
             if (seekBarView.isDragging()) {
                 newTime = (int) (messageObject.getDuration() * seekBarView.getProgress());
