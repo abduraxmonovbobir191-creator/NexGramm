@@ -700,4 +700,19 @@
     <string name="NexPremiumInvite">🎁 Приглашайте друзей: за каждого друга, который начнёт пользоваться NexGramm, — бесплатные дни Premium.</string>
     <string name="NexPremiumInviteButton">Пригласить друзей</string>
     <string name="NexPremiumInviteShare">NexGramm — удобный мессенджер с Лентой и NEX AI. Заходи по моей ссылке:</string>
+    <string name="NexShieldTitle">Центр безопасности</string>
+    <string name="NexShieldSummary">🛡 Включено %1$d из %2$d уровней защиты. NexGramm проверяет каждую ссылку, файл и незнакомца за вас; переключатели ниже задают строгость.</string>
+    <string name="NexShieldLayers">Щит</string>
+    <string name="NexShieldStrangers">Медиа от незнакомцев — по нажатию</string>
+    <string name="NexShieldStrangersInfo">Фото, видео, файлы и голосовые от людей не из контактов не скачиваются сами (защита от zero-click атак)</string>
+    <string name="NexShieldLinks">Проверка ссылок</string>
+    <string name="NexShieldLinksInfo">Ссылки http, на IP-адрес, на .apk и с похожими буквами показывают адрес и предупреждение перед открытием</string>
+    <string name="NexShieldScreen">Без скриншотов личных чатов</string>
+    <string name="NexShieldScreenInfo">Закрытые и скрытые чаты нельзя снять скриншотом или записью, в недавних приложениях они пустые</string>
+    <string name="NexShieldAccount">Аккаунт</string>
+    <string name="NexShieldAlways">Всегда включено: каждый скачанный APK проверяется, опасные блокируются; ключи входа никогда не попадают в резервные копии (облако или кабель); анимированные стикеры рисует память-безопасный движок с лимитом размера. Время от времени проверяйте активные сеансы и завершайте незнакомые.</string>
+    <string name="NexShieldLinkHttp">Без шифрования (http): любой в сети может прочитать или подменить страницу</string>
+    <string name="NexShieldLinkIp">Ссылка ведёт на IP-адрес, а не на имя сайта — так часто делают мошенники</string>
+    <string name="NexShieldLinkApk">Ссылка скачивает приложение (APK). Устанавливайте приложения только из надёжных источников</string>
+    <string name="NexShieldLinkLookalike">В имени сайта похожие буквы — он может подделывать настоящий сайт</string>
 </resources>

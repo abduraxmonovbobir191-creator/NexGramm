@@ -273,6 +273,7 @@ public class ApplicationLoader extends Application {
             DownloadController.getInstance(a);
         }
         BillingController.getInstance().startConnection();
+        uz.nexgramm.core.NexSaved.warmUp(); // NexGramm: kept deleted / edited messages indexed off the main thread
     }
 
     public ApplicationLoader() {

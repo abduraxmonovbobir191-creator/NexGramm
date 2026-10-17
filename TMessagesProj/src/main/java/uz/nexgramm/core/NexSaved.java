@@ -55,6 +55,9 @@ public final class NexSaved {
     // for the chat itself: which messages were deleted by others, and the first text of edited ones
     private static java.util.HashSet<String> deletedKeys;
     private static java.util.HashMap<String, String> originals;
+    // sorted ids of the chats that have any deleted / edited entry (null = not indexed yet): every message of
+    // every other chat is answered from this array, without the lock or a key string
+    private static volatile long[] markedDialogs;
 
     private NexSaved() {
     }
@@ -121,6 +124,13 @@ public final class NexSaved {
             } else if (entry.type == EDITED && !originals.containsKey(key(entry.account, entry.dialogId, entry.messageId))) {
                 originals.put(key(entry.account, entry.dialogId, entry.messageId), entry.text); // the first text stays
             }
+            final long[] marked = markedDialogs;
+            if (marked != null && java.util.Arrays.binarySearch(marked, entry.dialogId) < 0) {
+                final long[] grown = java.util.Arrays.copyOf(marked, marked.length + 1);
+                grown[marked.length] = entry.dialogId;
+                java.util.Arrays.sort(grown);
+                markedDialogs = grown;
+            }
         }
         save();
     }
@@ -136,27 +146,63 @@ public final class NexSaved {
         deletedKeys = new java.util.HashSet<>();
         originals = new java.util.HashMap<>();
         final ArrayList<Entry> list = all();
+        final java.util.HashSet<Long> dialogs = new java.util.HashSet<>();
         for (int i = list.size() - 1; i >= 0; i--) { // oldest first, so the first text of an edited message wins
             final Entry e = list.get(i);
             final String k = key(e.account, e.dialogId, e.messageId);
             if (e.type == DELETED) {
                 deletedKeys.add(k);
+                dialogs.add(e.dialogId);
             } else if (e.type == EDITED && !originals.containsKey(k)) {
                 originals.put(k, e.text);
+                dialogs.add(e.dialogId);
             }
         }
+        final long[] marked = new long[dialogs.size()];
+        int n = 0;
+        for (Long id : dialogs) {
+            marked[n++] = id;
+        }
+        java.util.Arrays.sort(marked);
+        markedDialogs = marked;
+    }
+
+    private static boolean marked(long dialogId) {
+        long[] marked = markedDialogs;
+        if (marked == null) {
+            synchronized (NexSaved.class) {
+                index();
+                marked = markedDialogs;
+            }
+        }
+        return marked.length > 0 && java.util.Arrays.binarySearch(marked, dialogId) >= 0;
+    }
+
+    // reads the saved list off the main thread once, so the first chat opened does not wait for the disk
+    public static void warmUp() {
+        DISK.execute(() -> marked(0));
     }
 
     // the chat shows this message with a "deleted" mark (someone else deleted it; it is kept on this phone)
-    public static synchronized boolean isDeletedInChat(int account, long dialogId, int messageId) {
-        index();
-        return !deletedKeys.isEmpty() && deletedKeys.contains(key(account, dialogId, messageId));
+    public static boolean isDeletedInChat(int account, long dialogId, int messageId) {
+        if (!marked(dialogId)) {
+            return false;
+        }
+        synchronized (NexSaved.class) {
+            index();
+            return deletedKeys.contains(key(account, dialogId, messageId));
+        }
     }
 
     // the text this message had before it was first edited by its sender, or null
-    public static synchronized String originalText(int account, long dialogId, int messageId) {
-        index();
-        return originals.isEmpty() ? null : originals.get(key(account, dialogId, messageId));
+    public static String originalText(int account, long dialogId, int messageId) {
+        if (!marked(dialogId)) {
+            return null;
+        }
+        synchronized (NexSaved.class) {
+            index();
+            return originals.get(key(account, dialogId, messageId));
+        }
     }
 
     // newest first; dialogId 0 = every chat
@@ -180,6 +226,7 @@ public final class NexSaved {
         }
         deletedKeys = null;
         originals = null;
+        markedDialogs = null;
         save();
     }
 

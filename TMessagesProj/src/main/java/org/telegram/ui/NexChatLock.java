@@ -41,77 +41,124 @@ public final class NexChatLock {
         return ApplicationLoader.applicationContext.getSharedPreferences("nexgramm_locks", Context.MODE_PRIVATE);
     }
 
+    // Locked / hidden chats are kept as "account:dialogId" strings in the prefs; in memory each set is a
+    // sorted long[] per account, swapped whole on every change. Reads (every chats list row, unread counter,
+    // notification) are a lock-free binary search, no strings or boxing.
     private static final HashSet<String> cache = new HashSet<>();
-    private static boolean loaded;
+    private static final HashSet<String> hiddenCache = new HashSet<>();
+    private static volatile java.util.Map<Integer, long[]> lockedIds;
+    private static volatile java.util.Map<Integer, long[]> hiddenIdMap;
 
-    private static synchronized Set<String> locks() {
-        if (!loaded) {
+    private static synchronized void load() {
+        if (lockedIds == null) {
             cache.addAll(prefs().getStringSet("locked", new HashSet<>()));
-            loaded = true;
+            hiddenCache.addAll(prefs().getStringSet("hidden", new HashSet<>()));
+            hiddenIdMap = index(hiddenCache);
+            lockedIds = index(cache);
         }
-        return cache;
+    }
+
+    private static java.util.Map<Integer, long[]> index(Set<String> keys) {
+        final java.util.HashMap<Integer, java.util.ArrayList<Long>> lists = new java.util.HashMap<>();
+        for (String k : keys) {
+            final int colon = k.indexOf(':');
+            try {
+                final int account = Integer.parseInt(k.substring(0, colon));
+                java.util.ArrayList<Long> list = lists.get(account);
+                if (list == null) {
+                    lists.put(account, list = new java.util.ArrayList<>());
+                }
+                list.add(Long.parseLong(k.substring(colon + 1)));
+            } catch (RuntimeException ignore) {
+            }
+        }
+        final java.util.HashMap<Integer, long[]> out = new java.util.HashMap<>();
+        for (java.util.Map.Entry<Integer, java.util.ArrayList<Long>> e : lists.entrySet()) {
+            final long[] ids = new long[e.getValue().size()];
+            for (int i = 0; i < ids.length; i++) {
+                ids[i] = e.getValue().get(i);
+            }
+            java.util.Arrays.sort(ids);
+            out.put(e.getKey(), ids);
+        }
+        return out;
+    }
+
+    private static boolean contains(java.util.Map<Integer, long[]> map, int account, long dialogId) {
+        final long[] ids = map.get(account);
+        return ids != null && java.util.Arrays.binarySearch(ids, dialogId) >= 0;
     }
 
     private static String key(int account, long dialogId) {
         return account + ":" + dialogId;
     }
 
-    public static synchronized boolean isLocked(int account, long dialogId) {
-        return dialogId != 0 && locks().contains(key(account, dialogId));
+    public static boolean isLocked(int account, long dialogId) {
+        if (dialogId == 0) {
+            return false;
+        }
+        if (lockedIds == null) {
+            load();
+        }
+        return contains(lockedIds, account, dialogId);
     }
 
     public static synchronized void setLocked(int account, long dialogId, boolean locked) {
-        final Set<String> set = locks();
+        load();
         if (locked) {
-            set.add(key(account, dialogId));
+            cache.add(key(account, dialogId));
         } else {
-            set.remove(key(account, dialogId));
+            cache.remove(key(account, dialogId));
         }
-        prefs().edit().putStringSet("locked", new HashSet<>(set)).apply();
+        lockedIds = index(cache);
+        prefs().edit().putStringSet("locked", new HashSet<>(cache)).apply();
     }
 
     // ---- Hidden chats: gone from the chats list, folders, search, the share picker and notifications; they
     // are listed only in "Hidden chats" (behind the phone's own unlock) and always open locked ----
 
-    private static final HashSet<String> hiddenCache = new HashSet<>();
-    private static boolean hiddenLoaded;
-
-    private static synchronized Set<String> hidden() {
-        if (!hiddenLoaded) {
-            hiddenCache.addAll(prefs().getStringSet("hidden", new HashSet<>()));
-            hiddenLoaded = true;
+    public static boolean isHidden(int account, long dialogId) {
+        if (dialogId == 0) {
+            return false;
         }
-        return hiddenCache;
+        if (hiddenIdMap == null) {
+            load();
+        }
+        return contains(hiddenIdMap, account, dialogId);
     }
 
-    public static synchronized boolean isHidden(int account, long dialogId) {
-        return dialogId != 0 && !hidden().isEmpty() && hidden().contains(key(account, dialogId));
+    public static boolean hasHidden(int account) {
+        if (hiddenIdMap == null) {
+            load();
+        }
+        return hiddenIdMap.containsKey(account);
     }
 
     public static synchronized void setHidden(int account, long dialogId, boolean value) {
-        final Set<String> set = hidden();
+        load();
         if (value) {
-            set.add(key(account, dialogId));
+            hiddenCache.add(key(account, dialogId));
         } else {
-            set.remove(key(account, dialogId));
+            hiddenCache.remove(key(account, dialogId));
         }
-        prefs().edit().putStringSet("hidden", new HashSet<>(set)).apply();
+        hiddenIdMap = index(hiddenCache);
+        prefs().edit().putStringSet("hidden", new HashSet<>(hiddenCache)).apply();
         // counters (tabs, folders, the app icon) again, now with / without this chat
         final org.telegram.messenger.MessagesStorage storage = org.telegram.messenger.MessagesStorage.getInstance(account);
         storage.getStorageQueue().postRunnable(() -> storage.resetAllUnreadCounters(false));
         org.telegram.messenger.NotificationsController.getInstance(account).updateBadge();
     }
 
-    // the hidden chats of an account, newest hidden last
-    public static synchronized java.util.ArrayList<Long> hiddenIds(int account) {
+    // the hidden chats of an account
+    public static java.util.ArrayList<Long> hiddenIds(int account) {
         final java.util.ArrayList<Long> ids = new java.util.ArrayList<>();
-        final String prefix = account + ":";
-        for (String k : hidden()) {
-            if (k.startsWith(prefix)) {
-                try {
-                    ids.add(Long.parseLong(k.substring(prefix.length())));
-                } catch (NumberFormatException ignore) {
-                }
+        if (hiddenIdMap == null) {
+            load();
+        }
+        final long[] all = hiddenIdMap.get(account);
+        if (all != null) {
+            for (long id : all) {
+                ids.add(id);
             }
         }
         return ids;
@@ -124,13 +171,8 @@ public final class NexChatLock {
 
     // the list without the hidden chats (the same list when this account hides none)
     public static java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> withoutHidden(int account, java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> dialogs) {
-        if (dialogs == null || dialogs.isEmpty()) {
+        if (dialogs == null || dialogs.isEmpty() || !hasHidden(account)) {
             return dialogs;
-        }
-        synchronized (NexChatLock.class) {
-            if (hidden().isEmpty() || hiddenIds(account).isEmpty()) {
-                return dialogs;
-            }
         }
         java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> out = null;
         for (int i = 0, n = dialogs.size(); i < n; i++) {

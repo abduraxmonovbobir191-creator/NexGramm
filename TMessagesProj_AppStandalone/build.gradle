@@ -29,7 +29,6 @@ android {
 
     defaultConfig.applicationId = APP_PACKAGE
 
-    sourceSets.main.jniLibs.srcDirs = ['../TMessagesProj/jni/']
 
     lintOptions {
         disable 'MissingTranslation'
@@ -69,6 +68,12 @@ android {
             storePassword useNexKey ? nexKeystorePassword : RELEASE_STORE_PASSWORD
             keyAlias useNexKey ? 'nexgramm' : RELEASE_KEY_ALIAS
             keyPassword useNexKey ? nexKeystorePassword : RELEASE_KEY_PASSWORD
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 
@@ -136,7 +141,7 @@ android {
     }
 
     defaultConfig {
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 36
         versionName APP_VERSION_NAME
 
