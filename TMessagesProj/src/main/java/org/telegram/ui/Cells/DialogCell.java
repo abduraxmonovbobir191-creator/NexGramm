@@ -2400,6 +2400,13 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameString = ((String) nameString).replace('\n', ' ');
             }
             CharSequence nameStringFinal = nameString;
+            // NexGramm: the ✦ streak after a chat's name, kept whole while the name is cut
+            final CharSequence nexBadge = customDialog == null && currentDialogFolderId == 0 && !isTopic && !twoLinesForName
+                ? org.telegram.messenger.NexStreaks.getInstance(currentAccount).badge(currentDialogId) : null;
+            if (nexBadge != null) {
+                final float badgeWidth = Theme.dialogs_namePaint[paintIndex].measureText(nexBadge.toString());
+                nameStringFinal = TextUtils.concat(TextUtils.ellipsize(nameStringFinal, Theme.dialogs_namePaint[paintIndex], Math.max(0, ellipsizeWidth - badgeWidth - dp(4)), TextUtils.TruncateAt.END), nexBadge);
+            }
             if (nameLayoutEllipsizeByGradient) {
                 nameLayoutFits = nameStringFinal.length() == TextUtils.ellipsize(nameStringFinal, Theme.dialogs_namePaint[paintIndex], ellipsizeWidth, TextUtils.TruncateAt.END).length();
                 ellipsizeWidth += dp(48);

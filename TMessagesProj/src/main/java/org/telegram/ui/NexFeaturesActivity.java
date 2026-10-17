@@ -47,6 +47,11 @@ public class NexFeaturesActivity extends BaseFragment {
         column.setOrientation(LinearLayout.VERTICAL);
         scrollView.addView(column, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
+        final TextCell walletCell = new TextCell(context);
+        walletCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        walletCell.setTextAndIcon(LocaleController.getString(R.string.NexWalletTitle), R.drawable.nex_ic_sparkle, true);
+        walletCell.setOnClickListener(v -> presentFragment(new NexWalletActivity()));
+        column.addView(walletCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         shieldCell = new TextCell(context);
         shieldCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         shieldCell.setOnClickListener(v -> presentFragment(new NexSecurityActivity()));

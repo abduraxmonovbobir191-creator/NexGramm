@@ -57,26 +57,46 @@ final class NexPostActions {
         }
         final boolean own = isOwn(tgUserId, status);
         final boolean notInterested = !own && listener.canSayNotInterested();
-        final CharSequence[] items = own
-            ? new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostDelete)}
-            : notInterested
-            ? new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostNotInterested), LocaleController.getString(R.string.NexPostReport)}
-            : new CharSequence[]{LocaleController.getString(R.string.NexPostCopyLink), LocaleController.getString(R.string.NexPostReport)};
-        final int[] icons = own ? new int[]{R.drawable.msg_link, R.drawable.msg_delete}
-            : notInterested ? new int[]{R.drawable.msg_link, R.drawable.msg_archive_hide, R.drawable.msg_report}
-            : new int[]{R.drawable.msg_link, R.drawable.msg_report};
+        // 0 copy link, 1 delete, 2 ✦ Nex reward, 3 not interested, 4 report
+        final java.util.ArrayList<Integer> actions = new java.util.ArrayList<>();
+        actions.add(0);
+        if (own) {
+            actions.add(1);
+        } else {
+            actions.add(2);
+            if (notInterested) {
+                actions.add(3);
+            }
+            actions.add(4);
+        }
+        final int[] labels = {R.string.NexPostCopyLink, R.string.NexPostDelete, R.string.NexTipMenu, R.string.NexPostNotInterested, R.string.NexPostReport};
+        final int[] drawables = {R.drawable.msg_link, R.drawable.msg_delete, R.drawable.nex_ic_sparkle, R.drawable.msg_archive_hide, R.drawable.msg_report};
+        final CharSequence[] items = new CharSequence[actions.size()];
+        final int[] icons = new int[actions.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = LocaleController.getString(labels[actions.get(i)]);
+            icons[i] = drawables[actions.get(i)];
+        }
         final BottomSheet.Builder builder = new BottomSheet.Builder(context);
         builder.setItems(items, icons, (dialog, which) -> {
-            if (which == 0) {
-                AndroidUtilities.addToClipboard(status.shareUrl());
-                Toast.makeText(context, LocaleController.getString(R.string.NexPostLinkCopied), Toast.LENGTH_SHORT).show();
-            } else if (notInterested && which == 1) {
-                listener.onNotInterested(status);
-                Toast.makeText(context, LocaleController.getString(R.string.NexPostNotInterestedDone), Toast.LENGTH_SHORT).show();
-            } else if (own) {
-                confirmDelete(fragment, tgUserId, status, listener);
-            } else {
-                showReport(fragment, tgUserId, "post", status.statusId);
+            switch (actions.get(which)) {
+                case 0:
+                    AndroidUtilities.addToClipboard(status.shareUrl());
+                    Toast.makeText(context, LocaleController.getString(R.string.NexPostLinkCopied), Toast.LENGTH_SHORT).show();
+                    break;
+                case 1:
+                    confirmDelete(fragment, tgUserId, status, listener);
+                    break;
+                case 2:
+                    NexWalletUi.gift(fragment, 0, status.authorUsername, true);
+                    break;
+                case 3:
+                    listener.onNotInterested(status);
+                    Toast.makeText(context, LocaleController.getString(R.string.NexPostNotInterestedDone), Toast.LENGTH_SHORT).show();
+                    break;
+                default:
+                    showReport(fragment, tgUserId, "post", status.statusId);
+                    break;
             }
         });
         final BottomSheet sheet = builder.create();

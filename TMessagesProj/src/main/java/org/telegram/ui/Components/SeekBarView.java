@@ -172,6 +172,15 @@ public class SeekBarView extends FrameLayout {
     // NexGramm: the played part drawn as a wave that moves with the music (the music player)
     private NexMusicWave nexWave;
     private boolean nexWaveActive;
+    private int nexTrackColor;
+    private final Paint nexRingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    // the part not played yet, and a white ring around the thumb (the player card is dark)
+    public void setNexTrackColor(int color) {
+        nexTrackColor = color;
+        nexRingPaint.setColor(0xFFFFFFFF);
+        invalidate();
+    }
 
     public void setNexWave(NexMusicWave wave) {
         if (nexWave != null) {
@@ -483,7 +492,7 @@ public class SeekBarView extends FrameLayout {
             thumbX = (int) (Math.round((thumbX) / step) * step);
         }
         int y = (getMeasuredHeight() - thumbSize) / 2;
-        innerPaint1.setColor(getThemedColor(Theme.key_player_progressBackground));
+        innerPaint1.setColor(nexTrackColor != 0 ? nexTrackColor : getThemedColor(Theme.key_player_progressBackground));
 
         float centerY = getMeasuredHeight() / 2f;
         float left = selectorWidth / 2f, right = getMeasuredWidth() - selectorWidth / 2;
@@ -494,7 +503,7 @@ public class SeekBarView extends FrameLayout {
         rect.set(trackLeft, top, right, bottom);
         drawProgressBar(canvas, rect, innerPaint1);
         if (bufferedProgress > 0) {
-            innerPaint1.setColor(getThemedColor(Theme.key_player_progressCachedBackground));
+            innerPaint1.setColor(nexTrackColor != 0 ? nexTrackColor : getThemedColor(Theme.key_player_progressCachedBackground));
             rect.set(trackLeft, top, Math.max(trackLeft, selectorWidth / 2f + bufferedProgress * (getMeasuredWidth() - selectorWidth)), bottom);
             drawProgressBar(canvas, rect, innerPaint1);
         }
@@ -567,6 +576,9 @@ public class SeekBarView extends FrameLayout {
             }
             canvas.drawCircle(thumbX + selectorWidth / 2, y + thumbSize / 2, currentRadius * newCircleProgress, outerPaint1);
         } else {
+            if (nexTrackColor != 0) {
+                canvas.drawCircle(thumbX + selectorWidth / 2, y + thumbSize / 2, currentRadius + AndroidUtilities.dp(2.5f), nexRingPaint);
+            }
             canvas.drawCircle(thumbX + selectorWidth / 2, y + thumbSize / 2, currentRadius, outerPaint1);
         }
 
