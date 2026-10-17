@@ -687,6 +687,7 @@ public class DownloadController extends BaseController implements NotificationCe
 
     private int canDownloadMediaInternal(MessageObject message) {
         if (message == null || message.messageOwner == null) return 0;
+        if (nexStranger(message.messageOwner)) return 0;
         if (message.messageOwner.media instanceof TLRPC.TL_messageMediaStory) {
             return canPreloadStories() ? 2 : 0;
         }
@@ -777,6 +778,7 @@ public class DownloadController extends BaseController implements NotificationCe
 
     private int canDownloadMediaInternal(MessageObject message, long overrideSize) {
         if (message == null || message.messageOwner == null) return 0;
+        if (nexStranger(message.messageOwner)) return 0;
         if (message.messageOwner.media instanceof TLRPC.TL_messageMediaStory) {
             return canPreloadStories() ? 2 : 0;
         }
@@ -878,9 +880,26 @@ public class DownloadController extends BaseController implements NotificationCe
             && uz.nexgramm.core.NexPremium.isActive(getUserConfig().getClientUserId());
     }
 
+    // NexGramm shield: in a private chat with someone who is not in the contacts (not a bot, not Telegram's
+    // service chat), nothing is fetched by itself: a bug in a media decoder then needs a tap, not just a message
+    private boolean nexStranger(TLRPC.Message message) {
+        if (message == null || message.out || message.peer_id == null || message.peer_id.user_id == 0 || !uz.nexgramm.core.NexShield.strangers()) {
+            return false;
+        }
+        final long userId = message.peer_id.user_id;
+        if (userId == getUserConfig().getClientUserId() || UserObject.isService(userId) || getContactsController().contactsDict.containsKey(userId)) {
+            return false;
+        }
+        final TLRPC.User user = getMessagesController().getUser(userId);
+        return user == null || !user.bot && !user.verified;
+    }
+
     public int canDownloadMedia(TLRPC.Message message) {
         if (message == null || message.media instanceof TLRPC.TL_messageMediaStory) {
             return canPreloadStories() ? 2 : 0;
+        }
+        if (nexStranger(message)) {
+            return 0;
         }
         if (nexKeepsMedia(message)) {
             return 1;
@@ -965,6 +984,9 @@ public class DownloadController extends BaseController implements NotificationCe
     public int canDownloadMedia(TLRPC.Message message, TLRPC.MessageMedia media) {
         if (message == null || media instanceof TLRPC.TL_messageMediaStory) {
             return canPreloadStories() ? 2 : 0;
+        }
+        if (nexStranger(message)) {
+            return 0;
         }
         int type;
         boolean isVideo = false;

@@ -2929,8 +2929,8 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 if (!(dialog instanceof TLRPC.TL_dialog)) {
                     continue;
                 }
-                if (dialog.id == selfUserId) {
-                    continue;
+                if (dialog.id == selfUserId || org.telegram.ui.NexChatLock.isHidden(currentAccount, dialog.id)) {
+                    continue; // NexGramm: hidden chats are not offered here either
                 }
                 if (!DialogObject.isEncryptedDialog(dialog.id)) {
                     if (DialogObject.isUserDialog(dialog.id)) {

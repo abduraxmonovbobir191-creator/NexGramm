@@ -1726,6 +1726,9 @@ public class NotificationsController extends BaseController implements Notificat
 
     // NexGramm: unread messages (or chats) of this account's hidden chats that are not muted
     private static int hiddenUnread(int account, boolean messages) {
+        if (!org.telegram.ui.NexChatLock.hasHidden(account)) {
+            return 0;
+        }
         int n = 0;
         try {
             final MessagesController mc = MessagesController.getInstance(account);

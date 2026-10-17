@@ -436,4 +436,19 @@
     <string name="NexPremiumInvite">🎁 Do\'stlaringizni taklif qiling: NexGramm\'dan foydalana boshlagan har bir do\'stingiz uchun bepul Premium kunlar olasiz.</string>
     <string name="NexPremiumInviteButton">Do\'stlarni taklif qilish</string>
     <string name="NexPremiumInviteShare">NexGramm — qulay messenjer, Lenta va NEX AI. Mening havolam orqali kiring:</string>
+    <string name="NexShieldTitle">Xavfsizlik markazi</string>
+    <string name="NexShieldSummary">🛡 %2$d ta himoya qatlamidan %1$d tasi yoqilgan. NexGramm har bir havola, fayl va notanishni siz uchun tekshiradi; quyidagi tugmalar qanchalik qattiq bo\'lishini belgilaydi.</string>
+    <string name="NexShieldLayers">Qalqon</string>
+    <string name="NexShieldStrangers">Notanishlarning mediasi bosganda yuklanadi</string>
+    <string name="NexShieldStrangersInfo">Kontaktingizda yo\'q odamlardan kelgan rasm, video, fayl va ovozlar o\'zi yuklanmaydi (zero-click hujumlardan himoya)</string>
+    <string name="NexShieldLinks">Havolalarni tekshirish</string>
+    <string name="NexShieldLinksInfo">http, IP-manzil, .apk va o\'xshash harfli havolalar ochilishidan oldin qayerga olib borishi va ogohlantirish ko\'rsatiladi</string>
+    <string name="NexShieldScreen">Shaxsiy chatlarni skrinshot qilib bo\'lmaydi</string>
+    <string name="NexShieldScreenInfo">Qulflangan va yashirin chatlarni skrinshot yoki ekran yozuviga olib bo\'lmaydi, so\'nggi ilovalarda bo\'sh ko\'rinadi</string>
+    <string name="NexShieldAccount">Hisob</string>
+    <string name="NexShieldAlways">Doim yoqilgan: har bir yuklangan APK tekshiriladi, xavflisi bloklanadi; kirish kalitlari hech qachon zaxira nusxaga (bulut yoki kabel) chiqmaydi; animatsion stikerlar xotira-xavfsiz dvigatelda, hajm chegarasi bilan chiziladi. Faol seanslarni vaqti-vaqti bilan tekshirib, tanimaganingizni yakunlang.</string>
+    <string name="NexShieldLinkHttp">Shifrlanmagan (http): tarmoqdagi istalgan odam bu sahifani o\'qishi yoki o\'zgartirishi mumkin</string>
+    <string name="NexShieldLinkIp">Bu havola sayt nomi emas, IP-manzil — firibgarlar ko\'p ishlatadi</string>
+    <string name="NexShieldLinkApk">Bu havola ilova (APK) yuklaydi. Ilovani faqat ishonchli manbadan o\'rnating</string>
+    <string name="NexShieldLinkLookalike">Sayt nomida o\'xshash harflar bor — haqiqiy saytga taqlid bo\'lishi mumkin</string>
 </resources>

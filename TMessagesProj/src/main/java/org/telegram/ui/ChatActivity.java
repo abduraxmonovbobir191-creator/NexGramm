@@ -8735,7 +8735,8 @@ public class ChatActivity extends BaseFragment implements
 
         flagSecure = new FlagSecureReason(getParentActivity().getWindow(), () ->
             currentEncryptedChat != null ||
-            isPeerNoForwards()
+            isPeerNoForwards() ||
+            uz.nexgramm.core.NexShield.screen() && NexChatLock.isProtected(currentAccount, dialog_id) // NexGramm shield
         );
 
         if (oldMessage != null) {
@@ -9087,6 +9088,9 @@ public class ChatActivity extends BaseFragment implements
             // removing a lock also needs the owner
             NexChatLock.authenticate((androidx.fragment.app.FragmentActivity) getParentActivity(), () -> {
                 NexChatLock.setLocked(currentAccount, dialog_id, false);
+                if (flagSecure != null) {
+                    flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
+                }
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOff)).show();
             });
         } else if (!NexPremiumActivity.check(this)) {
@@ -9095,6 +9099,9 @@ public class ChatActivity extends BaseFragment implements
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockNoScreenLock)).show();
         } else {
             NexChatLock.setLocked(currentAccount, dialog_id, true);
+            if (flagSecure != null) {
+                flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
+            }
             nexLockOpened = true; // it is open now; the next opening asks
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOn)).show();
         }
@@ -9108,6 +9115,9 @@ public class ChatActivity extends BaseFragment implements
         if (NexChatLock.isHidden(currentAccount, dialog_id)) {
             NexChatLock.authenticate((androidx.fragment.app.FragmentActivity) getParentActivity(), () -> {
                 NexChatLock.setHidden(currentAccount, dialog_id, false);
+                if (flagSecure != null) {
+                    flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
+                }
                 getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexHideOff)).show();
             });
@@ -9117,6 +9127,9 @@ public class ChatActivity extends BaseFragment implements
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockNoScreenLock)).show();
         } else {
             NexChatLock.setHidden(currentAccount, dialog_id, true);
+            if (flagSecure != null) {
+                flagSecure.invalidate(); // NexGramm shield: no screenshots while it is protected
+            }
             nexLockOpened = true; // it is open now; the next opening asks
             getNotificationsController().removeNotificationsForDialog(dialog_id);
             getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);

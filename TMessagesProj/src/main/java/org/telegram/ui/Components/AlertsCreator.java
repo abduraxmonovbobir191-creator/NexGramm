@@ -1741,7 +1741,11 @@ public class AlertsCreator {
     public static void showOpenUrlAlert(Context context, String url, boolean punycode, boolean tryTelegraph, boolean ask, boolean forceNotInternalForApps, long inlineReturn, Browser.Progress progress, @Nullable TLRPC.WebPage webPage, Theme.ResourcesProvider resourcesProvider) {
         if (!AndroidUtilities.isContextSafe(context)) return;
         final String scheme = url == null ? null : Uri.parse(url).getScheme();
-        if (Browser.isInternalUrl(url, null) || !ask || "mailto".equalsIgnoreCase(scheme)) {
+        final int nexRisk = uz.nexgramm.core.NexShield.links() ? uz.nexgramm.core.NexShield.linkRisk(url) : uz.nexgramm.core.NexShield.LINK_OK;
+        if (nexRisk != uz.nexgramm.core.NexShield.LINK_OK) {
+            punycode = false; // the real (xn--) name, so a look-alike cannot pass for the original
+        }
+        if (Browser.isInternalUrl(url, null) || !ask && nexRisk == uz.nexgramm.core.NexShield.LINK_OK || "mailto".equalsIgnoreCase(scheme)) {
             Browser.openUrl(context, Uri.parse(url), inlineReturn == 0, tryTelegraph, forceNotInternalForApps && checkInternalBotApp(url), progress, null, false, true, false);
             return;
         }
@@ -1791,6 +1795,20 @@ public class AlertsCreator {
                 LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
                 22, 4, 22, 9
         ));
+        if (nexRisk != uz.nexgramm.core.NexShield.LINK_OK) {
+            // NexGramm shield: why this link deserves a second look
+            final TextView warnView = new TextView(context);
+            warnView.setText("⚠️ " + LocaleController.getString(nexRisk == uz.nexgramm.core.NexShield.LINK_APK ? R.string.NexShieldLinkApk
+                : nexRisk == uz.nexgramm.core.NexShield.LINK_IP ? R.string.NexShieldLinkIp
+                : nexRisk == uz.nexgramm.core.NexShield.LINK_LOOKALIKE ? R.string.NexShieldLinkLookalike : R.string.NexShieldLinkHttp));
+            warnView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            warnView.setTextColor(Theme.getColor(Theme.key_text_RedRegular, resourcesProvider));
+            warnView.setGravity(Gravity.CENTER);
+            container.addView(warnView, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                    22, 0, 22, 9
+            ));
+        }
 
         if (WebPagePreviewView.hasPreview(webPage)) {
             final WebPagePreviewView previewView = new WebPagePreviewView(context, resourcesProvider, UserConfig.selectedAccount);

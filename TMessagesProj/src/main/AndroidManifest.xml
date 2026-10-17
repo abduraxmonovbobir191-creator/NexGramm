@@ -94,11 +94,10 @@
         </intent>
     </queries>
 
+    <!-- NexGramm shield: no backup at all, so login tokens and keys never leave the phone (cloud or adb) -->
     <application
         android:name="org.telegram.messenger.ApplicationLoader"
-        android:allowBackup="true"
-        android:restoreAnyVersion="true"
-        android:backupAgent=".BackupAgent"
+        android:allowBackup="false"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         android:theme="@style/Theme.TMessages.Start"
@@ -107,7 +106,7 @@
         android:requestLegacyExternalStorage="true"
         android:preserveLegacyExternalStorage="true"
         android:allowAudioPlaybackCapture="true"
-        tools:replace="android:supportsRtl"
+        tools:replace="android:supportsRtl,android:allowBackup"
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true"
     >

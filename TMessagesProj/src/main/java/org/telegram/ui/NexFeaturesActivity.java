@@ -20,11 +20,12 @@ import org.telegram.ui.Components.LayoutHelper;
 import uz.nexgramm.core.NexGhost;
 import uz.nexgramm.core.NexSaved;
 
-// NexGramm: the NexGramm features hub (Settings → NexGramm features): ghost mode, keeping messages others
+// NexGramm: the NexGramm features hub (Settings → NexGramm features): the security center, ghost mode, keeping messages others
 // delete or edit, and the list of those messages
 public class NexFeaturesActivity extends BaseFragment {
 
     private TextCell ghostCell;
+    private TextCell shieldCell;
 
     @Override
     public View createView(Context context) {
@@ -46,6 +47,10 @@ public class NexFeaturesActivity extends BaseFragment {
         column.setOrientation(LinearLayout.VERTICAL);
         scrollView.addView(column, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
+        shieldCell = new TextCell(context);
+        shieldCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        shieldCell.setOnClickListener(v -> presentFragment(new NexSecurityActivity()));
+        column.addView(shieldCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         ghostCell = new TextCell(context);
         ghostCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         ghostCell.setOnClickListener(v -> presentFragment(new NexGhostActivity()));
@@ -131,6 +136,10 @@ public class NexFeaturesActivity extends BaseFragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (shieldCell != null) {
+            shieldCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexShieldTitle),
+                uz.nexgramm.core.NexShield.activeCount() + " / 3", R.drawable.outline_shield_check, true);
+        }
         if (ghostCell != null) {
             ghostCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexGhostTitle),
                 LocaleController.getString(NexGhost.isEnabled() ? R.string.NexFeaturesOn : R.string.NexFeaturesOff), R.drawable.ghost, true);

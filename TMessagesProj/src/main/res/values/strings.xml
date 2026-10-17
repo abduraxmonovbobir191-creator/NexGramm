@@ -11673,4 +11673,19 @@
     <string name="NexPremiumInvite">🎁 Invite friends: for each friend who starts using NexGramm you get free Premium days.</string>
     <string name="NexPremiumInviteButton">Invite friends</string>
     <string name="NexPremiumInviteShare">NexGramm — a handy messenger with the Lenta and NEX AI. Join with my link:</string>
+    <string name="NexShieldTitle">Security center</string>
+    <string name="NexShieldSummary">🛡 %1$d of %2$d protection layers are on. NexGramm checks every link, file and stranger for you; the switches below decide how strict it is.</string>
+    <string name="NexShieldLayers">Shield</string>
+    <string name="NexShieldStrangers">Media from strangers waits for a tap</string>
+    <string name="NexShieldStrangersInfo">Photos, videos, files and voice from people not in your contacts are not downloaded by themselves (protects from zero-click attacks)</string>
+    <string name="NexShieldLinks">Link check</string>
+    <string name="NexShieldLinksInfo">http, IP-address, .apk and look-alike links show where they lead and a warning before opening</string>
+    <string name="NexShieldScreen">No screenshots of private chats</string>
+    <string name="NexShieldScreenInfo">Locked and hidden chats cannot be screenshotted or recorded and are blank in recent apps</string>
+    <string name="NexShieldAccount">Account</string>
+    <string name="NexShieldAlways">Always on: every downloaded APK is checked and dangerous ones are blocked; login keys are never copied to backups (cloud or cable); animated stickers are drawn by a memory-safe engine with size limits. Check Active sessions now and then and end the ones you don\'t know.</string>
+    <string name="NexShieldLinkHttp">Not encrypted (http): anyone on the network can read or change this page</string>
+    <string name="NexShieldLinkIp">This link is a bare IP address, not a site name — often used by scams</string>
+    <string name="NexShieldLinkApk">This link downloads an app (APK). Install apps only from sources you trust</string>
+    <string name="NexShieldLinkLookalike">The site name uses look-alike letters — it may imitate a real site</string>
 </resources>

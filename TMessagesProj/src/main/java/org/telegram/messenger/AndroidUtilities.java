@@ -5513,6 +5513,9 @@ public class AndroidUtilities {
     }
 
     public static boolean shouldShowUrlInAlert(String url) {
+        if (uz.nexgramm.core.NexShield.links() && uz.nexgramm.core.NexShield.linkRisk(url) != uz.nexgramm.core.NexShield.LINK_OK) {
+            return true; // NexGramm shield: http, a bare IP, an .apk or a look-alike name is shown before it opens
+        }
         try {
             Uri uri = Uri.parse(url);
             url = uri.getHost();

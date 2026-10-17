@@ -41,6 +41,7 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
     private TextView emptyView;
     private FrameLayout cover;
     private boolean unlocked;
+    private org.telegram.messenger.FlagSecureReason flagSecure;
 
     @Override
     public boolean onFragmentCreate() {
@@ -59,6 +60,9 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
         if (cover != null) {
             NexChatLock.detach(cover);
             cover = null;
+        }
+        if (flagSecure != null) {
+            flagSecure.detach();
         }
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogsNeedReload);
         getNotificationCenter().removeObserver(this, NotificationCenter.updateInterfaces);
@@ -211,7 +215,22 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
     @Override
     public void onResume() {
         super.onResume();
+        if (flagSecure == null && getParentActivity() != null) {
+            // NexGramm shield: the hidden list is never in a screenshot, a recording or the recent apps
+            flagSecure = new org.telegram.messenger.FlagSecureReason(getParentActivity().getWindow(), uz.nexgramm.core.NexShield::screen);
+        }
+        if (flagSecure != null) {
+            flagSecure.attach();
+        }
         reload();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (flagSecure != null) {
+            flagSecure.detach();
+        }
     }
 
     private class ListAdapter extends RecyclerListView.SelectionAdapter {

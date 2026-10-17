@@ -99,7 +99,15 @@ static bool readFile(const char *path, std::string &out) {
     }
     char buffer[16 * 1024];
     int read;
+    // NexGramm shield: a sticker is a few hundred KB of JSON; a small file that unpacks to more than
+    // 16 MB is a "zip bomb", rejected before it can eat the memory
+    constexpr size_t kMaxJson = 16u * 1024u * 1024u;
     while ((read = gzread(file, buffer, sizeof(buffer))) > 0) {
+        if (out.size() + static_cast<size_t>(read) > kMaxJson) {
+            gzclose(file);
+            out.clear();
+            return false;
+        }
         out.append(buffer, static_cast<size_t>(read));
     }
     const bool ok = read == 0;
