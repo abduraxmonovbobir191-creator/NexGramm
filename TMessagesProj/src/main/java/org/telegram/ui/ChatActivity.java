@@ -1711,6 +1711,8 @@ public class ChatActivity extends BaseFragment implements
     private final static int nex_lock = 92; // NexGramm: lock / unlock this chat (fingerprint or screen PIN)
     private final static int nex_save_all = 93; // NexGramm: selected photos / videos → gallery in one go
     private final static int nex_hide = 94; // NexGramm: hide / unhide this chat ("Hidden chats")
+    private final static int nex_streak = 96; // NexGramm: this chat's ✦ streak card
+    private final static int nex_gift = 97; // NexGramm: a ✦ Nex present to this person
     private int nexSaveMediaCount;
     private android.widget.FrameLayout nexLockCover;
     private boolean nexLockOpened;
@@ -4063,6 +4065,10 @@ public class ChatActivity extends BaseFragment implements
                     nexToggleLock();
                 } else if (id == nex_hide) {
                     nexToggleHidden();
+                } else if (id == nex_streak) {
+                    NexStreakSheet.show(ChatActivity.this, dialog_id);
+                } else if (id == nex_gift) {
+                    NexWalletUi.gift(ChatActivity.this, dialog_id, null, false);
                 } else if (id == search) {
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == translate) {
@@ -4513,6 +4519,12 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(nex_lock, R.drawable.msg_secret, LocaleController.getString(R.string.NexLockMenu));
                 headerItem.lazilyAddSubItem(nex_hide, R.drawable.msg_archive_hide, LocaleController.getString(
                     NexChatLock.isHidden(currentAccount, dialog_id) ? R.string.NexHideMenuOff : R.string.NexHideMenu));
+            }
+            if (chatMode == 0 && org.telegram.messenger.NexStreaks.getInstance(currentAccount).eligible(dialog_id)) {
+                headerItem.lazilyAddSubItem(nex_streak, R.drawable.nex_ic_sparkle, LocaleController.getString(R.string.NexStreakMenu));
+                if (currentUser != null) {
+                    headerItem.lazilyAddSubItem(nex_gift, R.drawable.msg_gift_premium, LocaleController.getString(R.string.NexGiftMenu));
+                }
             }
             if (currentUser != null && chatMode != MODE_SAVED) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
@@ -9158,6 +9170,18 @@ public class ChatActivity extends BaseFragment implements
             }
             nexLockOpened = true; // it is open now; the next opening asks
             BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockOn)).show();
+        }
+    }
+
+    // ✦ streak milestones (3, 7, 30, 100, 365 days): offered once as a story
+    private void nexOfferMilestone() {
+        if (chatMode != 0 || isPaused || getParentActivity() == null) {
+            return;
+        }
+        final int days = org.telegram.messenger.NexStreaks.getInstance(currentAccount).takeMilestone(dialog_id);
+        if (days > 0) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.star_premium_2, LocaleController.formatString(R.string.NexStreakMilestone, days),
+                LocaleController.getString(R.string.NexStreakShare), () -> NexStreakSheet.shareToStory(this, dialog_id, days)).show();
         }
     }
 
@@ -22260,6 +22284,9 @@ public class ChatActivity extends BaseFragment implements
             long did = (Long) args[0];
             ArrayList<MessageObject> arr = (ArrayList<MessageObject>) args[1];
             if (isInsideContainer) return;
+            if (did == dialog_id && !isPaused) {
+                AndroidUtilities.runOnUIThread(this::nexOfferMilestone, 600); // NexGramm: after the streak counted it
+            }
             if (did == dialog_id) {
                 boolean scheduled = (Boolean) args[2];
                 int mode = (Integer) args[3];
@@ -30080,6 +30107,7 @@ public class ChatActivity extends BaseFragment implements
     public void onResume() {
         super.onResume();
         nexApplyLock();
+        nexOfferMilestone();
         if (nexLockCover != null && !nexLockPrompted) {
             nexLockPrompted = true;
             AndroidUtilities.runOnUIThread(() -> {

@@ -2835,6 +2835,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
+        org.telegram.messenger.NexStreaks.getInstance(currentAccount).start(); // NexGramm: ✦ streaks of this account
 
         if (arguments != null) {
             onlySelect = arguments.getBoolean("onlySelect", false);

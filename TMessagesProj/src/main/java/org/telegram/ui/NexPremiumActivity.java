@@ -23,6 +23,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
 
 import uz.nexgramm.core.CoreClient;
+import uz.nexgramm.core.NexWallet;
 import uz.nexgramm.core.NexPremium;
 
 // NexGramm Premium: what it gives, the status and the periods. A period opens the NexGramm bot at
@@ -207,6 +208,7 @@ public class NexPremiumActivity extends BaseFragment {
             note.setGravity(Gravity.CENTER);
             note.setText(LocaleController.getString(R.string.NexPremiumStoreSoon));
             plansColumn.addView(note, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 8, 0, 8));
+            addNexPay(context);
             plansShown = true;
             return;
         }
@@ -262,7 +264,34 @@ public class NexPremiumActivity extends BaseFragment {
                 NexMotion.enter(row, 1 + plansColumn.getChildCount());
             }
         }
+        addNexPay(context);
         plansShown = true;
+    }
+
+    // ✦ Nex: Premium paid from the wallet (Nex are bought by card in the bot), in every build
+    private void addNexPay(Context context) {
+        final TextView pay = NexLentaUi.pillButton(context, LocaleController.getString(R.string.NexPremiumPayNex), NexLentaUi.PILL_PRIMARY);
+        pay.setOnClickListener(v -> {
+            final NexWallet.Wallet w = NexWallet.cached(tgUserId());
+            final String[] codes = {"2w", "1m", "3m"};
+            final CharSequence[] items = new CharSequence[codes.length];
+            for (int i = 0; i < codes.length; i++) {
+                items[i] = periodName(codes[i]) + " — " + NexWalletUi.format(nexPrice(w, codes[i]));
+            }
+            showDialog(new org.telegram.ui.ActionBar.AlertDialog.Builder(context)
+                .setTitle(LocaleController.getString(R.string.NexPremiumPayNex))
+                .setItems(items, (d, which) -> NexWalletUi.spend(this, periodName(codes[which]), "premium", 0, codes[which],
+                    nexPrice(w, codes[which]), this::onResume))
+                .create());
+        });
+        plansColumn.addView(pay, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 2, 0, 10));
+    }
+
+    private static int nexPrice(NexWallet.Wallet w, String code) {
+        if (w != null) {
+            return w.premium(code);
+        }
+        return "2w".equals(code) ? 120 : "1m".equals(code) ? 200 : 500;
     }
 
     private TextView sectionTitle(Context context, int res) {
