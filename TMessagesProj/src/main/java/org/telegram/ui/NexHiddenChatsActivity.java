@@ -42,7 +42,6 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
     private FrameLayout cover;
     private boolean unlocked;
     private org.telegram.messenger.FlagSecureReason flagSecure;
-    private org.telegram.ui.Components.NexPrivacyView privacy;
 
     @Override
     public boolean onFragmentCreate() {
@@ -120,14 +119,6 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
             return false;
         });
         content.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        if (uz.nexgramm.core.NexShield.privacyView()) {
-            // NexGramm: the hidden list sits dark too, only the strip under the finger lit; two fingers switch it
-            privacy = new org.telegram.ui.Components.NexPrivacyView(context);
-            privacy.setOnToggle(() -> privacy.setOn(!privacy.isOn(), true));
-            privacy.watch(listView);
-            privacy.setOn(true, false);
-            content.addView(privacy, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        }
 
         if (!unlocked) {
             // over the whole window from the first frame: the chats list behind never shows
@@ -231,9 +222,6 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
         if (flagSecure != null) {
             flagSecure.attach();
         }
-        if (privacy != null) {
-            privacy.onResume(getParentActivity());
-        }
         reload();
     }
 
@@ -242,9 +230,6 @@ public class NexHiddenChatsActivity extends BaseFragment implements Notification
         super.onPause();
         if (flagSecure != null) {
             flagSecure.detach();
-        }
-        if (privacy != null) {
-            privacy.onPause();
         }
     }
 

@@ -726,8 +726,4 @@
     <string name="NexAccSilent">Без уведомлений от скрытых аккаунтов</string>
     <string name="NexAccSilentInfo">Выключено: показывается только «Новое сообщение», без имени и текста</string>
     <string name="NexAccPick">Какие аккаунты скрыть</string>
-    <string name="NexPrivacyView">Скрытый просмотр</string>
-    <string name="NexPrivacyViewInfo">Скрытые и закрытые чаты и скрытые аккаунты остаются тёмными: светятся только несколько строк под пальцем, экран приглушается — соседу не прочитать. Касание двумя пальцами выключает и включает</string>
-    <string name="NexPrivacyOn">Скрытый просмотр включён</string>
-    <string name="NexPrivacyOff">Скрытый просмотр выключен — двумя пальцами включится снова</string>
 </resources>
