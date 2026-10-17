@@ -462,4 +462,8 @@
     <string name="NexAccSilent">Yashirin akkauntlardan bildirishnoma yo\'q</string>
     <string name="NexAccSilentInfo">O\'chiq bo\'lsa: faqat “Yangi xabar” chiqadi, ism va matnsiz</string>
     <string name="NexAccPick">Yashiriladigan akkauntlar</string>
+    <string name="NexPrivacyView">Maxfiy ko\'rinish</string>
+    <string name="NexPrivacyViewInfo">Yashirin va qulflangan chatlar hamda yashirin akkaunt qorong\'i turadi: faqat barmog\'ingiz ostidagi bir necha qator yorug\' bo\'ladi va ekran xiralashadi, yoningizdagi odam o\'qiy olmaydi. Ikki barmoq bilan bir tegsangiz o\'chadi yoki yonadi</string>
+    <string name="NexPrivacyOn">Maxfiy ko\'rinish yoqildi</string>
+    <string name="NexPrivacyOff">Maxfiy ko\'rinish o\'chdi — ikki barmoq bilan qayta yoqiladi</string>
 </resources>

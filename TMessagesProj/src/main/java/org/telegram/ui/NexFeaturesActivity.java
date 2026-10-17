@@ -138,7 +138,7 @@ public class NexFeaturesActivity extends BaseFragment {
         super.onResume();
         if (shieldCell != null) {
             shieldCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexShieldTitle),
-                uz.nexgramm.core.NexShield.activeCount() + " / 3", R.drawable.outline_shield_check, true);
+                uz.nexgramm.core.NexShield.activeCount() + " / " + uz.nexgramm.core.NexShield.LAYERS, R.drawable.outline_shield_check, true);
         }
         if (ghostCell != null) {
             ghostCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexGhostTitle),

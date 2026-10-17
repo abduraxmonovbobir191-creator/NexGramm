@@ -61,7 +61,8 @@ public class NexSecurityActivity extends BaseFragment {
         column.addView(header(context, R.string.NexShieldLayers), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         column.addView(toggle(context, NexShield.STRANGERS, R.string.NexShieldStrangers, R.string.NexShieldStrangersInfo, true), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         column.addView(toggle(context, NexShield.LINKS, R.string.NexShieldLinks, R.string.NexShieldLinksInfo, true), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        column.addView(toggle(context, NexShield.SCREEN, R.string.NexShieldScreen, R.string.NexShieldScreenInfo, false), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        column.addView(toggle(context, NexShield.SCREEN, R.string.NexShieldScreen, R.string.NexShieldScreenInfo, true), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        column.addView(toggle(context, NexShield.PRIVACY, R.string.NexPrivacyView, R.string.NexPrivacyViewInfo, false), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         column.addView(new ShadowSectionCell(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         column.addView(header(context, R.string.NexShieldAccount), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -188,7 +189,7 @@ public class NexSecurityActivity extends BaseFragment {
             return;
         }
         final int on = NexShield.activeCount() + (SharedConfig.passcodeHash.length() > 0 ? 1 : 0);
-        summary.setText(LocaleController.formatString(R.string.NexShieldSummary, on, 4));
+        summary.setText(LocaleController.formatString(R.string.NexShieldSummary, on, NexShield.LAYERS + 1));
         passcodeCell.setTextAndValueAndIcon(LocaleController.getString(R.string.Passcode),
             LocaleController.getString(SharedConfig.passcodeHash.length() > 0 ? R.string.NexFeaturesOn : R.string.NexFeaturesOff), R.drawable.msg2_secret, true);
         ghostCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexGhostTitle),
