@@ -451,4 +451,19 @@
     <string name="NexShieldLinkIp">Bu havola sayt nomi emas, IP-manzil — firibgarlar ko\'p ishlatadi</string>
     <string name="NexShieldLinkApk">Bu havola ilova (APK) yuklaydi. Ilovani faqat ishonchli manbadan o\'rnating</string>
     <string name="NexShieldLinkLookalike">Sayt nomida o\'xshash harflar bor — haqiqiy saytga taqlid bo\'lishi mumkin</string>
+    <string name="NexAccTitle">Yashirin akkauntlar</string>
+    <string name="NexAccHide">Yashirish</string>
+    <string name="NexAccShow">Ko\'rsatish</string>
+    <string name="NexAccHideAsk">Akkaunt chiqib ketmaydi va xabarlar kelaveradi, lekin akkauntlar ro\'yxati, Sozlamalar va ilova belgisidagi sondan yo\'qoladi. Qayta ko\'rish uchun akkauntlar ro\'yxatida “Akkaunt qo\'shish” ni bosib turing (yoki Xavfsizlik markazini oching) va telefon qulfini oching.</string>
+    <string name="NexAccShowAsk">Akkaunt yana ro\'yxatda ko\'rinadi.</string>
+    <string name="NexAccHidden">Akkaunt yashirildi</string>
+    <string name="NexAccShown">Akkaunt ko\'rsatildi</string>
+    <string name="NexAccLast">Kamida bitta akkaunt ko\'rinib turishi kerak</string>
+    <string name="NexAccSilent">Yashirin akkauntlardan bildirishnoma yo\'q</string>
+    <string name="NexAccSilentInfo">O\'chiq bo\'lsa: faqat “Yangi xabar” chiqadi, ism va matnsiz</string>
+    <string name="NexAccPick">Yashiriladigan akkauntlar</string>
+    <string name="NexPrivacyView">Maxfiy ko\'rinish</string>
+    <string name="NexPrivacyViewInfo">Yashirin va qulflangan chatlar hamda yashirin akkaunt qorong\'i turadi: faqat barmog\'ingiz ostidagi bir necha qator yorug\' bo\'ladi va ekran xiralashadi, yoningizdagi odam o\'qiy olmaydi. Ikki barmoq bilan bir tegsangiz o\'chadi yoki yonadi</string>
+    <string name="NexPrivacyOn">Maxfiy ko\'rinish yoqildi</string>
+    <string name="NexPrivacyOff">Maxfiy ko\'rinish o\'chdi — ikki barmoq bilan qayta yoqiladi</string>
 </resources>

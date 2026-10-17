@@ -291,7 +291,7 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
                     builder.show();
 
                     return true;
-                } else if (activatedAccountsCount >= 2) {
+                } else if (activatedAccountsCount >= 2 && org.telegram.messenger.NexAccounts.listedCount() >= 2) { // NexGramm: hidden accounts are not offered
                     AlertDialog alertDialog = AlertsCreator.createAccountSelectDialog(this, account -> {
                         if (account != intentAccount) {
                             switchToAccount(account);

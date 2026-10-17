@@ -715,4 +715,19 @@
     <string name="NexShieldLinkIp">Ссылка ведёт на IP-адрес, а не на имя сайта — так часто делают мошенники</string>
     <string name="NexShieldLinkApk">Ссылка скачивает приложение (APK). Устанавливайте приложения только из надёжных источников</string>
     <string name="NexShieldLinkLookalike">В имени сайта похожие буквы — он может подделывать настоящий сайт</string>
+    <string name="NexAccTitle">Скрытые аккаунты</string>
+    <string name="NexAccHide">Скрыть</string>
+    <string name="NexAccShow">Показать</string>
+    <string name="NexAccHideAsk">Аккаунт останется в приложении и будет получать сообщения, но исчезнет из списка аккаунтов, настроек и счётчика на значке. Чтобы увидеть его снова, удерживайте «Добавить аккаунт» в списке аккаунтов (или откройте Центр безопасности) и разблокируйте телефон.</string>
+    <string name="NexAccShowAsk">Аккаунт снова появится в списке.</string>
+    <string name="NexAccHidden">Аккаунт скрыт</string>
+    <string name="NexAccShown">Аккаунт показан</string>
+    <string name="NexAccLast">Хотя бы один аккаунт должен оставаться видимым</string>
+    <string name="NexAccSilent">Без уведомлений от скрытых аккаунтов</string>
+    <string name="NexAccSilentInfo">Выключено: показывается только «Новое сообщение», без имени и текста</string>
+    <string name="NexAccPick">Какие аккаунты скрыть</string>
+    <string name="NexPrivacyView">Скрытый просмотр</string>
+    <string name="NexPrivacyViewInfo">Скрытые и закрытые чаты и скрытые аккаунты остаются тёмными: светятся только несколько строк под пальцем, экран приглушается — соседу не прочитать. Касание двумя пальцами выключает и включает</string>
+    <string name="NexPrivacyOn">Скрытый просмотр включён</string>
+    <string name="NexPrivacyOff">Скрытый просмотр выключен — двумя пальцами включится снова</string>
 </resources>

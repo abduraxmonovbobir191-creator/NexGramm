@@ -3911,11 +3911,12 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     @Override
                     public void onVisualizerUpdate(boolean playing, boolean animate, float[] values) {
                         Theme.getCurrentAudiVisualizerDrawable().setWaveform(playing, animate, values);
+                        org.telegram.ui.Components.NexMusicWave.onLevels(playing, values); // NexGramm: the music player's wave
                     }
 
                     @Override
                     public boolean needUpdate() {
-                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null;
+                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null || org.telegram.ui.Components.NexMusicWave.listening();
                     }
                 });
                 if (exists) {

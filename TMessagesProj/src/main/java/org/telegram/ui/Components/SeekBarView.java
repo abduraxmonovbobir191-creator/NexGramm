@@ -169,6 +169,44 @@ public class SeekBarView extends FrameLayout {
         });
     }
 
+    // NexGramm: the played part drawn as a wave that moves with the music (the music player)
+    private NexMusicWave nexWave;
+    private boolean nexWaveActive;
+
+    public void setNexWave(NexMusicWave wave) {
+        if (nexWave != null) {
+            nexWave.detach();
+        }
+        nexWave = wave;
+        if (wave != null && isAttachedToWindow()) {
+            wave.attach();
+        }
+        invalidate();
+    }
+
+    public void setNexWaveActive(boolean active) {
+        if (nexWaveActive != active) {
+            nexWaveActive = active;
+            invalidate();
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (nexWave != null) {
+            nexWave.attach();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (nexWave != null) {
+            nexWave.detach();
+        }
+    }
+
     public void setSeparatorsCount(int separatorsCount) {
         this.separatorsCount = separatorsCount;
     }
@@ -451,13 +489,16 @@ public class SeekBarView extends FrameLayout {
         float left = selectorWidth / 2f, right = getMeasuredWidth() - selectorWidth / 2;
         float top = centerY - AndroidUtilities.dp(lineWidthDp) / 2f, bottom = centerY + AndroidUtilities.dp(lineWidthDp) / 2f;
 
-        rect.set(left, top, right, bottom);
+        // NexGramm: with the wave the track is only the part not played yet
+        final float trackLeft = nexWave != null && !twoSided ? Math.min(right, left + thumbX) : left;
+        rect.set(trackLeft, top, right, bottom);
         drawProgressBar(canvas, rect, innerPaint1);
         if (bufferedProgress > 0) {
             innerPaint1.setColor(getThemedColor(Theme.key_player_progressCachedBackground));
-            rect.set(left, top, selectorWidth / 2f + bufferedProgress * (getMeasuredWidth() - selectorWidth), bottom);
+            rect.set(trackLeft, top, Math.max(trackLeft, selectorWidth / 2f + bufferedProgress * (getMeasuredWidth() - selectorWidth)), bottom);
             drawProgressBar(canvas, rect, innerPaint1);
         }
+        boolean waveMoving = false;
         if (twoSided) {
             canvas.drawRect(getMeasuredWidth() / 2 - AndroidUtilities.dp(1), getMeasuredHeight() / 2 - AndroidUtilities.dp(6), getMeasuredWidth() / 2 + AndroidUtilities.dp(1), getMeasuredHeight() / 2 + AndroidUtilities.dp(6), outerPaint1);
             if (thumbX > (getMeasuredWidth() - selectorWidth) / 2) {
@@ -474,6 +515,8 @@ public class SeekBarView extends FrameLayout {
                 outerPaint1.setAlpha((int) (0.50f * wasAlpha));
                 drawProgressBar(canvas, rect, outerPaint1);
                 outerPaint1.setAlpha(wasAlpha);
+            } else if (nexWave != null) {
+                waveMoving = nexWave.draw(canvas, left, left + thumbX, centerY, AndroidUtilities.dp(lineWidthDp), outerPaint1.getColor(), nexWaveActive && !pressed);
             } else {
                 rect.set(left, top, left + thumbX, bottom);
                 drawProgressBar(canvas, rect, outerPaint1);
@@ -486,7 +529,7 @@ public class SeekBarView extends FrameLayout {
             hoverDrawable.setBounds(dx, dy, dx + AndroidUtilities.dp(32), dy + AndroidUtilities.dp(32));
             hoverDrawable.draw(canvas);
         }
-        boolean needInvalidate = false;
+        boolean needInvalidate = waveMoving;
         int newRad = AndroidUtilities.dp(pressed ? 8 : 6);
         long newUpdateTime = SystemClock.elapsedRealtime();
         long dt = newUpdateTime - lastUpdateTime;
