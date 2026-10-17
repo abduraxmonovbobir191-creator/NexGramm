@@ -6,8 +6,11 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.NexAccounts;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.UserObject;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -30,6 +33,7 @@ public class NexSecurityActivity extends BaseFragment {
     private TextInfoPrivacyCell summary;
     private TextCell passcodeCell;
     private TextCell ghostCell;
+    private TextCell accountsCell;
 
     @Override
     public View createView(Context context) {
@@ -69,6 +73,19 @@ public class NexSecurityActivity extends BaseFragment {
         row(context, column, v -> presentFragment(new NexHiddenChatsActivity()))
             .setTextAndIcon(LocaleController.getString(R.string.NexHiddenTitle), R.drawable.msg_archive_hide, true);
         ghostCell = row(context, column, v -> presentFragment(new NexGhostActivity()));
+        column.addView(new ShadowSectionCell(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        column.addView(header(context, R.string.NexAccTitle), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        accountsCell = row(context, column, v -> manageHiddenAccounts());
+        final TextCheckCell silentCell = new TextCheckCell(context);
+        silentCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        silentCell.setTextAndValueAndCheck(LocaleController.getString(R.string.NexAccSilent), LocaleController.getString(R.string.NexAccSilentInfo),
+            NexAccounts.notifyMode() == NexAccounts.NOTIFY_SILENT, true, false);
+        silentCell.setOnClickListener(v -> {
+            NexAccounts.setNotifyMode(NexAccounts.notifyMode() == NexAccounts.NOTIFY_SILENT ? NexAccounts.NOTIFY_MASKED : NexAccounts.NOTIFY_SILENT);
+            silentCell.setChecked(NexAccounts.notifyMode() == NexAccounts.NOTIFY_SILENT);
+        });
+        column.addView(silentCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         final TextInfoPrivacyCell always = new TextInfoPrivacyCell(context);
         always.setText(LocaleController.getString(R.string.NexShieldAlways));
@@ -77,6 +94,66 @@ public class NexSecurityActivity extends BaseFragment {
         updateRows();
         fragmentView = scrollView;
         return fragmentView;
+    }
+
+    // after the phone's unlock: tick the accounts to hide (Premium to hide one more; one stays visible)
+    private void manageHiddenAccounts() {
+        if (!(getParentActivity() instanceof androidx.fragment.app.FragmentActivity)) {
+            return;
+        }
+        final androidx.fragment.app.FragmentActivity activity = (androidx.fragment.app.FragmentActivity) getParentActivity();
+        if (!NexChatLock.canLock(activity)) {
+            org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexLockNoScreenLock)).show();
+            return;
+        }
+        NexChatLock.authenticate(activity, () -> {
+            NexAccounts.setRevealed(true);
+            final java.util.ArrayList<Integer> accounts = new java.util.ArrayList<>();
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    accounts.add(a);
+                }
+            }
+            final CharSequence[] names = new CharSequence[accounts.size()];
+            final boolean[] checked = new boolean[accounts.size()];
+            for (int i = 0; i < accounts.size(); i++) {
+                names[i] = UserObject.getUserName(UserConfig.getInstance(accounts.get(i)).getCurrentUser());
+                checked[i] = NexAccounts.isHidden(accounts.get(i));
+            }
+            new android.app.AlertDialog.Builder(activity)
+                .setTitle(LocaleController.getString(R.string.NexAccPick))
+                .setMultiChoiceItems(names, checked, (d, which, isChecked) -> checked[which] = isChecked)
+                .setPositiveButton(LocaleController.getString(R.string.OK), (d, w) -> applyHidden(accounts, checked))
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .show();
+        });
+    }
+
+    private void applyHidden(java.util.ArrayList<Integer> accounts, boolean[] hide) {
+        int visible = 0;
+        boolean hidesMore = false;
+        for (int i = 0; i < accounts.size(); i++) {
+            if (!hide[i]) {
+                visible++;
+            } else if (!NexAccounts.isHidden(accounts.get(i))) {
+                hidesMore = true;
+            }
+        }
+        if (visible == 0) {
+            org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.NexAccLast)).show();
+            return;
+        }
+        if (hidesMore && !UserConfig.hasNexPremiumOnAccounts() && !NexPremiumActivity.check(this)) {
+            return; // NexGramm Premium
+        }
+        for (int i = 0; i < accounts.size(); i++) {
+            NexAccounts.setHidden(accounts.get(i), hide[i]);
+        }
+        updateRows();
+        if (NexAccounts.isHidden(currentAccount) && LaunchActivity.instance != null) {
+            NexAccounts.setRevealed(false);
+            LaunchActivity.instance.switchToAccount(NexAccounts.firstVisible(), true);
+        }
     }
 
     private HeaderCell header(Context context, int text) {
@@ -116,6 +193,15 @@ public class NexSecurityActivity extends BaseFragment {
             LocaleController.getString(SharedConfig.passcodeHash.length() > 0 ? R.string.NexFeaturesOn : R.string.NexFeaturesOff), R.drawable.msg2_secret, true);
         ghostCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexGhostTitle),
             LocaleController.getString(NexGhost.isEnabled() ? R.string.NexFeaturesOn : R.string.NexFeaturesOff), R.drawable.ghost, false);
+        int hiddenCount = 0;
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (UserConfig.getInstance(a).isClientActivated() && NexAccounts.isHidden(a)) {
+                hiddenCount++;
+            }
+        }
+        // the count only once the phone's unlock showed them; before that nothing tells they exist
+        accountsCell.setTextAndValueAndIcon(LocaleController.getString(R.string.NexAccTitle),
+            NexAccounts.isRevealed() ? String.valueOf(hiddenCount) : "", R.drawable.msg_archive_hide, true);
     }
 
     @Override

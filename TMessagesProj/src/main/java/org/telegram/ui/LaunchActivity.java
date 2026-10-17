@@ -124,6 +124,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.NexAccounts;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.OpenAttachedMenuBotReceiver;
@@ -411,6 +412,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         instance = this;
         ApplicationLoader.postInitApplication();
         AndroidUtilities.checkDisplaySize(this, getResources().getConfiguration());
+        if (NexAccounts.isHidden(UserConfig.selectedAccount) && !NexAccounts.isRevealed() && NexAccounts.firstVisible() >= 0) {
+            UserConfig.selectedAccount = NexAccounts.firstVisible(); // NexGramm: the app never opens into a hidden account
+        }
         currentAccount = UserConfig.selectedAccount;
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
@@ -442,7 +446,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         getWindow().setBackgroundDrawable(new ActivityWindowEmptyBackgroundDrawable());
         getWindow().setFormat(PixelFormat.OPAQUE);
 
-        flagSecureReason = new FlagSecureReason(getWindow(), () -> SharedConfig.passcodeHash.length() > 0 && !SharedConfig.allowScreenCapture);
+        flagSecureReason = new FlagSecureReason(getWindow(), () -> SharedConfig.passcodeHash.length() > 0 && !SharedConfig.allowScreenCapture
+            || uz.nexgramm.core.NexShield.screen() && NexAccounts.isHidden(currentAccount)); // NexGramm: no screenshots of a hidden account
         flagSecureReason.attach();
 
         super.onCreate(savedInstanceState);
@@ -1236,6 +1241,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             showTosActivity(account, UserConfig.getInstance(account).unacceptedTermsOfService);
         }
         updateCurrentConnectionState(currentAccount);
+        if (flagSecureReason != null) {
+            flagSecureReason.invalidate();
+        }
 
         switchingAccount = false;
     }
@@ -1532,6 +1540,15 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         int flags = intent.getFlags();
         String action = intent.getAction();
         final int[] intentAccount = new int[]{intent.getIntExtra("currentAccount", UserConfig.selectedAccount)};
+        if (NexAccounts.isHidden(intentAccount[0]) && !NexAccounts.isRevealed() && NexAccounts.firstVisible() >= 0) {
+            // NexGramm: a hidden account's notification opens the app, never the hidden account or its chat
+            intentAccount[0] = NexAccounts.isHidden(UserConfig.selectedAccount) ? NexAccounts.firstVisible() : UserConfig.selectedAccount;
+            intent.removeExtra("chatId");
+            intent.removeExtra("userId");
+            intent.removeExtra("encId");
+            intent.removeExtra("topicId");
+            intent.removeExtra("storyDialogIds");
+        }
         switchToAccount(intentAccount[0], true);
         final boolean isVoipIntent = action != null && action.equals("voip");
         final boolean isVoipAnswerIntent = action != null && action.equals("voip_answer");
@@ -3986,7 +4003,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             progress.onCancel(() -> AndroidUtilities.cancelRunOnUIThread(runnable));
             AndroidUtilities.runOnUIThread(runnable, 7500);
             return;
-        } else if (state == 0 && UserConfig.getActivatedAccountsCount() >= 2 && auth != null) {
+        } else if (state == 0 && UserConfig.getActivatedAccountsCount() >= 2 && NexAccounts.listedCount() >= 2 && auth != null) {
             AlertsCreator.createAccountSelectDialog(this, account -> {
                 if (account != intentAccount) {
                     switchToAccount(account, true);
@@ -6732,6 +6749,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onPause() {
         super.onPause();
         isResumed = false;
+        NexAccounts.onAppPaused();
         pipActivityHandler.onPause();
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 4096);
         ApplicationLoader.mainInterfacePaused = true;
@@ -6970,6 +6988,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onResume() {
         super.onResume();
         isResumed = true;
+        final int nexVisible = NexAccounts.onAppResumed(currentAccount);
+        if (nexVisible >= 0) {
+            switchToAccount(nexVisible, true); // NexGramm: back after a while — a hidden account is put away
+        }
         pipActivityHandler.onResume();
         if (onResumeStaticCallback != null) {
             onResumeStaticCallback.run();

@@ -560,7 +560,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (UserConfig.getInstance(a).isClientActivated()) {
+            if (UserConfig.getInstance(a).isClientActivated() && org.telegram.messenger.NexAccounts.isListed(a)) {
                 accountNumbers.add(a);
             }
         }
@@ -597,6 +597,22 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                     presentFragment(new NexPremiumActivity()); // NexGramm: 10 accounts with NexGramm Premium
                 }
             });
+            final View addRow = o.getLast();
+            if (addRow != null) {
+                // NexGramm: holding "Add account" (and the phone's unlock) shows the hidden accounts for this visit
+                addRow.setOnLongClickListener(v -> {
+                    if (!org.telegram.messenger.NexAccounts.hasHidden() || org.telegram.messenger.NexAccounts.isRevealed()
+                        || !(getParentActivity() instanceof androidx.fragment.app.FragmentActivity)) {
+                        return false;
+                    }
+                    o.dismiss();
+                    NexChatLock.authenticate((androidx.fragment.app.FragmentActivity) getParentActivity(), () -> {
+                        org.telegram.messenger.NexAccounts.setRevealed(true);
+                        openAccountSelector(button);
+                    });
+                    return true;
+                });
+            }
         }
 
         if (BuildConfig.DEBUG_PRIVATE_VERSION) {
@@ -615,6 +631,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                         LaunchActivity.instance.switchToAccount(account, true);
                     }
                 });
+                btn.setOnLongClickListener(v -> {
+                    o.dismiss();
+                    nexToggleHiddenAccount(account);
+                    return true;
+                });
                 o.addView(btn, LayoutHelper.createLinear(230, 48));
             }
         }
@@ -629,6 +650,44 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         HintsController.Hint.AccountSwitchHint.doNotShowAgain();
 
         return true;
+    }
+
+    // NexGramm: hide / show an account (Premium to hide; the phone's own unlock either way; one stays visible)
+    private void nexToggleHiddenAccount(int account) {
+        if (!(getParentActivity() instanceof androidx.fragment.app.FragmentActivity)) {
+            return;
+        }
+        final boolean hide = !org.telegram.messenger.NexAccounts.isHidden(account);
+        if (hide) {
+            if (!UserConfig.hasNexPremiumOnAccounts() && !NexPremiumActivity.check(this)) {
+                return;
+            }
+            if (org.telegram.messenger.NexAccounts.visibleCount() <= 1) {
+                org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.NexAccLast)).show();
+                return;
+            }
+            if (!NexChatLock.canLock(getParentActivity())) {
+                org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.NexLockNoScreenLock)).show();
+                return;
+            }
+        }
+        final androidx.fragment.app.FragmentActivity activity = (androidx.fragment.app.FragmentActivity) getParentActivity();
+        new org.telegram.ui.ActionBar.AlertDialog.Builder(activity)
+            .setTitle(UserObject.getUserName(UserConfig.getInstance(account).getCurrentUser()))
+            .setMessage(getString(hide ? R.string.NexAccHideAsk : R.string.NexAccShowAsk))
+            .setPositiveButton(getString(hide ? R.string.NexAccHide : R.string.NexAccShow), (d, w) -> NexChatLock.authenticate(activity, () -> {
+                org.telegram.messenger.NexAccounts.setHidden(account, hide);
+                if (hide) {
+                    org.telegram.messenger.NexAccounts.setRevealed(false);
+                    if (account == currentAccount && LaunchActivity.instance != null) {
+                        LaunchActivity.instance.switchToAccount(org.telegram.messenger.NexAccounts.firstVisible(), true);
+                        return;
+                    }
+                }
+                org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(hide ? R.string.NexAccHidden : R.string.NexAccShown)).show();
+            }))
+            .setNegativeButton(getString(R.string.Cancel), null)
+            .show();
     }
 
     public LinearLayout accountView(int account, boolean selected) {
@@ -669,7 +728,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         final TextView textView = new TextView(getContext());
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         textView.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
-        textView.setText(UserObject.getUserName(user));
+        textView.setText(org.telegram.messenger.NexAccounts.isHidden(account) ? UserObject.getUserName(user) + "  🙈" : UserObject.getUserName(user)); // NexGramm
         textView.setMaxLines(2);
         textView.setEllipsize(TextUtils.TruncateAt.END);
         btn.addView(textView, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL, 13, 0, 14, 0));

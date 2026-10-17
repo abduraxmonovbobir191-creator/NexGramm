@@ -14473,7 +14473,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (UserConfig.getInstance(a).isClientActivated()) {
+            if (UserConfig.getInstance(a).isClientActivated() && org.telegram.messenger.NexAccounts.isListed(a)) { // NexGramm: hidden accounts
                 accountNumbers.add(a);
             }
         }

@@ -382,7 +382,7 @@ public class NotificationsController extends BaseController implements Notificat
                     systemNotificationManager.createNotificationChannel(new NotificationChannel(
                             channelId, "TON Connect", NotificationManager.IMPORTANCE_DEFAULT));
                 }
-                boolean hidePreview = AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter
+                boolean hidePreview = nexMasked()
                         || !getAccountInstance().getNotificationsSettings().getBoolean("EnablePreviewAll", true);
                 String message = TextUtils.isEmpty(dapp) || hidePreview
                         ? LocaleController.getString(R.string.NotificationWalletTonConnectRequest)
@@ -554,7 +554,7 @@ public class NotificationsController extends BaseController implements Notificat
                 }
                 popupArray.add(0, messageObject);
             }
-            if (!popupArray.isEmpty() && !AndroidUtilities.needShowPasscode() && !SharedConfig.isWaitingForPasscodeEnter) {
+            if (!popupArray.isEmpty() && !nexMasked()) {
                 AndroidUtilities.runOnUIThread(() -> {
                     popupReplyMessages = popupArray;
                     Intent popupIntent = new Intent(ApplicationLoader.applicationContext, PopupNotificationActivity.class);
@@ -1134,8 +1134,8 @@ public class NotificationsController extends BaseController implements Notificat
                     }
                     continue;
                 }
-                if (org.telegram.ui.NexChatLock.isHidden(currentAccount, messageObject.getDialogId())) {
-                    continue; // NexGramm: a hidden chat stays silent
+                if (org.telegram.ui.NexChatLock.isHidden(currentAccount, messageObject.getDialogId()) || NexAccounts.silent(currentAccount)) {
+                    continue; // NexGramm: a hidden chat (or a hidden account set to silent) stays silent
                 }
                 if (messageObject.isStoryPush) {
                     long date = messageObject.messageOwner == null ? System.currentTimeMillis() : messageObject.messageOwner.date * 1000L;
@@ -1321,7 +1321,7 @@ public class NotificationsController extends BaseController implements Notificat
                 notifyCheck = isLast;
             }
 
-            if (!popupArrayAdd.isEmpty() && !AndroidUtilities.needShowPasscode() && !SharedConfig.isWaitingForPasscodeEnter) {
+            if (!popupArrayAdd.isEmpty() && !nexMasked()) {
                 int popupFinal = popup;
                 AndroidUtilities.runOnUIThread(() -> {
                     popupMessages.addAll(0, popupArrayAdd);
@@ -1778,6 +1778,12 @@ public class NotificationsController extends BaseController implements Notificat
         });
     }
 
+    // NexGramm: as with the passcode on, the notifications of a hidden account show no name, no text, no photo
+    // and no reply buttons
+    private boolean nexMasked() {
+        return AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter || NexAccounts.masked(currentAccount);
+    }
+
     // NexGramm: unread messages (or chats) of this account's hidden chats that are not muted
     private static int hiddenUnread(int account, boolean messages) {
         if (!org.telegram.ui.NexChatLock.hasHidden(account)) {
@@ -1800,8 +1806,8 @@ public class NotificationsController extends BaseController implements Notificat
     private int getTotalAllUnreadCount() {
         int count = 0;
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (!UserConfig.getInstance(a).isClientActivated()) {
-                continue;
+            if (!UserConfig.getInstance(a).isClientActivated() || NexAccounts.isHidden(a)) {
+                continue; // NexGramm: a hidden account adds nothing to the app badge
             }
             if (!SharedConfig.showNotificationsForAllAccounts && UserConfig.selectedAccount != a) {
                 continue;
@@ -1881,7 +1887,7 @@ public class NotificationsController extends BaseController implements Notificat
             }
             return LocaleController.getString(R.string.NexLockNewMessage);
         }
-        if (AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter) {
+        if (nexMasked()) {
             return LocaleController.getString(R.string.NotificationHiddenMessage);
         }
         long dialogId = messageObject.messageOwner.dialog_id;
@@ -2578,7 +2584,7 @@ public class NotificationsController extends BaseController implements Notificat
             }
             return LocaleController.getString(R.string.NexLockNewMessage);
         }
-        if (AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter) {
+        if (nexMasked()) {
             return LocaleController.getString(R.string.YouHaveNewMessage);
         }
         if (messageObject.isStoryPush || messageObject.isStoryMentionPush) {
@@ -4192,7 +4198,7 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     private void showOrUpdateNotification(boolean notifyAboutLast) {
-        if (!getUserConfig().isClientActivated() || pushMessages.isEmpty() && storyPushMessages.isEmpty() || !SharedConfig.showNotificationsForAllAccounts && currentAccount != UserConfig.selectedAccount) {
+        if (!getUserConfig().isClientActivated() || NexAccounts.silent(currentAccount) || pushMessages.isEmpty() && storyPushMessages.isEmpty() || !SharedConfig.showNotificationsForAllAccounts && currentAccount != UserConfig.selectedAccount) {
             dismissNotification();
             return;
         }
@@ -4338,7 +4344,7 @@ public class NotificationsController extends BaseController implements Notificat
             } else {
                 chatName = UserObject.getUserName(user);
             }
-            boolean passcode = AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter;
+            boolean passcode = nexMasked();
             final boolean allowSummary = !"samsung".equalsIgnoreCase(Build.MANUFACTURER);
             if (DialogObject.isEncryptedDialog(dialog_id) || allowSummary && pushDialogs.size() > 1 || passcode) {
                 if (passcode) {
@@ -4360,7 +4366,7 @@ public class NotificationsController extends BaseController implements Notificat
 
             String detailText;
             if (allowSummary) {
-                if (UserConfig.getActivatedAccountsCount() > 1) {
+                if (UserConfig.getActivatedAccountsCount() > 1 && !NexAccounts.masked(currentAccount)) { // NexGramm: no hidden account's name
                     if (pushDialogs.size() == 1) {
                         detailText = UserObject.getFirstName(getUserConfig().getCurrentUser());
                     } else {
@@ -4652,7 +4658,7 @@ public class NotificationsController extends BaseController implements Notificat
                         intent.putExtra("userId", userId);
                     }
                 }
-                if (AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter) {
+                if (nexMasked()) {
                     photoPath = null;
                 } else {
                     if (pushDialogs.size() == 1 && Build.VERSION.SDK_INT < 28) {
@@ -4816,7 +4822,7 @@ public class NotificationsController extends BaseController implements Notificat
             }
 
             boolean hasCallback = false;
-            if (!AndroidUtilities.needShowPasscode() && !SharedConfig.isWaitingForPasscodeEnter && lastMessageObject.getDialogId() == 777000) {
+            if (!nexMasked() && lastMessageObject.getDialogId() == 777000) {
                 if (lastMessageObject.messageOwner.reply_markup instanceof TLRPC.TL_replyInlineMarkup) {
                     final TLRPC.TL_replyInlineMarkup replyInlineMarkup = (TLRPC.TL_replyInlineMarkup) lastMessageObject.messageOwner.reply_markup;
                     ArrayList<TL_keyboard.KeyboardInlineButtonRow> rows = replyInlineMarkup.rows;
@@ -5005,7 +5011,7 @@ public class NotificationsController extends BaseController implements Notificat
         }
 
         long selfUserId = getUserConfig().getClientUserId();
-        boolean waitingForPasscode = AndroidUtilities.needShowPasscode() || SharedConfig.isWaitingForPasscodeEnter;
+        boolean waitingForPasscode = nexMasked();
         boolean passcode = SharedConfig.passcodeHash.length() > 0;
         FileLog.d("showExtraNotifications: passcode="+passcode+" waitingForPasscode=" + waitingForPasscode + " selfUserId=" + selfUserId + " useSummaryNotification=" + useSummaryNotification);
 
